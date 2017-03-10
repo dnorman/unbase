@@ -106,11 +106,11 @@ impl fmt::Debug for Simulator {
     }
 }
 
-impl Transport for Simulator {
-    fn is_local (&self) -> bool {
+impl Simulator {
+    pub fn is_local (&self) -> bool {
         true
     }
-    fn make_transmitter (&self, args: TransmitterArgs ) -> Result<Transmitter,String> {
+    pub fn make_transmitter (&self, args: TransmitterArgs ) -> Result<Transmitter,String> {
         if let TransmitterArgs::Local(slab) = args {
             let tx = SimulatorTransmitter{
                 source_point: XYZPoint{ x: 1000, y: 1000, z: 1000 }, // TODO: move this - not appropriate here

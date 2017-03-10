@@ -16,8 +16,10 @@ pub enum TransmitterArgs<'a>{
     Local(&'a Slab),
     Remote(&'a String)
 }
-
+pub use self::simulator::Simulator as Transport;
+/*
 pub trait Transport {
     fn make_transmitter(  &self, args: TransmitterArgs  ) -> Result<Transmitter,String>;
     fn is_local        (  &self ) -> bool;
 }
+*/
