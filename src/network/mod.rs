@@ -9,8 +9,7 @@ use self::transport::{TransmitterArgs,Transmitter};
 
 use std::sync::{Arc, Mutex};
 use std::fmt;
-use slab::{Slab,WeakSlab,SlabId,MemoOrigin};
-use memo::Memo;
+use slab::{Slab,WeakSlab,SlabId};
 use memorefhead::MemoRefHead;
 
 struct NetworkInternals {
