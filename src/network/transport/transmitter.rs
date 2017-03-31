@@ -10,7 +10,7 @@ pub trait DynamicDispatchTransmitter {
 }
 
 enum TransmitterInternal {
-    Local(Mutex<mpsc::Sender<(SlabRef,PeeringStatus,Memo)>>),
+    Local(Arc<mpsc::Sender<(SlabRef,PeeringStatus,Memo)>>),
     Dynamic(Box<DynamicDispatchTransmitter + Send + Sync>)
 }
 
@@ -20,7 +20,7 @@ pub struct Transmitter {
 
 impl Transmitter {
     /// Create a new transmitter associated with a local slab.
-    pub fn new_local( tx: Mutex<mpsc::Sender<(SlabRef,PeeringStatus,Memo)>> ) -> Self {
+    pub fn new_local( tx: Arc<mpsc::Sender<(SlabRef,PeeringStatus,Memo)>> ) -> Self {
         Self {
             internal: TransmitterInternal::Local( tx )
         }
@@ -39,7 +39,7 @@ impl Transmitter {
                 //println!("CHANNEL SEND from {}, {:?}", from.slab_id, memo);
                 // TODO - stop assuming that this is resident on the sending slab just because we're sending it
                 // TODO - lose the stupid lock on the transmitter
-                tx.lock().unwrap().send((from.clone(),PeeringStatus::Resident,memo)).expect("local transmitter send")
+                tx.send((from.clone(),PeeringStatus::Resident,memo)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
                 tx.send(from,memo)

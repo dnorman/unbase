@@ -49,7 +49,7 @@ impl Transport for LocalDirect {
             // TODO: Remove the mutex here. Consider moving transmitter out of slabref.
             //       Instead, have relevant parties request a transmitter clone from the network
             self.shared.lock().unwrap().tx_threads.push(tx_thread);
-            Some(Transmitter::new_local(Mutex::new(tx_channel)))
+            Some(Transmitter::new_local(Arc::new(tx_channel)))
         }else{
             None
         }

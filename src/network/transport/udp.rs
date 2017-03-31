@@ -1,7 +1,6 @@
 use std::net::UdpSocket;
 use std::thread;
 use std::str;
-use std::mem;
 
 use super::*;
 use std::sync::mpsc;
@@ -19,13 +18,14 @@ use serde_json;// {serialize as bin_serialize, deserialize as bin_deserialize};
 #[derive(Clone)]
 pub struct TransportUDP {
     shared: Arc<Mutex<TransportUDPInternal>>,
-    // TEMPORARY - TODO: remove Arc<Mutex<>> here and instead make transmitters Send but not sync
-    tx_channel: Arc<Mutex<mpsc::Sender<(TransportAddressUDP,Packet)>>>
 }
 struct TransportUDPInternal {
     socket: Arc<UdpSocket>,
     tx_thread: Option<thread::JoinHandle<()>>,
     rx_thread: Option<thread::JoinHandle<()>>,
+
+    tx_channel: Option<Arc<mpsc::Sender<(TransportAddressUDP,Packet)>>>,
+
     network: Option<WeakNetwork>,
     address: TransportAddressUDP
 }
@@ -50,12 +50,13 @@ impl TransportUDP {
         let (tx_thread,tx_channel) = Self::setup_tx_thread(socket.clone(), bind_address.clone());
 
         TransportUDP {
-            tx_channel: Arc::new(Mutex::new(tx_channel)),
             shared: Arc::new(Mutex::new(
                 TransportUDPInternal {
                     socket: socket,
                     rx_thread: None,
                     tx_thread: Some(tx_thread),
+
+                    tx_channel: Some(Arc::new(tx_channel)),
                     network: None,
                     address: bind_address
                 }
@@ -144,8 +145,12 @@ impl TransportUDP {
 
         println!("TransportUDP.send({:?})", packet );
 
+        let mut shared = self.shared.lock().unwrap();
         // HACK HACK HACK lose the mutex here
-        self.tx_channel.lock().unwrap().send( (address, packet) ).unwrap();
+        if let Some(tx) = shared.tx_channel {
+            tx.send( (address, packet) ).unwrap();
+        }
+
     }
 }
 
@@ -155,22 +160,22 @@ impl Transport for TransportUDP {
     }
     fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
 
+        let mut shared = self.shared.lock().unwrap();
         if let &TransmitterArgs::Remote(slab_id,address) = args {
             if let &TransportAddress::UDP(ref udp_address) = address {
+                if let Some(ref tx_channel) = shared.tx_channel {
+                    let tx = TransmitterUDP{
+                        slab_id: *slab_id,
+                        address: udp_address.clone(),
+                        tx_channel: tx_channel.clone(),
+                    };
 
-                let tx = TransmitterUDP{
-                    slab_id: *slab_id,
-                    address: udp_address.clone(),
-                    tx_channel: self.tx_channel.clone(),
-                };
-
-                Some(Transmitter::new( Box::new(tx) ))
-            }else{
-                None
+                    return Some(Transmitter::new( Box::new(tx) ))
+                }
             }
-        }else{
-            None
         }
+
+        None
     }
 
     fn bind_network(&self, net: &Network) {
@@ -245,17 +250,24 @@ impl Transport for TransportUDP {
 
 impl Drop for TransportUDP{
     fn drop(&mut self) {
-        let mut shared = self.shared.lock().unwrap();
-        println!("# TransportUDP({:?}).drop", shared.address);
-        let mut tx_thread = None;
-        let mut rx_thread = None;
-        mem::swap(&mut tx_thread,&mut shared.tx_thread);
-        mem::swap(&mut rx_thread,&mut shared.rx_thread);
+        println!("# TransportUDP().drop(A)");
 
+        let mut shared = self.shared.lock().unwrap();
+
+        println!("# TransportUDP({:?}).drop (B)", shared.address);
+
+        shared.tx_channel.take();
+
+        println!("# TransportUDP({:?}).drop (C)", shared.address);
         //TODO: uncomment this. Getting a Poisonerror presently
-        //tx_thread.unwrap().join().unwrap();
-        //rx_thread.unwrap().join().unwrap();
+
+        //NOTE: tested both of these independently. Neither one is returning
+
+        shared.tx_thread.take().unwrap().join().unwrap();
+        //shared.rx_thread.take().unwrap().join().unwrap();
         // TODO: Drop all observers? Or perhaps observers should drop the slab (weak ref directionality)
+
+        println!("# TransportUDP().drop(end)");
     }
 }
 
