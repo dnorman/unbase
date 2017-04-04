@@ -3,6 +3,79 @@ use unbase::subject::Subject;
 use unbase::error::*;
 
 #[test]
+fn basic_sharing() {
+
+    let net = unbase::Network::create_new_system();
+    let simulator = unbase::network::transport::Simulator::new();
+    net.add_transport( Box::new(simulator.clone()) );
+
+    let slab_a = unbase::Slab::new(&net);
+    let slab_b = unbase::Slab::new(&net);
+
+    let context_a = slab_a.create_context();
+    let context_b = slab_b.create_context();
+
+    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo").expect("Expected creation to work.");
+    assert!(rec_a1.get_value("animal_sound").unwrap() == "Moo", "New subject should be internally consistent");
+
+    simulator.advance_clock(1); // Slab B should have it by now
+
+    let rec_b1 = context_b.get_subject_by_id( rec_a1.id ).expect("get_subject_by_id");
+
+    assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "animal sound should be the same as slab a");
+
+    rec_b1.set_value("animal_sound", "cluck");
+
+    assert!(rec_b1.get_value("animal_sound").unwrap() == "cluck", "animal sound should reflect local change");
+
+    let count_a = slab_a.count_of_memos_received();
+
+    simulator.advance_clock(1); // Slab A should have the new value now.
+
+    assert!( slab_a.count_of_memos_received() > count_a );
+
+    assert!(rec_a1.get_value("animal_sound").unwrap() == "cluck", "animal sound should be the same as slab b's new value");
+}
+
+#[test]
+fn concurrent_update() {
+
+    let net = unbase::Network::create_new_system();
+    let simulator = unbase::network::transport::Simulator::new();
+    net.add_transport( Box::new(simulator.clone()) );
+
+    let slab_a = unbase::Slab::new(&net);
+    let slab_b = unbase::Slab::new(&net);
+
+    let context_a = slab_a.create_context();
+    let context_b = slab_b.create_context();
+
+    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo").expect("Expected creation to work.");
+    assert!(rec_a1.get_value("animal_sound").unwrap() == "Moo", "New subject should be internally consistent");
+
+    simulator.advance_clock(1); // Slab B should have it by now
+
+    let rec_b1 = context_b.get_subject_by_id( rec_a1.id ).expect("get_subject_by_id");
+
+    assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "animal sound should be the same as slab a");
+
+    rec_b1.set_value("animal_sound", "cluck");
+    rec_a1.set_value("animal_sound", "woof");
+
+    assert!(rec_a1.get_value("animal_sound").unwrap() == "woof", "a should have its new local value of 'woof'");
+    assert!(rec_b1.get_value("animal_sound").unwrap() == "cluck", "b should have its new local value of 'cluck'");
+
+
+    println!("A: {}, B: {}", rec_a1.get_value("animal_sound").unwrap(),rec_b1.get_value("animal_sound").unwrap());
+
+
+    simulator.advance_clock(1); // both slabs should exchange memos.
+
+    assert_eq!( rec_a1.get_value("animal_sound").unwrap(), rec_b1.get_value("animal_sound").unwrap() );
+
+}
+
+#[test]
 fn basic_eventual() {
 
     let net = unbase::Network::create_new_system();
@@ -13,9 +86,9 @@ fn basic_eventual() {
     let slab_b = unbase::Slab::new(&net);
     let slab_c = unbase::Slab::new(&net);
 
-    assert!(slab_a.id == 0, "Slab A ID shoud be 0");
-    assert!(slab_b.id == 1, "Slab B ID shoud be 1");
-    assert!(slab_c.id == 2, "Slab C ID shoud be 2");
+    assert!(slab_a.id == 0, "Slab A ID should be 0");
+    assert!(slab_b.id == 1, "Slab B ID should be 1");
+    assert!(slab_c.id == 2, "Slab C ID should be 2");
 
 
     assert!(slab_a.peer_slab_count() == 2, "Slab A Should know two peers" );
