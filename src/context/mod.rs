@@ -264,7 +264,7 @@ impl Context {
 
         let mut memoref_count = 0;
 
-        for subject_head in manager.subject_head_iter() {
+        for subject_head in manager.subject_head_iter_rev() {
             memoref_count += subject_head.head.len();
 
             other.apply_subject_head(subject_head.subject_id,
@@ -302,46 +302,33 @@ impl Context {
         WeakContext(Arc::downgrade(&self.0))
     }
 
-
-    // Putting this on hold for now
-    //
-    // pub fn topo_subject_head_iter (&self) -> TopoSubjectHeadIter {
-    // TopoSubjectHeadIter::new( &self )
-    // }
-    //
-
-    // Subject A -> B -> E
-    //          \-> C -> F
-    //          \-> D -> G
-    //
-    // Steps:
-    //  1. iterate over context subject heads, starting with leaves, working to the root
-    //     NOTE: This may not form a contiguous tree, as we're dealing with memos
-    //     which have been delivered from other slabs too, not just local edits
-    //     NOTE: We can actually have referential cycles here, because a subject
-    //     is not just a DAG of Memos, but rather the projection of a DAG *plus* whatever
-    //     is in our context. If we tried to continuously materialize such a structure,
-    //     it would generate an infinite number of memos - so we'll need to break cycles.
-    //  2. Materialize each subject head in ascending topological order
-    //  3. If any other context subject heads reference the subject head materialized
-    //     Issue a relation edit referencing it (ensuring that it gets added to the context)
-    //     and drop the materialized subject head from the context.
-    //  4. Continue until the list is exhausted, or a cycle is detected
-    //
-    // subject_relation_map:
-    // E: []
-    // B: [E]
-    // A: [B]
-    // etc
-
     /// Attempt to compress the present query context.
     /// We do this by issuing Relation memos for any subject heads which reference other subject heads presently in the query context.
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
-    pub fn compress(&self) {
+    pub fn compress(&self){
+
+        // starting context: [C <- B <- A, X]
+        // Materialize C if needed, then replace C
+        // Materialize B to point to C, then replace B and remove C
+        // Materialize A to point to B, then replace A and remove B
+        // End context [A, X]
+
+        // QUESTION: Is this safe? Might need to add things to the ContextManager in the middle of this lock
+        let mut manager = self.manager.lock().unwrap();
+
+
+        manager.compress(&self.slab);
+
+    }
+
+    /*
+    pub fn compress_and_materizlie(&self) {
+
 
         // TODO: conditionalize this on the basis of the present context size
 
+        let parent_repoints : HashMap<SubjectId,RelationSlotSubjectHead>
         // Iterate the contextualized subject heads in reverse topological order
         for subject_head in {
             self.manager.lock().unwrap().subject_head_iter()
@@ -354,11 +341,24 @@ impl Context {
             if subject_head.from_subject_ids.len() > 0 {
                 // OK, somebody is pointing to us, so lets issue an edit for them
                 // to point to the new materialized memo for their relevant relations
-                self.repoint_subject_relations(subject_head.subject_id,
+
+
+                for (from_head) in subject_head.referring_heads.iter(){
+
+                    let memoref = self.slab.new_memo(
+                        Some(self.id),
+                        head.clone(),
+                        MemoBody::Relation(RelationSlotSubjectHead(memoref_map))
+                    );
+
+                    head.apply_memoref(&memoref, &slab);
+                }
+
+         /*       self.repoint_subject_relations(subject_head.subject_id,
                                                subject_head.head,
                                                subject_head.from_subject_ids);
 
-
+        */
                 // NOTE: In order to remove a subject head from the context, we must ensure that
                 //       ALL referencing subject heads in the context get repointed. It's not enough to just do one
 
@@ -375,17 +375,11 @@ impl Context {
         }
 
     }
-    fn repoint_subject_relations(&self,
-                                 _to_subject_id: SubjectId,
-                                 _to_head: MemoRefHead,
-                                 _from_subject_ids: Vec<SubjectId>) {
-        unimplemented!()
-
-    }
+    */
 
     pub fn is_fully_materialized(&self) -> bool {
 
-        for subject_head in self.manager.lock().unwrap().subject_head_iter() {
+        for subject_head in self.manager.lock().unwrap().subject_head_iter_rev() {
             if !subject_head.head.is_fully_materialized(&self.slab) {
                 return false;
             }

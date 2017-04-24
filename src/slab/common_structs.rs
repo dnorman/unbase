@@ -126,6 +126,9 @@ impl RelationSlotSubjectHead {
         hashmap.insert(slot_id, (subject_id, head));
         RelationSlotSubjectHead(hashmap)
     }
+    pub fn insert(&mut self, slot_id: RelationSlotId, subject_id: SubjectId, head: MemoRefHead) {
+        self.0.insert(slot_id, (subject_id, head));
+    }
 }
 
 impl Deref for RelationSlotSubjectHead {
