@@ -29,7 +29,7 @@ pub struct ContextInner {
     pub root_index: RwLock<Option<IndexFixed>>,
 
     /// For compaction of the subject_heads
-    manager: Mutex<ContextManager>,
+    manager: ContextManager,
 
     /// For active subjects / subject subscription management
     subjects: RwLock<HashMap<SubjectId, WeakSubject>>,
@@ -61,7 +61,7 @@ impl Context {
         let new_self = Context(Arc::new(ContextInner {
             slab: slab.clone(),
             root_index: RwLock::new(None),
-            manager: Mutex::new(ContextManager::new()),
+            manager: ContextManager::new(),
             subjects: RwLock::new(HashMap::new()),
         }));
 
@@ -89,19 +89,6 @@ impl Context {
             panic!("no root index")
         }
     }
-    // Add MemoRefs to this context
-    //
-    // pub fn add (&self, mut memorefs: Vec<MemoRef>) {
-    // for memoref in memorefs.drain(..) {
-    // if let Some(subject_id) = memoref.subject_id {
-    // let relation_links =
-    // let mut manager = self.manager.write().unwrap();
-    // manager.set_subject_head(subject_id, &memoref, &self.slab);
-    // }
-    // }
-    // }
-    //
-
 
     /// Retrieves a subject by ID from this context only if it is currently resedent
     fn get_subject_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
@@ -137,16 +124,7 @@ impl Context {
             return Err(RetrieveError::InvalidMemoRefHead);
         }
 
-        let maybe_head = {
-            // Don't want to hold the lock while calling head.apply, as it could request a memo from a remote slab, and we'd deadlock
-            if let Some(ref head) = self.manager.lock().unwrap().get_head(subject_id) {
-                Some((*head).clone())
-            } else {
-                None
-            }
-        };
-
-        if let Some(relevant_context_head) = maybe_head {
+        if let Some(relevant_context_head) = self.manager.get_head(subject_id) {
             // println!("# \\ Relevant context head is ({:?})", relevant_context_head.memo_ids() );
             head.apply(&relevant_context_head, &self.slab);
 
@@ -211,36 +189,14 @@ impl Context {
                               notify_subject: bool) {
         // println!("Context.apply_subject_head({}, {:?}) ", subject_id, head.memo_ids() );
 
-        // NOTE: In all liklihood, there is significant room to optimize this.
-        //       We're applying heads to heads redundantly
-
-        // QUESTION: Should we be updating our query context here?
-        //          not sure if this should happen implicitly or require explicit context exchange
-        //          I think there's a pretty strong argument for implicit, but I want to think
-        //          about this a bit more before I say yes for certain.
-        //
-        // ANSWER:   It occurs to me that we're only getting subject heads from the slab which we expressly
-        //          subscribed to, so this strengthens the case quite a bit
-
         {
 
-
-            let head: MemoRefHead = if let Some(mut head) = {
-                self.manager.lock().unwrap().get_head(subject_id)
-            } {
-                head.apply(apply_head, &self.slab);
-                head.clone()
-            } else {
-                apply_head.clone()
-            };
-            let relation_links = head.project_all_relation_links(&self.slab);
-
-            {
-                self.manager
-                    .lock()
-                    .unwrap()
-                    .set_subject_head(subject_id, relation_links, head.clone());
-            }
+            let head: MemoRefHead =
+                if let Some(mut head) = self.manager.conditional_apply_head(subject_id, apply_head, &self.slab) {
+                    head
+                } else {
+                    apply_head.clone()
+                };
 
             if notify_subject {
                 if let Some(ref subject) = self.get_subject_if_resident(subject_id) {
@@ -258,13 +214,11 @@ impl Context {
     pub fn hack_send_context(&self, other: &Self) -> usize {
         self.compress();
 
-        let manager = self.manager.lock().unwrap();
-
         let from_slabref = self.slab.my_ref.clone_for_slab(&other.slab);
 
         let mut memoref_count = 0;
 
-        for subject_head in manager.subject_head_iter_rev() {
+        for subject_head in self.manager.subject_head_iter_rev() {
             memoref_count += subject_head.head.len();
 
             other.apply_subject_head(subject_head.subject_id,
@@ -278,8 +232,8 @@ impl Context {
         memoref_count
     }
     pub fn get_subject_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
-        if let Some(ref head) = self.manager.lock().unwrap().get_head(subject_id) {
-            Some((*head).clone())
+        if let Some(head) = self.manager.get_head(subject_id) {
+            Some(head)
         } else {
             None
         }
@@ -315,10 +269,8 @@ impl Context {
         // End context [A, X]
 
         // QUESTION: Is this safe? Might need to add things to the ContextManager in the middle of this lock
-        let mut manager = self.manager.lock().unwrap();
 
-
-        manager.compress(&self.slab);
+        self.manager.compress(&self.slab);
 
     }
 
@@ -331,7 +283,7 @@ impl Context {
         let parent_repoints : HashMap<SubjectId,RelationSlotSubjectHead>
         // Iterate the contextualized subject heads in reverse topological order
         for subject_head in {
-            self.manager.lock().unwrap().subject_head_iter()
+            self.manager.subject_head_iter()
         } {
 
             // TODO: implement MemoRefHead.conditionally_materialize such that the materialization threshold is selected dynamically.
@@ -379,7 +331,7 @@ impl Context {
 
     pub fn is_fully_materialized(&self) -> bool {
 
-        for subject_head in self.manager.lock().unwrap().subject_head_iter_rev() {
+        for subject_head in self.manager.subject_head_iter_rev() {
             if !subject_head.head.is_fully_materialized(&self.slab) {
                 return false;
             }
@@ -399,7 +351,7 @@ impl fmt::Debug for Context {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 
         fmt.debug_struct("ContextShared")
-            .field("subject_heads", &self.manager.lock().unwrap().subject_ids() )
+            .field("subject_heads", &self.manager.subject_ids() )
             // TODO: restore Debug for WeakSubject
             //.field("subjects", &self.subjects)
             .finish()

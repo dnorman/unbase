@@ -5,6 +5,8 @@
 use super::*;
 use memorefhead::{RelationSlotId,RelationLink};
 
+use rculock::RcuLock;
+use std::sync::Mutex;
 // TODO: farm the guts of this out to it's own topo-sort accumulator crate
 //      using gratuitous Arc<Mutex<>> for now which will later be converted to unsafe Mutex<Rc<Item>>
 
@@ -18,10 +20,11 @@ struct ContextItem {
     relations: Vec<Option<ItemId>>,
 }
 
+
 /// Performs topological sorting.
 pub struct ContextManager {
-    items: Vec<Option<ContextItem>>,
-    vacancies: Vec<ItemId>,
+    items: RcuLock<Vec<Arc<RcuLock<Option<ContextItem>>>>>,
+    vacancies: Mutex<Vec<ItemId>>,
 }
 
 impl ContextItem {
@@ -51,20 +54,20 @@ impl ContextItem {
 impl ContextManager {
     pub fn new() -> ContextManager {
         ContextManager {
-            items: Vec::with_capacity(30),
-            vacancies: Vec::with_capacity(30),
+            items: RcuLock::new(Vec::with_capacity(30)),
+            vacancies: Mutex::new(Vec::with_capacity(30)),
         }
     }
 
     /// Returns the number of elements in the `ContextManager`.
     #[allow(dead_code)]
     pub fn subject_count(&self) -> usize {
-        self.items.iter().filter(|i| i.is_some()).count()
+        self.items.read().iter().filter(|i| i.read().is_some()).count()
     }
     #[allow(dead_code)]
     pub fn subject_head_count(&self) -> usize {
-        self.items.iter().filter(|i| {
-            if let &&Some(ref item) = i {
+        self.items.read().iter().filter(|i| {
+            if let Some(ref item) = *i.read() {
                 if let Some(_) = item.head{
                     return true;
                 }
@@ -74,20 +77,20 @@ impl ContextManager {
     }
     #[allow(dead_code)]
     pub fn vacancies(&self) -> usize {
-        self.vacancies.len()
+        self.vacancies.lock().unwrap().len()
     }
 
     /// Returns true if the `ContextManager` contains no entries.
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.items.read().is_empty()
     }
 
     pub fn subject_ids(&self) -> Vec<SubjectId> {
-        self.items
+        self.items.read()
             .iter()
             .filter_map(|i| {
-                if let &Some(ref item) = i {
+                if let Some(ref item) = *i.read() {
                     Some(item.subject_id)
                 } else {
                     None
@@ -95,27 +98,42 @@ impl ContextManager {
             })
             .collect()
     }
-    pub fn get_head(&mut self, subject_id: SubjectId) -> Option<&mut MemoRefHead> {
+    pub fn get_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
         // Had to table this due to double-borrow
         //pub fn get_head<'a>(&'a mut self, subject_id: SubjectId) -> Option<&'a mut MemoRefHead> {
-        /*if let Some(ref mut item) = self.get_item_by_subject( subject_id ) {
-            item.head.as_mut()
+        if let Some(item) = self.get_item_by_subject( subject_id ) {
+            item.head.clone()
         } else {
             None
-        }*/
+        }
 
-        if let Some(&mut Some(ref mut item)) =
-            self.items.iter_mut().find(|i| {
+        /* if let Some(&mut Some(ref mut item)) =
+            self.items.read().iter().find(|i| {
                 if let &&mut Some(ref it) = i {
                     it.subject_id == subject_id
                 } else {
                     false
                 }
             }) {
-                item.head.as_mut()
+                item.head.clone()
             }else{
                 None
+            }*/
+    }
+    /// For a given SubjectId, apply a MemoRefHead to the one stored in the ContextManager, but only if a MemoRefHead was already present.
+    /// Return Some(applied head) or None if none was present for the provided SubjectId
+    pub fn conditional_apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> Option<MemoRefHead> {
+        // NOTE: Ensure that any locks are not held while one head is being applied to the previous
+        //       because happens-before determination may require memo traversal, which is a blocking operation.
+
+        unimplemented!();
+        /*    let relation_links = head.project_all_relation_links(&self.slab);
+            {
+                self.manager.set_subject_head(subject_id, relation_links, head.clone());
             }
+        */
+        //.apply(apply_head, &self.slab);
+        //head.clone()
     }
 
     /// Update the head for a given subject. The previous head is summarily overwritten.
@@ -328,10 +346,10 @@ impl ContextManager {
         }
 
     }
-    fn get_item_by_subject<'a>(&'a mut self, subject_id: SubjectId) -> Option<&'a mut ContextItem> {
-        if let Some(&mut Some(ref mut item)) =
-            self.items.iter_mut().find(|i| {
-                if let &&mut Some(ref it) = i {
+    fn get_item_by_subject<'a>(&'a mut self, subject_id: SubjectId) -> Option<&'a ContextItem> {
+        if let Some(item) =
+            (*self.items.read()).iter().find(|i| {
+                if let Some(ref it) = *i.read() {
                     it.subject_id == subject_id
                 } else {
                     false
@@ -349,17 +367,19 @@ impl ContextManager {
         for subject_head in self.subject_head_iter_rev() {
             // TODO: think about whether we should limit ourselves to doing this only for resident subjects with heads
 
-            if let Some(ref item) = self.items[subject_head.item_id] {
+            let items = self.items.read();
+            let item_count = items.len();
+            if let Some(ref item) = items[subject_head.item_id].read() {
                 let mut rssh = RelationSlotSubjectHead::empty();
 
                 for (slot_id, maybe_rel_item_id) in item.relations.iter().enumerate(){
                     if let Some(rel_item_id) = *maybe_rel_item_id {
-                        if let Some(ref mut rel_item) = self.items[rel_item_id] {
+                        if let Some(ref mut rel_item) = items[rel_item_id] {
                             let decrement = 0 - (item.indirect_references + 1);
                             if let Some(head) = rel_item.head.take() {
                                 rssh.insert(slot_id as RelationSlotId, rel_item.subject_id, head);
                                 
-                                let mut removed = vec![false; self.items.len()];
+                                let mut removed = vec![false; item_count];
                                 self.increment(rel_item_id, decrement, &mut removed);
                             }
                         }
@@ -375,6 +395,8 @@ impl ContextManager {
 
                     let new_head = memoref.to_head();
 
+                    // WARNING: we're inside a mutex here. Any memos we request as a part of the projection process will likely not arrive due to waiting on this mutex.
+                    // FIX IT! FIX IT!
                     let relation_links = new_head.project_all_relation_links(&slab);
                     self.set_subject_head( subject_head.subject_id, relation_links , new_head );
 
