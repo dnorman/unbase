@@ -27,7 +27,7 @@ impl IndexFixed {
             depth: depth
         }
     }
-    pub fn insert <'a> (&self, key: u64, subject: &Subject) {
+    pub fn insert (&self, key: u64, subject: &Subject) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects

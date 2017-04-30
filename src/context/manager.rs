@@ -5,7 +5,7 @@
 use super::*;
 use memorefhead::{RelationSlotId,RelationLink};
 
-use rculock::RcuLock;
+use rculock::{RcuLock,RcuGuard};
 use std::sync::Mutex;
 
 // Major TODOs for this module:
@@ -13,41 +13,38 @@ use std::sync::Mutex;
 // 2. create benchmarks to measure the relative performance of various forms of RCU
 // 3. optimize
 
-
 // add an item -> offset added
 // remove an item -> offset reclaimed
 // increment and removal of a given node must be a mutex, lest we remove an item being referenced
 
-type ItemId = usize;
+// QUESTION:
+// Should this be an ArcCell Linked list? If so, then:
+// * The increment/Decrement process could relink as necessary to sort the list (add new link before removing old)
+// * And the iterator could simply traverse the links while other operations are in progress
+// * Additionally: this would mean that a mutex is no longer necessary, but at the cost of more copies/Arc-fiddling
+
 
 #[derive(Clone)]
-struct ContextItem {
-    subject_id: SubjectId,
-    indirect_references: isize,
-    head: Option<MemoRefHead>,
-    relations: Vec<Option<ItemId>>,
+struct ContextItemList{
+    vacancies: Vec<ItemId>,
+    items: Vec<Arc<RcuLock<Option<ContextItem>>>>
 }
 
-pub trait ContextManager{
-
-}
-/// Performs topological sorting.
-pub struct ContextManager_ {
-    items: RcuLock<Vec<Arc<RcuLock<Option<ContextItem>>>>>,
-    vacancies: Mutex<Vec<ItemId>>,
-    pathology: Option<Box<Fn(str)>>
-}
-
-impl ContextItem {
-    fn new(subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> Self {
-        ContextItem {
-            subject_id: subject_id,
-            head: maybe_head,
-            indirect_references: 0,
-            relations: Vec::new(),
+impl ContextItemList {
+    fn new() -> Self {
+        ContextItemList{
+            vacancies: Vec::with_capacity(30),
+            items:     Vec::with_capacity(30)
         }
     }
 }
+
+/// Performs topological sorting.
+pub struct ContextManager {
+    itemlist: RcuLock<ContextItemList>,
+    pathology: Option<Box<Fn(String)>>
+}
+type ItemId = usize;
 
 /// Graph datastore for MemoRefHeads in our query context.
 ///
@@ -62,21 +59,17 @@ impl ContextItem {
 /// The internal reference count increment/decrement thus contains cycle breaker functionality.
 ///
 /// The ContextManager has been authored with the idea in mind that it generally should not exceed O(1k) MemoRefHeads. It should be periodically compressed to control expansion.
-impl ContextManager for ContextManager_{
-    
-}
-impl ContextManager_ {
+
+impl <'a> ContextManager {
     pub fn new() -> ContextManager {
-        ContextManager_ {
-            items: RcuLock::new(Vec::with_capacity(30)),
-            vacancies: Mutex::new(Vec::with_capacity(30)),
+        ContextManager {
+            itemlist: RcuLock::new(ContextItemList::new()),
             pathology: None
         }
     }
-    pub fn new_pathological( pathology: Fn(str) ) -> ContextManager {
-        ContextManager_ {
-            items: RcuLock::new(Vec::with_capacity(30)),
-            vacancies: Mutex::new(Vec::with_capacity(30)),
+    pub fn new_pathological( pathology: Box<Fn(String)> ) -> ContextManager {
+        ContextManager {
+            itemlist: RcuLock::new(ContextItemList::new()),
             pathology: Some(pathology)
         }
     }
@@ -84,11 +77,11 @@ impl ContextManager_ {
     /// Returns the number of elements in the `ContextManager`.
     #[allow(dead_code)]
     pub fn subject_count(&self) -> usize {
-        self.items.read().iter().filter(|i| i.read().is_some()).count()
+        self.itemlist.read().items.iter().filter(|i| i.read().is_some()).count()
     }
     #[allow(dead_code)]
     pub fn subject_head_count(&self) -> usize {
-        self.items.read().iter().filter(|i| {
+        self.itemlist.read().items.iter().filter(|i| {
             if let Some(ref item) = *i.read() {
                 if let Some(_) = item.head{
                     return true;
@@ -99,17 +92,17 @@ impl ContextManager_ {
     }
     #[allow(dead_code)]
     pub fn vacancies(&self) -> usize {
-        self.vacancies.lock().unwrap().len()
+        self.itemlist.read().vacancies.len()
     }
 
     /// Returns true if the `ContextManager` contains no entries.
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
-        self.items.read().is_empty()
+        self.itemlist.read().items.is_empty()
     }
 
     pub fn subject_ids(&self) -> Vec<SubjectId> {
-        self.items.read()
+        self.itemlist.read().items
             .iter()
             .filter_map(|i| {
                 if let Some(ref item) = *i.read() {
@@ -121,15 +114,17 @@ impl ContextManager_ {
             .collect()
     }
     pub fn contains_subject(&self, subject_id: SubjectId) -> bool {
-        if let Some(_) = self.get_item_by_subject(subject_id){
+        let itemlist = self.itemlist.read();
+        if let Some(_) = Self::get_item_by_subject(&mut *itemlist, subject_id){
             true
         }else{
             false
         }
     }
     pub fn contains_subject_head(&self, subject_id: SubjectId) -> bool {
-        if let Some(item) = self.get_item_by_subject(subject_id){
-            if let Some() = item.head {
+        let itemlist = self.itemlist.read();
+        if let Some(item) = Self::get_item_by_subject(&mut *itemlist,subject_id){
+            if let Some(_) = item.head {
                 true
             }else{
                 false
@@ -139,26 +134,12 @@ impl ContextManager_ {
         }
     }
     pub fn get_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
-        // Had to table this due to double-borrow
-        //pub fn get_head<'a>(&'a mut self, subject_id: SubjectId) -> Option<&'a mut MemoRefHead> {
-        if let Some(item) = self.get_item_by_subject( subject_id ) {
+        let itemlist = self.itemlist.read();
+        if let Some(item) = Self::get_item_by_subject( &mut *itemlist, subject_id ) {
             item.head.clone()
         } else {
             None
         }
-
-        /* if let Some(&mut Some(ref mut item)) =
-            self.items.read().iter().find(|i| {
-                if let &&mut Some(ref it) = i {
-                    it.subject_id == subject_id
-                } else {
-                    false
-                }
-            }) {
-                item.head.clone()
-            }else{
-                None
-            }*/
     }
     /// For a given SubjectId, apply a MemoRefHead to the one stored in the ContextManager, but only if a MemoRefHead was already present.
     /// Return Some(applied head) or None if none was present for the provided SubjectId
@@ -184,61 +165,44 @@ impl ContextManager_ {
                             relation_links: Vec<RelationLink>,
                             head: MemoRefHead) {
 
-        let item_id = self.assert_item(subject_id);
-        if let Some(item) = *self.items.read()[item_id].write() {
-            item.head = Some(head);
-        }
+        let itemlist = self.itemlist.write();
+        let item = self.assert_item(subject_id);
+
+        item.head = Some(head);
 
         for link in relation_links {
-            self.set_relation(item_id, link);
+            self.set_relation(&mut *itemlist, item, link);
         }
     }
     pub fn remove_subject_head(&mut self, subject_id: SubjectId ) {
-        if let Some(item_id) = self.items.read().iter().position(|i| {
-            if let Some(ref it) = *i.read() {
-                it.subject_id == subject_id
-            } else {
-                false
-            }
-        }) {
-            let mut full_remove = false;
+
+        let itemlist = &mut *self.itemlist.write();
+        if let Some(item) = Self::get_item_by_subject(itemlist, subject_id) {
             let mut relations = Vec::new();
-            let decrement;
-            let items_len = self.items.read().len();
 
-            {
-                if let Some(ref mut item) = *self.items.read()[item_id].read() {
-                    decrement = 0 - (item.indirect_references + 1);
-                    for relation in item.relations.iter() {
-                        if let Some(rel_item_id) = *relation {
-                            relations.push(rel_item_id);
-                        }
-                    }
-                
-                    item.relations.clear();
-
-                    if item.indirect_references == 0 {
-                        // If nobody points to me, we can fully bail out
-                        full_remove = true;
-                    }else{
-                        // otherwise just remove the head that we intend to remove
-                        item.head = None;
-                    }
-                }else{
-                    panic!("sanity error");
+            let decrement = 0 - (item.indirect_references + 1);
+            for relation in item.relations.iter() {
+                if let Some(rel_item_id) = *relation {
+                    relations.push(rel_item_id);
                 }
+            }
+        
+            item.relations.clear();
 
-                if full_remove {
-                    // Seems to me that this write could work equally well with ArcCell. Not sure about the others
-                    *(self.items.write()[item_id].write()) = None;
-                    self.vacancies.lock().unwrap().push(item_id);
-                }
+            if item.indirect_references == 0 {
+                // If nobody points to me, we can fully bail out
+                item.remove( itemlist );
+                itemlist.vacancies.push(item.id);
+            }else{
+                // otherwise just remove the head that we intend to remove
+                item.head = None;
             }
 
             // no head means we're not pointing to these anymore, at least not within the context manager
             for rel_item_id in relations {
-                let mut removed = vec![false; items_len];
-                self.increment(rel_item_id, decrement, &mut removed);
+                let mut visited = vec![false; itemlist.items.len()];
+                visited[item.id] = true;
+                self.increment(itemlist, rel_item_id, decrement, &mut visited);
             }
 
         }
@@ -246,188 +210,93 @@ impl ContextManager_ {
     }
 
     /// Creates or returns a ContextManager item for a given subject_id
-    fn assert_item(&mut self, subject_id: SubjectId) -> ItemId {
-
+    fn assert_item(&mut self, subject_id: SubjectId) -> ContextItem {
         // First look in read mode
-        for (i,rcu_item) in self.items.read().iter().enumerate(){
+        for rcu_item in self.itemlist.read().items.iter(){
             if let Some(item) = *rcu_item.read(){
                 if item.subject_id == subject_id {
-                    return i;
+                    return item;
                 }
             }
         }
 
         // If not found, then get a write lock, and double check to make sure someone else hasn't added it
-        let items = self.items.write();
+        let itemlist = self.itemlist.write();
 
-        for (i,rcu_item) in items.iter().enumerate(){
-            if let Some(item) = *rcu_item.read(){
-                // Now do we have it? Somebody must have added it concurrently
-                // For state projection, we don't really mind thaat much if there are
-                // duplicate subjects, but it screws with the graph structure, so have to be paranoid
-                if item.subject_id == subject_id {
-                    return i;
-                }
-            }
+        if let Some(item) = Self::get_item_by_subject(&mut *itemlist, subject_id){
+            return item
         }
-
         // If still no, then add it ( while still under a write lock, to ensure we haven't any interlopers )
-        let item = ContextItem::new(subject_id, None);
 
-        if let Some(item_id) = { self.vacancies.lock().unwrap().pop() } {
-            items[item_id] = Arc::new(RcuLock::new(Some(item)));
-            item_id
-        } else {
-            items.push(Arc::new(RcuLock::new(Some(item))));
-            items.len() - 1
-        }
+        ContextItem::add(&mut *itemlist, subject_id, None)
 
     }
 
-    fn set_relation(&mut self, item_id: ItemId, link: RelationLink) {
+    /// Set or unset a relation for a given slot id
+    fn set_relation(&self, itemlist: &mut ContextItemList, item: &mut ContextItem, link: RelationLink) {
 
-        let items = self.items.read();
-        // read creates a clone of the ContextItem
-        let item = items[item_id].read().expect("sanity error. set relation on item that does not exist");
-
-        // SomeSome due to unitialized vec offset or reclaimed offset
+        // Do we have a relation for this slot_id already?
         if let Some(&Some(rel_item_id)) = item.relations.get(link.slot_id as usize) {
-            // relation exists
-
-            let rel_item = items[rel_item_id].read().expect("sanity error. relation item_id located, but not found in items");
+            // Yes
+            let rel_item = itemlist.items[rel_item_id].read().expect("sanity error. relation item_id located, but not found in items");
             if Some(rel_item.subject_id) == link.subject_id {
-                // no change. bail out. do not increment or decrement
+                // If it's the same as what we want, then bail out. do not increment or decrement
                 return;
-            }
+            }else{
+                // Otherwise, we need to decrement it to reflect our no-longer-pointing to it
+                let decrement = 0 - (1 + item.indirect_references);
+                let mut visited = vec![false; itemlist.items.len()];
+                visited[rel_item_id] = true;
+                rel_item.increment(self, &mut itemlist, decrement, &mut visited);
 
-            let decrement = 0 - (1 + item.indirect_references);
-            // NOTE: Do I need to lock more broadly here in order to guard against contention during a recursive increment operation?
-            let mut removed = vec![false; self.items.len()];
-            self.increment(rel_item_id, decrement, &mut removed);
+                // Will actually overwrite, or un-set this below
+            }
         }
 
+        // If we actually want it to be set:
         if let Some(subject_id) = link.subject_id {
-            let new_rel_item_id = self.assert_item(subject_id);
-
-            let increment;
-            {
-                if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                    while item.relations.len() <= link.slot_id as usize { 
-                        item.relations.push(None);
-                    }
-
-                    item.relations[link.slot_id as usize] = Some(new_rel_item_id);
-                    increment = 1 + item.indirect_references;
-                } else {
-                    panic!("sanity error. relation just set")
-                }
-            };
-
-            let mut added = vec![false; self.items.len()];
-            self.increment(new_rel_item_id, increment, &mut added);
+            let new_rel_item = self.assert_item(subject_id);
+            item.set_relation(link.slot_id,new_rel_item);
         } else {
+            // Otherwise, make sure it's unset
             // sometimes this will be unnecessary, but it's essential to overwrite a Some() if it's there
-            if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                while item.relations.len() <= link.slot_id as usize { 
-                    item.relations.push(None);
-                }
-
-                item.relations[link.slot_id as usize] = None;
-
-            } else {
-                panic!("sanity error. relation item not found in items")
+            if link.slot_id as usize >= item.relations.len() {
+                item.relations.resize(link.slot_id as usize + 1, None)
             }
+
+            item.relations[link.slot_id as usize] = None;
         }
     }
-    fn increment(&mut self, item_id: ItemId, increment: isize, seen: &mut Vec<bool>) {
-        if let Some(pathology) = self.pathology {
-            pathology("pre_increment");
-        }
-
-        // Avoid traversing cycles
-        if Some(&true) == seen.get(item_id) {
-            return; // dejavu! Bail out
-        }
-        seen[item_id] = true;
-
-        let relations: Vec<ItemId>;
-        let mut remove = false;
-        {
-            if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                item.indirect_references += increment;
-                if item.indirect_references == 0 && item.head.is_none(){
-                    remove = true;
-                }
-                assert!(item.indirect_references >= 0,
-                        "sanity error. indirect_references below zero");
-
-                relations = item.relations.iter().filter_map(|r| *r).collect();
-            } else {
-                panic!("sanity error. increment for item_id");
-            }
-        };
-
-        if remove {
-            self.items[item_id] = None;
-            self.vacancies.push(item_id);
-        }
-
-        for rel_item_id in relations {
-            self.increment(rel_item_id, increment, seen);
-        }
-
-    }
-    fn get_item_by_subject(&self, subject_id: SubjectId) -> Option<ContextItem> {
-        for rcu_item in (*self.items.read()).iter(){
+    fn get_item_by_subject(itemlist: &ContextItemList, subject_id: SubjectId) -> Option<ContextItem> {
+        for (i,rcu_item) in (*itemlist.items).iter().enumerate(){
             if let Some(item) = *rcu_item.read(){ // does a clone internally, so we might as well use it
                 if item.subject_id == subject_id{
-                    return Some(item)
+                    return Some(item);
                 }
             }
         }
         None
     }
-    // I don't really like have this be internal to the manager, but there's presently no item_id based interface and I'm not sure if there will be.
-    // It's inefficient to have to convert back and forth between SubjectId and ItemId.
+
     pub fn compress(&mut self, slab: &Slab) {
 
-        for subject_head in self.subject_head_iter_rev() {
-            // TODO: think about whether we should limit ourselves to doing this only for resident subjects with heads
+        for item in self.subject_iter_rev() {
+            let rssh = context_item.get_relation_slot_subject_head();
 
-            let items = self.items.read();
-            let item_count = items.len();
-            if let Some(ref item) = *items[subject_head.item_id].read() {
-                let mut rssh = RelationSlotSubjectHead::empty();
+            if rssh.len() > 0 {
+                let memoref = slab.new_memo(
+                    Some(item.subject_id),
+                    subject_head.head.clone(),
+                    MemoBody::Relation( rssh )
+                );
 
-                for (slot_id, maybe_rel_item_id) in item.relations.iter().enumerate(){
-                    if let Some(rel_item_id) = *maybe_rel_item_id {
-                        if let Some(ref mut rel_item) = items[rel_item_id] {
-                            let decrement = 0 - (item.indirect_references + 1);
-                            if let Some(head) = rel_item.head.take() {
-                                rssh.insert(slot_id as RelationSlotId, rel_item.subject_id, head);
-                                
-                                let mut removed = vec![false; item_count];
-                                self.increment(rel_item_id, decrement, &mut removed);
-                            }
-                        }
-                    }
-                }
+                let new_head = memoref.to_head();
 
-                if rssh.len() > 0 {
-                    let memoref = slab.new_memo(
-                        Some(subject_head.subject_id),
-                        subject_head.head.clone(),
-                        MemoBody::Relation( rssh )
-                    );
+                // WARNING: we're inside a mutex here. Any memos we request as a part of the projection process will likely not arrive due to waiting on this mutex.
+                // FIX IT! FIX IT!
+                let relation_links = new_head.project_all_relation_links(&slab);
+                self.set_subject_head( subject_head.subject_id, relation_links , new_head );
 
-                    let new_head = memoref.to_head();
-
-                    // WARNING: we're inside a mutex here. Any memos we request as a part of the projection process will likely not arrive due to waiting on this mutex.
-                    // FIX IT! FIX IT!
-                    let relation_links = new_head.project_all_relation_links(&slab);
-                    self.set_subject_head( subject_head.subject_id, relation_links , new_head );
-
-                }
             }
         }
     }
@@ -435,7 +304,7 @@ impl ContextManager_ {
  /*   pub fn compress_subject(&mut self, subject_id: SubjectId) -> Option<RelationSlotSubjectHead> {
         let mut slot_item_ids = Vec::new();
         {
-            if let Some(ref mut item) = self.get_item_by_subject( subject_id ) {
+            if let Some(ref mut item) = Self::get_item_by_subject( subject_id ) {
                 for (slot_id, maybe_rel_item_id) in item.relations.iter().enumerate(){
                     if let Some(rel_item_id) = *maybe_rel_item_id {
                         slot_item_ids.push((slot_id,rel_item_id));
@@ -487,6 +356,107 @@ impl ContextManager_ {
         }
     }*/
 }
+
+#[derive(Clone)]
+struct ContextItem {
+    id: ItemId,
+    subject_id: SubjectId,
+    indirect_references: isize,
+    head: Option<MemoRefHead>,
+    relations: Vec<Option<ItemId>>,
+}
+
+impl ContextItem {
+    // asking the ContextItem to add itself is more conducive to a potential linkedlist change in the future
+    fn add(itemlist: &mut ContextItemList, subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> ContextItem {
+        
+        if let Some(item_id) = { itemlist.vacancies.pop() } {
+            let item = ContextItem {
+                id: item_id,
+                subject_id: subject_id,
+                head: maybe_head,
+                indirect_references: 0,
+                relations: Vec::new(),
+            };
+            itemlist.items[item_id] = Arc::new(RcuLock::new(Some(item)));
+            
+        } else {
+            let item_id = itemlist.items.len();
+            
+            let item = ContextItem {
+                id: item_id,
+                subject_id: subject_id,
+                head: maybe_head,
+                indirect_references: 0,
+                relations: Vec::new(),
+            };
+
+            itemlist.items.push(Arc::new(RcuLock::new(Some(item))));
+            item_id
+        }
+
+
+
+    }
+    // asking the ContextItem to remove itself is more conducive to a potential linkedlist change in the future
+    pub fn remove(self, itemlist: &mut ContextItemList) {
+        *itemlist.items[self.id].write() = None;
+        itemlist.vacancies.push(self.id);
+    }
+    pub fn add_rel_item (&self, manager: &ContextManager, itemlist: &mut ContextItemList, rel_item: &ContextItem, slot_id: RelationSlotId ){
+        if slot_id as usize >= self.relations.len() {
+            self.relations.resize(slot_id as usize + 1, None)
+        }
+        self.relations[slot_id as usize] = Some(rel_item.id);
+
+        let increment = 1 + self.indirect_references;
+
+        let mut added = vec![false; itemlist.items.len()];
+        rel_item.increment(manager, itemlist, increment, &mut added);
+    }
+    fn increment(&mut self, manager: &ContextManager, itemlist: &mut ContextItemList, increment: isize, visited: &mut Vec<bool>) {
+        if let Some(pathology) = manager.pathology {
+            //pathology("pre_increment".to_string());
+        }
+
+        // Avoid traversing cycles
+        if Some(&true) == visited.get(self.id) {
+            return; // dejavu! Bail out
+        }
+        visited[self.id] = true;
+
+        let relations: Vec<ItemId>;
+
+        let rcu_item = itemlist.items[self.id].write();
+        if let Some(ref mut item) = *rcu_item {
+            item.indirect_references += increment;
+            if item.indirect_references == 0 && item.head.is_none(){
+                *rcu_item = None;
+                itemlist.vacancies.push(self.id);
+            }
+            assert!(item.indirect_references >= 0, "sanity error. indirect_references below zero");
+
+            relations = item.relations.iter().filter_map(|r| *r).collect();
+        }
+
+        for rel_item in self.get_relations( itemlist ) {
+            rel_item.increment(manager, itemlist, increment, visited);
+        }
+
+    }
+    fn get_relations(&self, itemlist: &mut ContextItemList) -> Vec<ContextItem>{
+        let out = Vec::new();
+        for maybe_rel_item_id in self.relations.iter() {
+            if let &Some(rel_item_id) = maybe_rel_item_id {
+                if let Some(ref rel_item) = *(itemlist.items[rel_item_id]) {
+                    out.push( rel_item );
+                }
+            }
+        }
+
+        out
+    }
+}
 /*
 use core;
 
@@ -518,8 +488,8 @@ impl<'a> Iterator for RelItemHeadIter<'a> {
 }
 */
 
-pub struct SubjectHead {
-    item_id: ItemId,
+pub struct ContextSubjectItem {
+    pub item_id: ItemId,
     pub subject_id: SubjectId,
     pub head: MemoRefHead,
     pub from_subject_ids: Vec<SubjectId>,
@@ -527,75 +497,80 @@ pub struct SubjectHead {
     pub indirect_references: usize,
 }
 
-pub struct SubjectHeadIter {
+pub struct ContextSubjectIter {
     // The compiler thinks this is unused? Seems like a bug
-    #[allow(dead_code)]
-    sorted: Vec<SubjectHead>,
+    visited: Vec<ItemId>,
+    manager: Arc<ContextManager>
 }
-impl Iterator for SubjectHeadIter {
-    type Item = SubjectHead;
+impl ContextSubjectIter{
+    pub fn new( manager: ContextManager ) -> Self{
 
-    fn next(&mut self) -> Option<SubjectHead> {
-        self.sorted.pop()
+        unimplemented!();
+        // ContextSubjectIter{
+        //     next_item: ContextItem,
+        //     manager: manager
+        // }
+    },
+
+}
+
+use std::mem;
+impl Iterator for ContextSubjectIter {
+    type Item = ContextSubjectItem;
+
+    fn next(&mut self) -> Option<ContextSubjectItem> {
+        unimplemented!();
+        //let items: &Vec<Option<Item>
+        //let item = mem::replace(self.next_item, Self::next_item(0));
+        //item
+        // FOR now, taking the low road
+        // Vec<(usize, MemoRefHead, Vec<SubjectId>)>
+        // let mut subject_heads: Vec<SubjectHead> = self.manager.items.read().iter()
+        //     .filter_map(|(offset, i)| {
+        //         if let &Some(ref item) = i {
+        //             if let Some(ref head) = item.head {
+
+        //                 let relation_subject_ids: Vec<SubjectId> = item.relations
+        //                     .iter()
+        //                     .filter_map(|maybe_item_id| {
+        //                         if let &Some(item_id) = maybe_item_id {
+        //                             if let Some(ref item) = manager.items[item_id] {
+        //                                 Some(item.subject_id)
+        //                             } else {
+        //                                 panic!("sanity error, subject_head_iter")
+        //                             }
+        //                         } else {
+        //                             None
+        //                         }
+        //                     })
+        //                     .collect();
+
+        //                 return Some(SubjectHead {
+        //                     item_id: offset,
+        //                     subject_id: item.subject_id,
+        //                     indirect_references: item.indirect_references as usize,
+        //                     head: head.clone(),
+        //                     from_subject_ids: vec![],
+        //                     to_subject_ids: relation_subject_ids,
+        //                 });
+        //             }
+        //         }
+        //         None
+        //     })
+        //     .collect();
+
+        // // Intentionally doing the inverse sort here because the iterator is using pop
+        // // TODO: be sure to reverse this later if we switch to incremental calculation
+        // if fwd {
+        //     subject_heads.sort_by(|a, b| a.indirect_references.cmp(&b.indirect_references));
+        // }else{
+        //     subject_heads.sort_by(|a, b| b.indirect_references.cmp(&a.indirect_references));
+        // }
+
     }
 }
 
 /// Reverse topological iterator over subject heads which are resident in the context manager
-impl SubjectHeadIter {
-    fn new(manager: &ContextManager, fwd: bool) -> Self {
-        // TODO: make this respond to context changes while we're mid-iteration.
-        // Approach A: switch Vec<Item> to Arc<Vec<Option<Item>>> and avoid slot reclamation until the iter is complete
-        // Approach B: keep Vec<item> sorted (DESC) by indirect_references, and reset the increment whenever the sort changes
-
-        //let items: &Vec<Option<Item>>
-
-        // FOR now, taking the low road
-        // Vec<(usize, MemoRefHead, Vec<SubjectId>)>
-        let mut subject_heads: Vec<SubjectHead> = manager.items.iter().enumerate()
-            .filter_map(|(offset, i)| {
-                if let &Some(ref item) = i {
-                    if let Some(ref head) = item.head {
-
-                        let relation_subject_ids: Vec<SubjectId> = item.relations
-                            .iter()
-                            .filter_map(|maybe_item_id| {
-                                if let &Some(item_id) = maybe_item_id {
-                                    if let Some(ref item) = manager.items[item_id] {
-                                        Some(item.subject_id)
-                                    } else {
-                                        panic!("sanity error, subject_head_iter")
-                                    }
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-
-                        return Some(SubjectHead {
-                            item_id: offset,
-                            subject_id: item.subject_id,
-                            indirect_references: item.indirect_references as usize,
-                            head: head.clone(),
-                            from_subject_ids: vec![],
-                            to_subject_ids: relation_subject_ids,
-                        });
-                    }
-                }
-                None
-            })
-            .collect();
-
-        // Intentionally doing the inverse sort here because the iterator is using pop
-        // TODO: be sure to reverse this later if we switch to incremental calculation
-        if fwd {
-            subject_heads.sort_by(|a, b| a.indirect_references.cmp(&b.indirect_references));
-        }else{
-            subject_heads.sort_by(|a, b| b.indirect_references.cmp(&a.indirect_references));
-        }
-
-        SubjectHeadIter { sorted: subject_heads }
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -830,13 +805,13 @@ mod test {
         let net = Network::create_new_system();
         let slab = Slab::new(&net);
 
-        let interloper = Arc::new(Mutex::new());
+        let interloper = Arc::new(Mutex::new(1));
 
-        let mut manager = ContextManager::new_pathological(|caller|{
-            if caller == "pre_increment" {
+        let mut manager = ContextManager::new_pathological(Box::new(|caller|{
+            if caller == "pre_increment".to_string() {
                 interloper.lock().unwrap();
             }
-        });
+        }));
 
 
         let head1 = manager.add_test_subject(1, None,        &slab);    // Subject 1 is pointing to nooobody

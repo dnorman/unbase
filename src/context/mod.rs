@@ -17,12 +17,15 @@ use std::sync::{Mutex, RwLock, Arc, Weak};
 #[derive(Clone)]
 pub struct Context(pub Arc<ContextInner>);
 
-impl Deref for Context {
+impl  Deref for Context {
     type Target = ContextInner;
     fn deref(&self) -> &ContextInner {
         &*self.0
     }
 }
+// hack for temporarily avoiding recursive bug
+//unsafe impl Sync for ContextInner{}
+//unsafe impl Send for ContextInner{}
 
 pub struct ContextInner {
     pub slab: Slab,
@@ -36,7 +39,7 @@ pub struct ContextInner {
 }
 
 #[derive(Clone)]
-pub struct WeakContext(Weak<ContextInner>);
+pub struct WeakContext (Weak<ContextInner>);
 
 #[derive(Clone)]
 pub enum ContextRef {
@@ -45,7 +48,7 @@ pub enum ContextRef {
 }
 
 impl ContextRef {
-    pub fn get_context<'a>(&'a self) -> Context {
+    pub fn get_context(&self) -> Context {
         match self {
             &ContextRef::Weak(ref c) => {
                 c.upgrade().expect("Sanity error. Weak context has been dropped")
@@ -55,7 +58,7 @@ impl ContextRef {
     }
 }
 
-impl Context {
+impl  Context {
     pub fn new(slab: &Slab) -> Context {
 
         let new_self = Context(Arc::new(ContextInner {
@@ -342,12 +345,12 @@ impl Context {
     }
 }
 
-impl Drop for ContextInner {
+impl  Drop for ContextInner {
     fn drop(&mut self) {
         // println!("# ContextShared.drop");
     }
 }
-impl fmt::Debug for Context {
+impl  fmt::Debug for Context {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 
         fmt.debug_struct("ContextShared")
@@ -358,7 +361,7 @@ impl fmt::Debug for Context {
     }
 }
 
-impl WeakContext {
+impl  WeakContext {
     pub fn upgrade(&self) -> Option<Context> {
         match self.0.upgrade() {
             Some(i) => Some(Context(i)),
