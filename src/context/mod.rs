@@ -24,8 +24,8 @@ impl  Deref for Context {
     }
 }
 // hack for temporarily avoiding recursive bug
-//unsafe impl Sync for ContextInner{}
-//unsafe impl Send for ContextInner{}
+unsafe impl Sync for ContextInner{}
+unsafe impl Send for ContextInner{}
 
 pub struct ContextInner {
     pub slab: Slab,

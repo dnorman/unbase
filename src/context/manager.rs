@@ -166,12 +166,12 @@ impl <'a> ContextManager {
                             head: MemoRefHead) {
 
         let itemlist = self.itemlist.write();
-        let item = self.assert_item(subject_id);
+        let mut item = self.assert_item(subject_id);
 
         item.head = Some(head);
 
         for link in relation_links {
-            self.set_relation(&mut *itemlist, item, link);
+            self.set_relation(&mut *itemlist, &mut item, link);
         }
     }
     pub fn remove_subject_head(&mut self, subject_id: SubjectId ) {
@@ -281,12 +281,12 @@ impl <'a> ContextManager {
     pub fn compress(&mut self, slab: &Slab) {
 
         for item in self.subject_iter_rev() {
-            let rssh = context_item.get_relation_slot_subject_head();
+            let rssh = item.get_relation_slot_subject_head();
 
             if rssh.len() > 0 {
                 let memoref = slab.new_memo(
                     Some(item.subject_id),
-                    subject_head.head.clone(),
+                    item.head.clone(),
                     MemoBody::Relation( rssh )
                 );
 
@@ -295,7 +295,7 @@ impl <'a> ContextManager {
                 // WARNING: we're inside a mutex here. Any memos we request as a part of the projection process will likely not arrive due to waiting on this mutex.
                 // FIX IT! FIX IT!
                 let relation_links = new_head.project_all_relation_links(&slab);
-                self.set_subject_head( subject_head.subject_id, relation_links , new_head );
+                self.set_subject_head( item.subject_id, relation_links , new_head );
 
             }
         }
@@ -331,11 +331,11 @@ impl <'a> ContextManager {
     }
     */
     #[allow(dead_code)]
-    pub fn subject_head_iter_fwd(&self) -> SubjectHeadIter {
-        SubjectHeadIter::new(self, true)
+    pub fn subject_head_iter_fwd(&self) -> ContextSubjectIter {
+        ContextSubjectIter::new(self, true)
     }
-    pub fn subject_head_iter_rev(&self) -> SubjectHeadIter {
-        SubjectHeadIter::new(self, false)
+    pub fn subject_head_iter_rev(&self) -> ContextSubjectIter {
+        ContextSubjectIter::new(self, false)
     }
     pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<MemoRefHead>, slab: &Slab) -> MemoRefHead {
         let rssh = if let Some(rel_head) = maybe_relation {
@@ -379,7 +379,7 @@ impl ContextItem {
                 relations: Vec::new(),
             };
             itemlist.items[item_id] = Arc::new(RcuLock::new(Some(item)));
-            
+
         } else {
             let item_id = itemlist.items.len();
             
@@ -510,7 +510,7 @@ impl ContextSubjectIter{
         //     next_item: ContextItem,
         //     manager: manager
         // }
-    },
+    }
 
 }
 
