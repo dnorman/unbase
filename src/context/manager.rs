@@ -1,16 +1,10 @@
-#![warn(bad_style, missing_docs,
-        unused, unused_extern_crates, unused_import_braces,
-        unused_qualifications, unused_results)]
 
 use super::*;
 use memorefhead::{RelationSlotId,RelationLink};
 
-// TODO: farm the guts of this out to it's own topo-sort accumulator crate
-//      using gratuitous Arc<Mutex<>> for now which will later be converted to unsafe Mutex<Rc<Item>>
-
 type ItemId = usize;
-
 #[derive(Clone)]
+
 struct ContextItem {
     subject_id: SubjectId,
     indirect_references: isize,
@@ -21,7 +15,9 @@ struct ContextItem {
 /// Performs topological sorting.
 pub struct ContextManager {
     items: Vec<Option<ContextItem>>,
+    subject_index: Vec<(SubjectId,ItemId)>,
     vacancies: Vec<ItemId>,
+    pathology: Option<Box<Fn(String)>>
 }
 
 impl ContextItem {
@@ -51,15 +47,25 @@ impl ContextItem {
 impl ContextManager {
     pub fn new() -> ContextManager {
         ContextManager {
-            items: Vec::with_capacity(30),
-            vacancies: Vec::with_capacity(30),
+            items:          Vec::with_capacity(30),
+            subject_index:  Vec::with_capacity(30),
+            vacancies:      Vec::with_capacity(30),
+            //pathology: None
         }
     }
+    /*pub fn new_pathological( pathology: Box<Fn(String)> ) -> ContextManager {
+        ContextManager {
+            items:          Vec::with_capacity(30),
+            subject_index:  Vec::with_capacity(30),
+            vacancies:      Vec::with_capacity(30),
+            //pathology: Some(pathology)
+        }
+    }*/
 
     /// Returns the number of elements in the `ContextManager`.
     #[allow(dead_code)]
     pub fn subject_count(&self) -> usize {
-        self.items.iter().filter(|i| i.is_some()).count()
+        self.subject_index.count()
     }
     #[allow(dead_code)]
     pub fn subject_head_count(&self) -> usize {
@@ -117,6 +123,21 @@ impl ContextManager {
                 None
             }
     }
+    /// For a given SubjectId, apply a MemoRefHead to the one stored in the ContextManager, but only if a MemoRefHead was already present.
+    /// Return Some(applied head) or None if none was present for the provided SubjectId
+    pub fn conditional_apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> Option<MemoRefHead> {
+        // NOTE: Ensure that any locks are not held while one head is being applied to the previous
+        //       because happens-before determination may require memo traversal, which is a blocking operation.
+        unimplemented!();
+        /*    let relation_links = head.project_all_relation_links(&self.slab);
+            {
+                self.manager.set_subject_head(subject_id, relation_links, head.clone());
+            }
+        */
+        //.apply(apply_head, &self.slab);
+        //head.clone()
+    }
+
 
     /// Update the head for a given subject. The previous head is summarily overwritten.
     /// Any mrh.apply to the previous head must be done externally, if desired
@@ -413,11 +434,21 @@ impl ContextManager {
     }
     */
     #[allow(dead_code)]
-    pub fn subject_head_iter_fwd(&self) -> SubjectHeadIter {
-        SubjectHeadIter::new(self, true)
+    pub fn subject_head_iter_fwd(&self) -> ContextSubjectIter {
+        ContextSubjectIter::new(self, true)
     }
-    pub fn subject_head_iter_rev(&self) -> SubjectHeadIter {
-        SubjectHeadIter::new(self, false)
+    pub fn subject_head_iter_rev(&self) -> ContextSubjectIter {
+        ContextSubjectIter::new(self, false)
+    }
+    pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<MemoRefHead>, slab: &Slab) -> MemoRefHead {
+        let rssh = if let Some(rel_head) = maybe_relation {
+            RelationSlotSubjectHead::single(0, rel_head.first_subject_id().expect("subject_id not found in relation head"), rel_head.clone())
+        }else{
+            RelationSlotSubjectHead::empty()
+        };
+        let head = slab.new_memo_basic_noparent(Some(subject_id), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
+        self.set_subject_head(subject_id, head.project_all_relation_links(&slab), head.clone());
+        head
     }
     /*fn rel_item_head_iter<'a>(&'a self, item: &'a ContextItem) -> RelItemHeadIter<'a> {
         RelItemHeadIter{
@@ -761,4 +792,57 @@ mod test {
         // }
         assert!(iter.next().is_none(), "iter should have ended");
     }
+
+    #[test]
+    fn context_manager_contention() {
+
+        use std::thread;
+        use std::sync::{Arc,Mutex};
+
+        let net = Network::create_new_system();
+        let slab = Slab::new(&net);
+
+        let interloper = Arc::new(Mutex::new(1));
+
+        let mut manager = ContextManager::new_pathological(Box::new(|caller|{
+            if caller == "pre_increment".to_string() {
+                interloper.lock().unwrap();
+            }
+        }));
+
+
+        let head1 = manager.add_test_subject(1, None,        &slab);    // Subject 1 is pointing to nooobody
+
+        let lock = interloper.lock().unwrap();
+        let t1 = thread::spawn(|| {
+            // should block at the first pre_increment
+            let head2 = manager.add_test_subject(2, Some(head1), &slab);    // Subject 2 slot 0 is pointing to Subject 1
+            let head3 = manager.add_test_subject(3, Some(head2), &slab);    // Subject 3 slot 0 is pointing to Subject 2
+        });
+
+        manager.remove_subject_head(1);
+        drop(lock);
+
+        t1.join();
+
+        assert_eq!(manager.contains_subject(1),      true  );
+        assert_eq!(manager.contains_subject_head(1), false );
+        assert_eq!(manager.contains_subject_head(2), true  );
+        assert_eq!(manager.contains_subject_head(3), true  );
+
+
+        // 2[0] -> 1
+        // 3[0] -> 2
+        // Subject 1 should have indirect_references = 2
+
+        
+        let mut iter = manager.subject_head_iter_rev();
+        // for subject_head in iter {
+        //     println!("{} is {}", subject_head.subject_id, subject_head.indirect_references );
+        // }
+        assert_eq!(2, iter.next().expect("iter result 2 should be present").subject_id);
+        assert_eq!(3, iter.next().expect("iter result 1 should be present").subject_id);
+        assert!(iter.next().is_none(), "iter should have ended");
+    }
+    
 }
