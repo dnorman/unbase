@@ -9,7 +9,7 @@ struct ContextItem {
     subject_id:   SubjectId,
     refcount:     usize,
     head:         Option<MemoRefHead>,
-    relations:    Vec<ItemId>,
+    relations:    Vec<Option<ItemId>>,
     edit_counter: usize,
 }
 
@@ -34,8 +34,7 @@ impl ContextItem {
             head: maybe_head,
             refcount: 0,
             relations: Vec::new(),
-            edit_counter: 0,
-            iter_counter: 0
+            edit_counter: 0
         }
     }
 }
@@ -62,7 +61,8 @@ impl ContextManager {
                 index:        Vec::with_capacity(30),
                 vacancies:    Vec::with_capacity(30),
                 pending_vacancies: Vec::with_capacity(30),
-                edit_counter: 0
+                edit_counter: 0,
+                iter_counter: 0 
             }),
             //pathology: None
         }
@@ -149,16 +149,14 @@ impl ContextManager {
 
     /// Apply the provided MemoRefHead for a given subject. Project relation references and add placeholders as needed to the context
     pub fn apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> MemoRefHead {
-        // TODO: Fairly certain we have a correctness problem here - Could have two different parties trying to manipulate the same subject head.
-        //       Possible they could each apply different heads concurrently such that one would be overwritten.
 
         loop {
             let (maybe_head, edit_counter) = self.get_head_and_generation(subject_id);
 
             let head = match maybe_head {
                 Some(head) => {
-                    // IMPORTANT! no locks may be held here, as we could be recursing
-                    //            happens-before determination may require memo traversal, which is a blocking operation
+                    // IMPORTANT! no locks may be held here.
+                    // happens-before determination may require memo retrieval, which is a blocking operation.
                     head.apply(apply_head, slab); 
                     head
                 }
@@ -167,30 +165,44 @@ impl ContextManager {
                 }
             };
 
-            let relation_links = head.project_all_relation_links(slab);
-            //{
-                // let inner = self.inner.lock().unwrap();
-                // let item = inner.assert_item(subject_id);
+            // IMPORTANT! no locks may be held here.
+            // projection may require memo retrieval, which is a blocking operation.
+            let all_relation_links = head.project_all_relation_links(slab);
 
-                // for link in relation_links {
-                //     self.set_relation(item_id, link);
-                // }
-            //}
-            return head;
+            let inner   = self.inner.lock().unwrap();
+            let item_id = inner.assert_item(subject_id);
+
+            if let Some(ref item) = inner.items[item_id] {
+                if item.edit_counter != edit_counter {
+                    // Something has changed. Time for a do-over.
+                    continue;
+                }
+
+                // LEFT OFF HERE
+                // ________________________________
+
+                'relation: for link in all_relation_links {
+                    // existing relation
+                    if let Some(rel_item_id) = item.relations[link.slot_id as usize] {
+                        let mut rel_item = inner.items[rel_item_id];
+
+                        if Some(rel_item.subject_id) != link.subject_id {
+                            // OK, so we're unlinking from this
+                            rel_item.decrement();
+                            //item.relations[link.slot_id]
+                        }else{
+
+                        }
+                    }
+                }
+
+                return head;
+            }else{
+                panic!("sanity error - missing item");
+            }
 
         }
 
-    }
-    pub fn remove_head (&self, subject_id: SubjectId) {
-        let inner = self.inner.lock().unwrap();
-
-        if *inner.iter_counter == 0 {
-            inner.vacancies.push(item_id);
-        }else{
-            // avoid use after free until all iters have finished
-            // we don't have to guarantee that the item sticks around, just that we don't give the iter the wrong item
-            inner.pending_vacancies.push(item_id);
-        }
     }
     pub fn subject_head_iter (&self) -> SubjectHeadIter {
         let inner = self.inner.lock().unwrap();
@@ -198,134 +210,115 @@ impl ContextManager {
 
         SubjectHeadIter::new(self.clone())
     }
-    // pub fn set_subject_head(&mut self, subject_id: SubjectId, relation_links: Vec<RelationLink>, head: MemoRefHead) {
-    //     let item_id = {
-    //         self.assert_item(subject_id)
-    //     };
-    //     if let Some(ref mut item) = self.items[item_id] {
-    //         item.head = Some(head);
-    //     }
+
+    fn set_relation(&mut self, item_id: ItemId, link: RelationLink) {
+
+        // let item = &self.items[item_id];
+        // retrieve existing relation by SlotId as the vec offset
+        // Some(&Some()) due to empty vec slot vs None relation (logically equivalent)
+        let mut remove = None;
+        {
 
 
-    // }
+                let decrement;
+                {
+                    if let &Some(ref rel_item) = &self.items[rel_item_id] {
 
-    // fn set_relation(&mut self, item_id: ItemId, link: RelationLink) {
+                        // no change. bail out. do not increment or decrement
+                        if Some(rel_item.subject_id) == link.subject_id {
+                            return;
+                        }
 
-    //     // let item = &self.items[item_id];
-    //     // retrieve existing relation by SlotId as the vec offset
-    //     // Some(&Some()) due to empty vec slot vs None relation (logically equivalent)
-    //     let mut remove = None;
-    //     {
-    //         let item = {
-    //             if let Some(ref item) = self.items[item_id] {
-    //                 item
-    //             } else {
-    //                 panic!("sanity error. set relation on item that does not exist")
-    //             }
-    //         };
+                        decrement = 0 - (1 + item.indirect_references);
+                    } else {
+                        panic!("sanity error. relation item_id located, but not found in items")
+                    }
+                }
 
-    //         if let Some(&Some(rel_item_id)) = item.relations.get(link.slot_id as usize) {
-    //             // relation exists
-
-    //             let decrement;
-    //             {
-    //                 if let &Some(ref rel_item) = &self.items[rel_item_id] {
-
-    //                     // no change. bail out. do not increment or decrement
-    //                     if Some(rel_item.subject_id) == link.subject_id {
-    //                         return;
-    //                     }
-
-    //                     decrement = 0 - (1 + item.indirect_references);
-    //                 } else {
-    //                     panic!("sanity error. relation item_id located, but not found in items")
-    //                 }
-    //             }
-
-    //             remove = Some((rel_item_id, decrement));
-    //         };
-    //     }
+                remove = Some((rel_item_id, decrement));
+            };
+        }
 
 
-    //     // ruh roh, we're different. Have to back out the old relation
-    //     // (a little friendly sparring with the borrow checker :-x )
-    //     if let Some((rel_item_id, decrement)) = remove {
-    //         let mut removed = vec![false; self.items.len()];
-    //         {
-    //             self.increment(rel_item_id, decrement, &mut removed)
-    //         };
-    //         // item.relations[link.slot_id] MUST be set below
-    //     }
+        // ruh roh, we're different. Have to back out the old relation
+        // (a little friendly sparring with the borrow checker :-x )
+        if let Some((rel_item_id, decrement)) = remove {
+            let mut removed = vec![false; self.items.len()]
+            {
+                self.increment(rel_item_id, decrement, &mut removed)
+            };
+            // item.relations[link.slot_id] MUST be set below
+        }
 
-    //     if let Some(subject_id) = link.subject_id {
-    //         let new_rel_item_id = {
-    //             self.assert_item(subject_id)
-    //         };
+        if let Some(subject_id) = link.subject_id {
+            let new_rel_item_id = {
+                self.assert_item(subject_id)
+            };
 
-    //         let increment;
-    //         {
-    //             if let &mut Some(ref mut item) = &mut self.items[item_id] {
-    //                 while item.relations.len() <= link.slot_id as usize { 
-    //                     item.relations.push(None);
-    //                 }
+            let increment;
+            {
+                if let &mut Some(ref mut item) = &mut self.items[item_id] {
+                    while item.relations.len() <= link.slot_id as usize { 
+                        item.relations.push(None);
+                    }
 
-    //                 item.relations[link.slot_id as usize] = Some(new_rel_item_id);
-    //                 increment = 1 + item.indirect_references;
-    //             } else {
-    //                 panic!("sanity error. relation just set")
-    //             }
-    //         };
+                    item.relations[link.slot_id as usize] = Some(new_rel_item_id);
+                    increment = 1 + item.indirect_references;
+                } else {
+                    panic!("sanity error. relation just set")
+                }
+            };
 
-    //         let mut added = vec![false; self.items.len()];
-    //         self.increment(new_rel_item_id, increment, &mut added);
-    //     } else {
-    //         // sometimes this will be unnecessary, but it's essential to overwrite a Some() if it's there
-    //         if let &mut Some(ref mut item) = &mut self.items[item_id] {
-    //             while item.relations.len() <= link.slot_id as usize { 
-    //                 item.relations.push(None);
-    //             }
+            let mut added = vec![false; self.items.len()];
+            self.increment(new_rel_item_id, increment, &mut added);
+        } else {
+            // sometimes this will be unnecessary, but it's essential to overwrite a Some() if it's there
+            if let &mut Some(ref mut item) = &mut self.items[item_id] {
+                while item.relations.len() <= link.slot_id as usize { 
+                    item.relations.push(None);
+                }
 
-    //             item.relations[link.slot_id as usize] = None;
+                item.relations[link.slot_id as usize] = None;
 
-    //         } else {
-    //             panic!("sanity error. relation item not found in items")
-    //         }
-    //     }
-    // }
-    // fn increment(&mut self, item_id: ItemId, increment: isize, seen: &mut Vec<bool>) {
-    //     // Avoid traversing cycles
-    //     if Some(&true) == seen.get(item_id) {
-    //         return; // dejavu! Bail out
-    //     }
-    //     seen[item_id] = true;
+            } else {
+                panic!("sanity error. relation item not found in items")
+            }
+        }
+    }
+    fn increment(&mut self, item_id: ItemId, increment: isize, seen: &mut Vec<bool>) {
+        // Avoid traversing cycles
+        if Some(&true) == seen.get(item_id) {
+            return; // dejavu! Bail out
+        }
+        seen[item_id] = true;
 
-    //     let relations: Vec<ItemId>;
-    //     let mut remove = false;
-    //     {
-    //         if let &mut Some(ref mut item) = &mut self.items[item_id] {
-    //             item.indirect_references += increment;
-    //             if item.indirect_references == 0 && item.head.is_none(){
-    //                 remove = true;
-    //             }
-    //             assert!(item.indirect_references >= 0,
-    //                     "sanity error. indirect_references below zero");
+        let relations: Vec<ItemId>;
+        let mut remove = false;
+        {
+            if let &mut Some(ref mut item) = &mut self.items[item_id] {
+                item.indirect_references += increment;
+                if item.indirect_references == 0 && item.head.is_none(){
+                    remove = true;
+                }
+                assert!(item.indirect_references >= 0,
+                        "sanity error. indirect_references below zero");
 
-    //             relations = item.relations.iter().filter_map(|r| *r).collect();
-    //         } else {
-    //             panic!("sanity error. increment for item_id");
-    //         }
-    //     };
+                relations = item.relations.iter().filter_map(|r| *r).collect();
+            } else {
+                panic!("sanity error. increment for item_id");
+            }
+        };
 
-    //     if remove {
-    //         self.items[item_id] = None;
-    //         self.vacancies.push(item_id);
-    //     }
+        if remove {
+            self.items[item_id] = None;
+            self.vacancies.push(item_id);
+        }
 
-    //     for rel_item_id in relations {
-    //         self.increment(rel_item_id, increment, seen);
-    //     }
+        for rel_item_id in relations {
+            self.increment(rel_item_id, increment, seen);
+        }
 
-    // }
+    }
     // I don't really like have this be internal to the manager, but there's presently no item_id based interface and I'm not sure if there will be.
     // It's inefficient to have to convert back and forth between SubjectId and ItemId.
     pub fn compress(&mut self, slab: &Slab) {
@@ -410,6 +403,18 @@ impl ContextManagerInner {
                 item_id
             }
         }
+    }
+    fn remove_head (&self, subject_id: SubjectId) {
+        unimplemented!();
+        // let inner = self.inner.lock().unwrap();
+
+        // if *inner.iter_counter == 0 {
+        //     inner.vacancies.push(item_id);
+        // }else{
+        //     // avoid use after free until all iters have finished
+        //     // we don't have to guarantee that the item sticks around, just that we don't give the iter the wrong item
+        //     inner.pending_vacancies.push(item_id);
+        // }
     }
 }
 

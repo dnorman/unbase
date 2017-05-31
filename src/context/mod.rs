@@ -219,11 +219,11 @@ impl Context {
         // ANSWER:   It occurs to me that we're only getting subject heads from the slab which we expressly
         //          subscribed to, so this strengthens the case quite a bit
 
-        self.manager.apply_head(subject_id, relation_links, head.clone());
+        self.manager.apply_head(subject_id, apply_head, &self.slab);
 
         if notify_subject {
             if let Some(ref subject) = self.get_subject_if_resident(subject_id) {
-                subject.apply_head(&head);
+                subject.apply_head(apply_head);
             }
         }
     }
@@ -240,7 +240,7 @@ impl Context {
 
         let mut memoref_count = 0;
 
-        for subject_head in self.manager.subject_head_iter_rev() {
+        for subject_head in self.manager.subject_head_iter() {
             memoref_count += subject_head.head.len();
 
             other.apply_subject_head(subject_head.subject_id,
@@ -254,7 +254,7 @@ impl Context {
         memoref_count
     }
     pub fn get_subject_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
-        if let Some(ref head) = self.manag.get_head(subject_id) {
+        if let Some(ref head) = self.manager.get_head(subject_id) {
             Some((*head).clone())
         } else {
             None
@@ -287,7 +287,7 @@ impl Context {
     }
 
     pub fn is_fully_materialized(&self) -> bool {
-        for subject_head in self.manager.subject_head_iter_rev() {
+        for subject_head in self.manager.subject_head_iter() {
             if !subject_head.head.is_fully_materialized(&self.slab) {
                 return false;
             }
