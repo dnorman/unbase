@@ -18,23 +18,23 @@ impl MemoRefHead {
     // Kind of a brute force way to do this
     // TODO: Consider calculating deltas during memoref application,
     //       and use that to perform a minimum cost subject_head_link edit
-    pub fn project_all_relation_links (&self, slab: &Slab) -> Vec<RelationLink> {
-        let mut relation_links : [SubjectId; SUBJECT_MAX_RELATIONS] = [0; SUBJECT_MAX_RELATIONS];
+    pub fn project_all_relation_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
+        let mut relation_links : [(SubjectId,Option<MemoRefHead>); SUBJECT_MAX_RELATIONS] = [(0,None); SUBJECT_MAX_RELATIONS];
 
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
             match memo.body {
                 MemoBody::FullyMaterialized { v: _, ref r } => {
 
-                    for (slot,&(subject_id,_)) in &r.0 {
-                        relation_links[ *slot as usize ] = subject_id as SubjectId;
+                    for (slot,&(subject_id,maybe_rel_head)) in &r.0 {
+                        relation_links[ *slot as usize ] = (subject_id as SubjectId,maybe_rel_head);
                     }
                     break;
                     // Materialized memo means we're done here
                 },
                 MemoBody::Relation(ref r) => {
-                    for (slot,&(subject_id,_)) in r.iter() {
-                        relation_links[ *slot as usize ] = subject_id as SubjectId;
+                    for (slot,&(subject_id,maybe_rel_head)) in r.iter() {
+                        relation_links[ *slot as usize ] = (subject_id as SubjectId, maybe_rel_head);
                     }
                 },
                 _ => {}
@@ -43,15 +43,18 @@ impl MemoRefHead {
 
         // HACK
 
-        relation_links.iter().enumerate().map(|(slot_id,subject_id)| {
+        relation_links.iter().enumerate().map(|(slot_id,(subject_id,maybe_rel_head)| {
             if *subject_id == 0 {
-                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: None }
+                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: None, head: rel_head.clone() }
             }else{
-                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: Some(*subject_id) }
+                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: Some(*subject_id), head: rel_head.clone() }
             }
         }).collect()
     }
-
+    /// Project all relation links which were edited between two MemoRefHeads.
+    pub fn project_relation_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<RelationLink>{
+        unimplemented!()
+    }
     pub fn project_value ( &self, context: &Context, key: &str ) -> Option<String> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses

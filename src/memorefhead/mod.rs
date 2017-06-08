@@ -25,7 +25,8 @@ pub struct MemoRefHead (Vec<MemoRef>);
 
 pub struct RelationLink{
     pub slot_id:    RelationSlotId,
-    pub subject_id: Option<SubjectId>
+    pub subject_id: Option<SubjectId>,
+    pub head:       Option<MemoRefHead>
 }
 
 impl MemoRefHead {

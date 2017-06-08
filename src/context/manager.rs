@@ -150,13 +150,24 @@ impl ContextManager {
     /// Apply the provided MemoRefHead for a given subject. Project relation references and add placeholders as needed to the context
     pub fn apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> MemoRefHead {
 
+
+        // Notes on future concurrency upgrades:
+        // Most likely, will want to decompose MemoRefHead here such that we can add the new memos to the set first, then remove the superseded memorefs after that.
+        // Provided that the memoref add operation completes before the memoref remove operation, this should be concurrency safe (I think) so long as (non A,B,A) addition to and removal from the set is idempotent.
+        // The A/B/A scenario is fine because it doesn't hurt correctness to have too much in the context, only too little.
+        // Question is: how do atomics fit into this?
+        //
+        // Going with the low road for now:
+
         loop {
             let (maybe_head, edit_counter) = self.get_head_and_generation(subject_id);
+            // Can't span the fetch/apply/set with a lock, due to the potential for deadlock. Therefore, employing a quick hack:
+            // Any edit that is applied after this edit counter is gotten will trigger a do-over
 
             let head = match maybe_head {
                 Some(head) => {
                     // IMPORTANT! no locks may be held here.
-                    // happens-before determination may require memo retrieval, which is a blocking operation.
+                    // happens-before determination may require remote memo retrieval, which is a blocking operation.
                     head.apply(apply_head, slab); 
                     head
                 }
@@ -167,40 +178,71 @@ impl ContextManager {
 
             // IMPORTANT! no locks may be held here.
             // projection may require memo retrieval, which is a blocking operation.
-            let all_relation_links = head.project_all_relation_links(slab);
+            let all_relation_links_including_empties = head.project_all_relation_links_including_empties(slab);
 
-            let inner   = self.inner.lock().unwrap();
-            let item_id = inner.assert_item(subject_id);
+            {
+                // Ok, no projection or happens-before determination after this
+                let inner   = self.inner.lock().unwrap();
+                let item_id = inner.assert_item(subject_id);
 
-            if let Some(ref item) = inner.items[item_id] {
-                if item.edit_counter != edit_counter {
-                    // Something has changed. Time for a do-over.
-                    continue;
-                }
+                if let Some(ref item) = inner.items[item_id] {
+                    if item.edit_counter != edit_counter {
+                        // Something has changed. Time for a do-over.
+                        continue;
+                    }
 
-                // LEFT OFF HERE
-                // ________________________________
+                    // TODO: Iterate only the relations that changed between the old head and the apply head
 
-                'relation: for link in all_relation_links {
-                    // existing relation
-                    if let Some(rel_item_id) = item.relations[link.slot_id as usize] {
-                        let mut rel_item = inner.items[rel_item_id];
+                    // For now, we are assuming that all slots are present:
+                    for link in all_relation_links_including_empties {
+                        if let Some(rel_item_id) = item.relations[link.slot_id as usize] {
+                            // Existing relation
+                            let mut rel_item = inner.items[rel_item_id];
 
-                        if Some(rel_item.subject_id) != link.subject_id {
-                            // OK, so we're unlinking from this
-                            rel_item.decrement();
-                            //item.relations[link.slot_id]
+
+                            // LEFT OFF HERE. Next steps:
+                            // X 1. Update project_all_relation_links_including_empties to provide the heads for each relation
+                            // 2. If the relation is present in the context manager, and the projected relation head descends that AND all other referents do the same
+                            // 3. remove the relation head from the context manager
+
+                            // Gut check: Is it really safe to remove a relation head if the above criteria is met?
+                            // I think so, because any index updates would also be in the context, and we would take no action until all referents
+                            // descended the relation. It's silly to worry about this effective referents which *aren't* in the context, because
+                            // we don't guarantee anything OTHER than context-based projection
+
+                            // QUESTION: should we return here?
+                            if Some(subject_id) != link.subject_id {
+                                // OK, so we're unlinking from this
+                                inner.decrement_item(rel_item);
+                                item.relations[link.slot_id] = None;
+                            }
+
+                            // 
+                            if let Some(ref new_rel_head) = link.head {
+                                // >>>> PROBLEM 1 <<<< Needs to be outside of a lock
+                                // >>>> PROBLEM 2 <<<< Needs be execute for new relationships, not just existing
+                                if let Some(existing_rel_head) rel_item.head {
+                                    if new_rel_head.descends(existing_rel_head) {
+                                        inner.increment_descendents(rel_item)
+                                    }
+                                }
+                            }
                         }else{
-
+                            // PROBLEM! needs to be run 
+                            // NON-existing relation
+                            let item_id = inner.assert_item(link.subject_id);
+                            let mut rel_item = inner.items[rel_item_id];
+                            inner.increment_item(&*rel_item);
+                            rel_item.relations[link.slot_id] = Some(item_id);
                         }
                     }
+
+                    return head;
+                }else{
+                    // shouldn't ever get here
+                    panic!("sanity error - missing item");
                 }
-
-                return head;
-            }else{
-                panic!("sanity error - missing item");
             }
-
         }
 
     }
@@ -209,81 +251,6 @@ impl ContextManager {
         inner.iter_counter += 1;
 
         SubjectHeadIter::new(self.clone())
-    }
-
-    fn set_relation(&mut self, item_id: ItemId, link: RelationLink) {
-
-        // let item = &self.items[item_id];
-        // retrieve existing relation by SlotId as the vec offset
-        // Some(&Some()) due to empty vec slot vs None relation (logically equivalent)
-        let mut remove = None;
-        {
-
-
-                let decrement;
-                {
-                    if let &Some(ref rel_item) = &self.items[rel_item_id] {
-
-                        // no change. bail out. do not increment or decrement
-                        if Some(rel_item.subject_id) == link.subject_id {
-                            return;
-                        }
-
-                        decrement = 0 - (1 + item.indirect_references);
-                    } else {
-                        panic!("sanity error. relation item_id located, but not found in items")
-                    }
-                }
-
-                remove = Some((rel_item_id, decrement));
-            };
-        }
-
-
-        // ruh roh, we're different. Have to back out the old relation
-        // (a little friendly sparring with the borrow checker :-x )
-        if let Some((rel_item_id, decrement)) = remove {
-            let mut removed = vec![false; self.items.len()]
-            {
-                self.increment(rel_item_id, decrement, &mut removed)
-            };
-            // item.relations[link.slot_id] MUST be set below
-        }
-
-        if let Some(subject_id) = link.subject_id {
-            let new_rel_item_id = {
-                self.assert_item(subject_id)
-            };
-
-            let increment;
-            {
-                if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                    while item.relations.len() <= link.slot_id as usize { 
-                        item.relations.push(None);
-                    }
-
-                    item.relations[link.slot_id as usize] = Some(new_rel_item_id);
-                    increment = 1 + item.indirect_references;
-                } else {
-                    panic!("sanity error. relation just set")
-                }
-            };
-
-            let mut added = vec![false; self.items.len()];
-            self.increment(new_rel_item_id, increment, &mut added);
-        } else {
-            // sometimes this will be unnecessary, but it's essential to overwrite a Some() if it's there
-            if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                while item.relations.len() <= link.slot_id as usize { 
-                    item.relations.push(None);
-                }
-
-                item.relations[link.slot_id as usize] = None;
-
-            } else {
-                panic!("sanity error. relation item not found in items")
-            }
-        }
     }
     fn increment(&mut self, item_id: ItemId, increment: isize, seen: &mut Vec<bool>) {
         // Avoid traversing cycles
@@ -404,6 +371,15 @@ impl ContextManagerInner {
             }
         }
     }
+    fn increment_item &mut self, item: ContextItem){
+        unimplemented!();
+    }
+    fn decrement_item(&mut self, item: ContextItem) {
+        unimplemented!();
+    }
+    fn increment_descendents (&mut self, item: ContextItem){
+        unimplemented!();
+    }
     fn remove_head (&self, subject_id: SubjectId) {
         unimplemented!();
         // let inner = self.inner.lock().unwrap();
@@ -419,56 +395,6 @@ impl ContextManagerInner {
 }
 
 //impl ContextManager {
-    // pub fn remove_head(&mut self, subject_id: SubjectId ) {
-    //     if let Some(item_id) = self.items.iter().position(|i| {
-    //         if let &Some(ref it) = i {
-    //             it.subject_id == subject_id
-    //         } else {
-    //             false
-    //         }
-    //     }) {
-    //         let mut full_remove = false;
-    //         let mut relations = Vec::new();
-    //         let decrement;
-    //         let items_len = self.items.len();
-
-    //         {
-    //             if let Some(ref mut item) = self.items[item_id] {
-    //                 decrement = 0 - (item.indirect_references + 1);
-    //                 for relation in item.relations.iter() {
-    //                     if let Some(rel_item_id) = *relation {
-    //                         relations.push(rel_item_id);
-    //                     }
-    //                 }
-                
-    //                 item.relations.clear();
-
-    //                 if item.indirect_references == 0 {
-    //                     // If nobody points to me, we can fully bail out
-    //                     full_remove = true;
-    //                 }else{
-    //                     // otherwise just remove the head that we intend to remove
-    //                     item.head = None;
-    //                 }
-    //             }else{
-    //                 panic!("sanity error");
-    //             }
-
-    //             if full_remove {
-    //                 self.items[item_id] = None;
-    //                 self.vacancies.push(item_id);
-    //             }
-    //         }
-
-    //         // no head means we're not pointing to these anymore, at least not within the context manager
-    //         for rel_item_id in relations {
-    //             let mut removed = vec![false; items_len];
-    //             self.increment(rel_item_id, decrement, &mut removed);
-    //         }
-
-    //     }
-
-    // }
 
     /// For a given SubjectId, Retrieve a RelationSlotSubjectHead containing all referred subject heads resident in the `ContextManager`
     // pub fn compress_subject(&mut self, subject_id: SubjectId) -> Option<RelationSlotSubjectHead> {
