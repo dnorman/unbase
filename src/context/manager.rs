@@ -52,7 +52,28 @@ impl ContextItem {
 /// For this reason, we must perform context compression as a single pass over the contained MemoRefHeads, as a cyclic relation could otherwise cause and infinite loop.
 /// The internal reference count increment/decrement thus contains cycle breaker functionality.
 ///
-/// The ContextManager has been authored with the idea in mind that it generally should not exceed O(1k) MemoRefHeads. It should be periodically compressed to control expansion.
+/// The ContextManager has been authored with the idea in mind that it generally should not exceed O(1k) MemoRefHeads.
+/// It should be periodically compressed to control expansion, as its entire contents must be serialized for conveyance to neighbors.
+///
+/// Compression - a key requirement
+/// 
+/// Subject heads are applied to the context for any edit for which the consistency model enforcement is applicable.
+/// Subject heads shall only removed from the context if:
+/// * One or more other resident subject heads reference it
+/// * All of the aforementioned subject heads descend it
+///
+/// Combined with index traversal, this meets our consistency invariant:
+/// Projections done on the basis of an index or other relationship traversal shall include all edits whose heads were
+/// added to the context previously.
+/// Gradually, all edits will be rolled up into the index, which will always have at least one entry in the context (the root index node)
+/// This has some crucial requirements:
+/// 1. Non-index Subjects may not reference index subjects, or at least these references must not count
+///    toward compaction rules
+/// 2. Relationship traversals must specify which they require:
+///    A. Relative consistency with the record from which they originated
+///    B. Absolute consistency with the query context, which likely requires a supplimental index traversal.
+///    Index subjects themselves would require only the former of course (with the latter being impossible)
+///    For non-index relationship traversals, this is potentially ornerous from a performance perspective)
 impl ContextManager {
     pub fn new() -> ContextManager {
         ContextManager {
@@ -197,7 +218,7 @@ impl ContextManager {
                     for link in all_relation_links_including_empties {
                         if let Some(rel_item_id) = item.relations[link.slot_id as usize] {
                             // Existing relation
-                            let mut rel_item = inner.items[rel_item_id];
+                            let mut rel_item = inner.items[rel_item_id].as_ref().expect("inner.items sanity error");
 
 
                             // LEFT OFF HERE. Next steps:
@@ -205,24 +226,19 @@ impl ContextManager {
                             // 2. If the relation is present in the context manager, and the projected relation head descends that AND all other referents do the same
                             // 3. remove the relation head from the context manager
 
-                            // Gut check: Is it really safe to remove a relation head if the above criteria is met?
-                            // I think so, because any index updates would also be in the context, and we would take no action until all referents
-                            // descended the relation. It's silly to worry about this effective referents which *aren't* in the context, because
-                            // we don't guarantee anything OTHER than context-based projection
-
                             // QUESTION: should we return here?
                             if Some(subject_id) != link.subject_id {
                                 // OK, so we're unlinking from this
                                 inner.decrement_item(rel_item);
-                                item.relations[link.slot_id] = None;
+                                item.relations[link.slot_id as usize] = None;
                             }
 
                             // 
                             if let Some(ref new_rel_head) = link.head {
                                 // >>>> PROBLEM 1 <<<< Needs to be outside of a lock
                                 // >>>> PROBLEM 2 <<<< Needs be execute for new relationships, not just existing
-                                if let Some(existing_rel_head) rel_item.head {
-                                    if new_rel_head.descends(existing_rel_head) {
+                                if let Some(ref existing_rel_head) = rel_item.head {
+                                    if new_rel_head.descends(existing_rel_head, slab) {
                                         inner.increment_descendents(rel_item)
                                     }
                                 }
@@ -371,13 +387,13 @@ impl ContextManagerInner {
             }
         }
     }
-    fn increment_item &mut self, item: ContextItem){
+    fn increment_item(&mut self, item: &ContextItem){
         unimplemented!();
     }
-    fn decrement_item(&mut self, item: ContextItem) {
+    fn decrement_item(&mut self, item: &ContextItem) {
         unimplemented!();
     }
-    fn increment_descendents (&mut self, item: ContextItem){
+    fn increment_descendents (&mut self, item: &ContextItem){
         unimplemented!();
     }
     fn remove_head (&self, subject_id: SubjectId) {

@@ -123,6 +123,26 @@ impl MemoRefHead {
             self.apply_memoref( new, slab );
         }
     }
+    /// Test to see if this MemoRefHead fully descends another
+    /// If there is any hint of causal concurrency, then this will return false
+    pub fn descends (&self, other: &MemoRefHead, slab: &Slab) -> bool{
+        if self.len() == 0 || other.len() == 0 {
+            return false // searching for positive descendency, not merely non-ascendency
+        }
+
+        // there's probably a more efficient way to do this than iterating over the cartesian product
+        // we can get away with it for now though I think
+        // TODO: revisit when beacons are implemented
+        for memoref in self.iter(){
+            for other_memoref in other.iter(){
+                if !memoref.descends(other_memoref, slab) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
     pub fn memo_ids (&self) -> Vec<MemoId> {
         self.0.iter().map(|m| m.id).collect()
     }
