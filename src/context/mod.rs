@@ -124,9 +124,9 @@ impl Context {
             None => Err(RetrieveError::IndexNotInitialized),
         }
     }
-
     /// Retrieve a subject for a known MemoRefHead – ususally used for relationship traversal.
     /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met
+    /// TODO: determine how to consider root index retrieval in cases where it's necessary for the consistency model
     pub fn get_subject_with_head(&self,
                                  subject_id: SubjectId,
                                  mut head: MemoRefHead)

@@ -74,6 +74,9 @@ impl ContextItem {
 ///    B. Absolute consistency with the query context, which likely requires a supplimental index traversal.
 ///    Index subjects themselves would require only the former of course (with the latter being impossible)
 ///    For non-index relationship traversals, this is potentially ornerous from a performance perspective)
+///
+/// Invariant 1: The each state of the context manager must be descendent of its prior state
+///  
 impl ContextManager {
     pub fn new() -> ContextManager {
         ContextManager {
@@ -226,6 +229,13 @@ impl ContextManager {
                             // 2. If the relation is present in the context manager, and the projected relation head descends that AND all other referents do the same
                             // 3. remove the relation head from the context manager
 
+                            // Automatic pruning of subject heads was intended to produce a context which was always equal to or descendant of the pre-pruned context.
+                            // Pruning of subject heads for which N of N referents are desdendant makes less sense given that the revised context would *not*
+                            // be functionally equivalent to its predecessor, instead requiring a root index traversal to inforce its invariants.
+
+                            // >> This seems problematic.
+                            // Assuming that the in the most superficial sense
+
                             // QUESTION: should we return here?
                             if Some(subject_id) != link.subject_id {
                                 // OK, so we're unlinking from this
@@ -337,7 +347,7 @@ impl ContextManager {
         //             let new_head = memoref.to_head();
 
         //             let relation_links = new_head.project_all_relation_links(&slab);
-        //             self.set_subject_head( subject_head.subject_id, relation_links , new_head );
+        //             self.apply_head( subject_head.subject_id, relation_links , new_head );
 
         //         }
         //     }
@@ -542,13 +552,17 @@ impl Iterator for SubjectHeadIter {
 /// Reverse topological iterator over subject heads which are resident in the context manager
 impl SubjectHeadIter {
     fn new(manager: ContextManager) -> Self {
-        SubjectHeadIter{
-            manager: manager,
-            edit_counter: !0,
-            items: Vec::new()
-        }
+        unimplemented!()
+        
+        // SubjectHeadIter{
+        //     manager: manager,
+        //     edit_counter: !0,
+        //     items: Vec::new()
+        // }
     }
-
+    pub fn get_subject_ids (&mut self) -> Vec<SubjectId> {
+        self.map(|x| x.subject_id ).collect()
+    }
     fn calculate(&mut self) {
         // 0. Make a note of the edit counter for the graph, cache the below for as long as it is unchanged
         // 1. Generate inverse adjacency list for whole graph
@@ -612,44 +626,15 @@ mod test {
         let slab = Slab::new(&net);
         let mut manager = ContextManager::new();
 
-        let head1 = slab.new_memo_basic_noparent(Some(1),
-                                     MemoBody::FullyMaterialized {
-                                         v: HashMap::new(),
-                                         r: RelationSlotSubjectHead::empty(),
-                                     })
-            .to_head();
-        manager.set_subject_head(1, head1.project_all_relation_links(&slab), head1.clone());
+        // 4 -> 3 -> 2 -> 1
+        let head1 = manager.add_test_subject(1, None, &slab        );
+        let head2 = manager.add_test_subject(2, Some(head1), &slab );
+        let head3 = manager.add_test_subject(3, Some(head2), &slab );
+        let head4 = manager.add_test_subject(4, Some(head3), &slab );
 
-        let head2 = slab.new_memo_basic_noparent(Some(2),
-                                     MemoBody::FullyMaterialized {
-                                         v: HashMap::new(),
-                                         r: RelationSlotSubjectHead::single(0, 1, head1),
-                                     })
-            .to_head();
-        manager.set_subject_head(2, head2.project_all_relation_links(&slab), head2.clone());
-
-        let head3 = slab.new_memo_basic_noparent(Some(3),
-                                     MemoBody::FullyMaterialized {
-                                         v: HashMap::new(),
-                                         r: RelationSlotSubjectHead::single(0, 2, head2),
-                                     })
-            .to_head();
-        manager.set_subject_head(3, head3.project_all_relation_links(&slab), head3.clone());
-
-        let head4 = slab.new_memo_basic_noparent(Some(4),
-                                     MemoBody::FullyMaterialized {
-                                         v: HashMap::new(),
-                                         r: RelationSlotSubjectHead::single(0, 3, head3),
-                                     })
-            .to_head();
-        manager.set_subject_head(4, head4.project_all_relation_links(&slab), head4);
 
         let mut iter = manager.subject_head_iter();
-        assert_eq!(1, iter.next().expect("iter result 1 should be present").subject_id);
-        assert_eq!(2, iter.next().expect("iter result 2 should be present").subject_id);
-        assert_eq!(3, iter.next().expect("iter result 3 should be present").subject_id);
-        assert_eq!(4, iter.next().expect("iter result 4 should be present").subject_id);
-        assert!(iter.next().is_none(), "iter should have ended");
+        assert!(iter.get_subject_ids() == [1,2,3,4], "Valid sequence");
     }
 
     #[test]
@@ -658,34 +643,14 @@ mod test {
         let slab = Slab::new(&net);
         let mut manager = ContextManager::new();
 
-        // Subject 1 is pointing to nooobody
-        let head1 = slab.new_memo_basic_noparent(Some(1), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(1, head1.project_all_relation_links(&slab), head1.clone());
+        // 2 -> 1, 4 -> 3
+        let head1 = manager.add_test_subject(1, None, &slab        );
+        let head2 = manager.add_test_subject(2, Some(head1), &slab );
+        let head3 = manager.add_test_subject(3, None,        &slab );
+        let head4 = manager.add_test_subject(4, Some(head3), &slab );
 
-        // Subject 2 slot 0 is pointing to Subject 1
-        let head2 = slab.new_memo_basic_noparent(Some(2), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 1, head1.clone()) }).to_head();
-        manager.set_subject_head(2, head2.project_all_relation_links(&slab), head2.clone());
-
-        //Subject 3 slot 0 is pointing to nobody
-        let head3 = slab.new_memo_basic_noparent(Some(3), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(3, head3.project_all_relation_links(&slab), head3.clone());
-
-        // Subject 4 slot 0 is pointing to Subject 3
-        let head4 = slab.new_memo_basic_noparent(Some(4), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 3, head3.clone()) }).to_head();
-        manager.set_subject_head(4, head4.project_all_relation_links(&slab), head4);
-
-
-        // 2[0] -> 1
-        // 4[0] -> 3
         let mut iter = manager.subject_head_iter();
-        // for subject_head in iter {
-        //     println!("{} is {}", subject_head.subject_id, subject_head.indirect_references );
-        // }
-        assert_eq!(3, iter.next().expect("iter result 3 should be present").subject_id);
-        assert_eq!(1, iter.next().expect("iter result 1 should be present").subject_id);
-        assert_eq!(4, iter.next().expect("iter result 4 should be present").subject_id);
-        assert_eq!(2, iter.next().expect("iter result 2 should be present").subject_id);
-        assert!(iter.next().is_none(), "iter should have ended");
+        assert!(iter.get_subject_ids() == [1,3,2,4], "Valid sequence");
     }
     #[test]
     fn context_manager_repoint_relation() {
@@ -693,41 +658,21 @@ mod test {
         let slab = Slab::new(&net);
         let mut manager = ContextManager::new();
 
-        // Subject 1 is pointing to nooobody
-        let head1 = slab.new_memo_basic_noparent(Some(1), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(1, head1.project_all_relation_links(&slab), head1.clone());
-
-        // Subject 2 slot 0 is pointing to Subject 1
-        let head2 = slab.new_memo_basic_noparent(Some(2), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 1, head1.clone()) }).to_head();
-        manager.set_subject_head(2, head2.project_all_relation_links(&slab), head2.clone());
-
-        //Subject 3 slot 0 is pointing to nobody
-        let head3 = slab.new_memo_basic_noparent(Some(3), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(3, head3.project_all_relation_links(&slab), head3.clone());
-
-        // Subject 4 slot 0 is pointing to Subject 3
-        let head4 = slab.new_memo_basic_noparent(Some(4), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 3, head3.clone()) }).to_head();
-        manager.set_subject_head(4, head4.project_all_relation_links(&slab), head4.clone());
+        // 2 -> 1, 4 -> 3
+        // Then:
+        // 2 -> 4
+        
+        let head1 = manager.add_test_subject(1, None, &slab        );
+        let head2 = manager.add_test_subject(2, Some(head1), &slab );
+        let head3 = manager.add_test_subject(3, None,        &slab );
+        let head4 = manager.add_test_subject(4, Some(head3), &slab );
 
         // Repoint Subject 2 slot 0 to subject 4
         let head2_b = slab.new_memo_basic(Some(2), head2, MemoBody::Relation(RelationSlotSubjectHead::single(0,4,head4) )).to_head();
-        manager.set_subject_head(4, head2_b.project_all_relation_links(&slab), head2_b);
+        manager.apply_head(4, &head2_b, &slab);
 
-
-        // 2[0] -> 1
-        // 4[0] -> 3
-        // Then:
-        // 2[0] -> 4
-        
         let mut iter = manager.subject_head_iter();
-        // for subject_head in iter {
-        //     println!("{} is {}", subject_head.subject_id, subject_head.indirect_references );
-        // }
-        assert_eq!(1, iter.next().expect("iter result 1 should be present").subject_id);
-        assert_eq!(4, iter.next().expect("iter result 4 should be present").subject_id);
-        assert_eq!(3, iter.next().expect("iter result 3 should be present").subject_id);
-        assert_eq!(2, iter.next().expect("iter result 2 should be present").subject_id);
-        assert!(iter.next().is_none(), "iter should have ended");
+        assert!(iter.get_subject_ids() == [1,4,3,2], "Valid sequence");
     }
     #[test]
     fn context_manager_remove() {
@@ -737,15 +682,15 @@ mod test {
 
         // Subject 1 is pointing to nooobody
         let head1 = slab.new_memo_basic_noparent(Some(1), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(1, head1.project_all_relation_links(&slab), head1.clone());
+        manager.apply_head(1, head1.project_all_relation_links(&slab), head1.clone());
 
         // Subject 2 slot 0 is pointing to Subject 1
         let head2 = slab.new_memo_basic_noparent(Some(2), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 1, head1.clone()) }).to_head();
-        manager.set_subject_head(2, head2.project_all_relation_links(&slab), head2.clone());
+        manager.apply_head(2, head2.project_all_relation_links(&slab), head2.clone());
 
         //Subject 3 slot 0 is pointing to Subject 2
         let head3 = slab.new_memo_basic_noparent(Some(3), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 2, head2.clone()) }).to_head();
-        manager.set_subject_head(3, head3.project_all_relation_links(&slab), head3.clone());
+        manager.apply_head(3, head3.project_all_relation_links(&slab), head3.clone());
 
 
         // 2[0] -> 1
@@ -770,7 +715,7 @@ mod test {
 
         // Subject 1 is pointing to nooobody
         let head1 = slab.new_memo_basic_noparent(Some(1), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(1, head1.project_all_relation_links(&slab), head1.clone());
+        manager.apply_head(1, head1.project_all_relation_links(&slab), head1.clone());
 
         assert_eq!(manager.subject_count(), 1);
         assert_eq!(manager.subject_head_count(), 1);
@@ -782,7 +727,7 @@ mod test {
 
         // Subject 2 slot 0 is pointing to Subject 1
         let head2 = slab.new_memo_basic_noparent(Some(2), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 1, head1.clone()) }).to_head();
-        manager.set_subject_head(2, head2.project_all_relation_links(&slab), head2.clone());
+        manager.apply_head(2, head2.project_all_relation_links(&slab), head2.clone());
 
         assert_eq!(manager.subject_count(), 2);
         assert_eq!(manager.subject_head_count(), 1);
@@ -794,7 +739,7 @@ mod test {
 
         //Subject 3 slot 0 is pointing to nobody
         let head3 = slab.new_memo_basic_noparent(Some(3), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
-        manager.set_subject_head(3, head3.project_all_relation_links(&slab), head3.clone());
+        manager.apply_head(3, head3.project_all_relation_links(&slab), head3.clone());
 
         assert_eq!(manager.subject_count(), 1);
         assert_eq!(manager.subject_head_count(), 1);
@@ -806,7 +751,7 @@ mod test {
 
         // Subject 4 slot 0 is pointing to Subject 3
         let head4 = slab.new_memo_basic_noparent(Some(4), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::single(0, 3, head3.clone()) }).to_head();
-        manager.set_subject_head(4, head4.project_all_relation_links(&slab), head4);
+        manager.apply_head(4, head4.project_all_relation_links(&slab), head4);
 
         assert_eq!(manager.subject_count(), 2);
         assert_eq!(manager.subject_head_count(), 1);
