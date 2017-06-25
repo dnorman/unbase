@@ -101,8 +101,23 @@ pub enum MemoPeeringStatus {
     Unknown,
 }
 
+pub type RelationSlotId = u8;
+
+// TODO: convert RelationSlotSubjectHead to Vec<RelationLink> - no need for a hashmap I think.
+// Can use a sorted vec + binary search
 #[derive(Clone, Debug)]
 pub struct RelationSlotSubjectHead(pub HashMap<RelationSlotId, (SubjectId, MemoRefHead)>);
+
+pub enum RelationLink{
+    Vacant {
+        slot_id:    RelationSlotId,
+    },
+    Occupied {
+        slot_id:    RelationSlotId,
+        subject_id: SubjectId,
+        head:       MemoRefHead
+    }
+}
 
 impl RelationSlotSubjectHead {
     pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &Slab) -> Self {

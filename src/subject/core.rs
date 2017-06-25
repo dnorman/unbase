@@ -2,13 +2,13 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::{Arc,RwLock,Weak};
 
+use super::*;
 use slab::*;
 use memorefhead::*;
 use context::ContextCore;
 use error::*;
 
 pub type SubjectField  = String;
-pub const SUBJECT_MAX_RELATIONS : usize = 256;
 
 pub struct SubjectCore {
     pub id:     SubjectId,
@@ -16,7 +16,7 @@ pub struct SubjectCore {
 }
 
 impl SubjectCore {
-    pub new (id: SubjectId, head: MemoRefHead, context: &Arc<ContextCore>) -> Arc<Self> {
+    pub fn new (id: SubjectId, head: MemoRefHead, context: &Arc<ContextCore>) -> Arc<Self> {
         Arc::new(SubjectCore{
             id: id,
             head: RwLock::new(head),

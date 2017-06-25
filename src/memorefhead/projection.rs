@@ -1,4 +1,6 @@
 use super::*;
+use std::iter;
+use subject::SUBJECT_MAX_RELATIONS;
 
 impl MemoRefHead {
     /*pub fn fully_materialize( &self, slab: &Slab ) {
@@ -19,35 +21,54 @@ impl MemoRefHead {
     // TODO: Consider calculating deltas during memoref application,
     //       and use that to perform a minimum cost subject_head_link edit
     pub fn project_all_head_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
-        let mut relation_links : [(SubjectId,Option<MemoRefHead>); SUBJECT_MAX_RELATIONS] = [(0,None); SUBJECT_MAX_RELATIONS];
+
+        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS] = [None,SUBJECT_MAX_RELATIONS];
 
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
             match memo.body {
                 MemoBody::FullyMaterialized { v: _, ref r } => {
 
-                    for (slot,&(subject_id,maybe_rel_head)) in &r.0 {
-                        relation_links[ *slot as usize ] = (subject_id as SubjectId,maybe_rel_head);
+                    for (slot_id,&(subject_id,rel_head)) in &r.0 {
+
+                        // Only consider the non-visited slots
+                        if let None = relation_links[ *slot_id as usize ] {
+                            relation_links[ *slot_id as usize ] = Some(
+                                if subject_id == 0 {
+                                    RelationLink::Vacant{ slot_id };
+                                }else{
+                                    RelationLink::Occupied{ slot_id, subject_id, rel_head };
+                                }
+                            );
+                        }
                     }
                     break;
-                    // Materialized memo means we're done here
+                    // Fully Materialized memo means we're done here
                 },
                 MemoBody::Relation(ref r) => {
-                    for (slot,&(subject_id,maybe_rel_head)) in r.iter() {
-                        relation_links[ *slot as usize ] = (subject_id as SubjectId, maybe_rel_head);
+                    for (slot_id,&(subject_id,rel_head)) in r.iter() {
+
+                        // Only consider the non-visited slots
+                        if let None = relation_links[ *slot_id as usize ] {
+                            relation_links[ *slot_id as usize ] = Some(
+                                if subject_id == 0 {
+                                    RelationLink::Vacant{ slot_id };
+                                }else{
+                                    RelationLink::Occupied{ slot_id, subject_id, rel_head };
+                                }
+                            )
+                        }
                     }
                 },
                 _ => {}
             }
         }
 
-        // HACK
-
-        relation_links.iter().enumerate().map(|(slot_id,(subject_id,maybe_rel_head)| {
-            if *subject_id == 0 {
-                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: None, head: rel_head.clone() }
-            }else{
-                RelationLink{ slot_id: slot_id as RelationSlotId, subject_id: Some(*subject_id), head: rel_head.clone() }
+        relation_links.iter().enumerate().map(|(slot_id,maybe_link)| {
+            // Fill in the non-visited links with vacants
+            match maybe_link {
+                None       => RelationLink::Vacant{ slot_id: slot_id as RelationSlotId },
+                Some(link) => link
             }
         }).collect()
     }

@@ -6,6 +6,7 @@ mod handle;
 
 pub type SubjectId     = u64;
 pub struct Subject;
+pub const SUBJECT_MAX_RELATIONS : usize = 256;
 
 impl Subject {
     pub fn new ( context: &ContextHandle, vals: HashMap<String, String>, is_index: bool ) -> Result<SubjectHandle,String> {

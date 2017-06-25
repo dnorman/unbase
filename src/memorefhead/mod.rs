@@ -17,17 +17,8 @@ use std::collections::VecDeque;
 // descendents of a given causal chain. It provides mechanisms for applying memorefs, or applying
 // other MemoRefHeads such that the mutated list may be pruned as appropriate given the above.
 
-
-pub type RelationSlotId = u8;
-
 #[derive(Clone, PartialEq)]
 pub struct MemoRefHead (Vec<MemoRef>);
-
-pub struct RelationLink{
-    pub slot_id:    RelationSlotId,
-    pub subject_id: Option<SubjectId>,
-    pub head:       Option<MemoRefHead>
-}
 
 impl MemoRefHead {
     pub fn new () -> Self {

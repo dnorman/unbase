@@ -3,6 +3,8 @@ pub mod core;
 
 pub use self::handle::ContextHandle;
 pub use self::core::ContextCore;
+use std::sync::Arc;
+use super::*;
 
 pub struct Context;
 
