@@ -1,48 +1,15 @@
 
-use super::*;
-use memorefhead::{RelationSlotId,RelationLink};
-use std::sync::{Arc,Mutex,RwLock};
-
-type ItemId = usize;
-
-struct ContextItem {
-    subject_id:   SubjectId,
-    refcount:     usize,
-    head:         Option<MemoRefHead>,
-    relations:    Vec<Option<ItemId>>,
-    edit_counter: usize,
-}
-
-/// Performs topological sorting.
-pub struct ContextManager {
-    inner:      Mutex<ContextManagerInner>,
-    //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
-}
-pub struct ContextManagerInner{
-    items:             Vec<Option<ContextItem>>,
-    index:             Vec<(SubjectId,ItemId)>,
-    vacancies:         Vec<ItemId>,
-    pending_vacancies: Vec<ItemId>,
-    iter_counter:      usize,
-    edit_counter:      usize
-}
-
-impl ContextItem {
-    fn new(subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> Self {
-        ContextItem {
-            subject_id: subject_id,
-            head: maybe_head,
-            refcount: 0,
-            relations: Vec::new(),
-            edit_counter: 0
-        }
-    }
-}
 
 /// Graph datastore for MemoRefHeads in our query context.
 ///
+/// New gameplan:
+/// Now that we know we only wish to include index (tree structured) data, do we really need refcounts? Probably not
+/// Yay! We're a DAG again ( probably. Need to think about B-tree rebalancing scenarios )
+/// * Presumably we can return to more traditional toposort
+/// * Error on addition of a cycle to the context
+///
 /// The functions of ContextManager are twofold:
-/// 1. Store Subject MemoRefHeads to which an observe `Context` is actually contextualized. This is in turn used
+/// 1. Store Subject MemoRefHeads to which an observer `Context` is actually contextualized. This is in turn used
 /// by relationship projection logic (Context.get_subject_with_head calls ContextManager.get_head) 
 /// 2. Provide a (cyclic capable) dependency iterator over the MemoRefHeads present, sufficient for context compression.
 ///    This is similar to, but not quite the same as a topological sort.
@@ -86,7 +53,7 @@ impl ContextManager {
                 vacancies:    Vec::with_capacity(30),
                 pending_vacancies: Vec::with_capacity(30),
                 edit_counter: 0,
-                iter_counter: 0 
+                iter_counter: 0
             }),
             //pathology: None
         }
@@ -182,7 +149,9 @@ impl ContextManager {
         // Question is: how do atomics fit into this?
         //
         // Going with the low road for now:
-
+        // * get the resident head (if any) and generation for the subject id in question
+        // * project all head links
+        // * 
         loop {
             let (maybe_head, edit_counter) = self.get_head_and_generation(subject_id);
             // Can't span the fetch/apply/set with a lock, due to the potential for deadlock. Therefore, employing a quick hack:
@@ -202,7 +171,7 @@ impl ContextManager {
 
             // IMPORTANT! no locks may be held here.
             // projection may require memo retrieval, which is a blocking operation.
-            let all_relation_links_including_empties = head.project_all_relation_links_including_empties(slab);
+            let all_head_links_including_empties = head.project_all_head_links_including_empties(slab);
 
             {
                 // Ok, no projection or happens-before determination after this
@@ -218,7 +187,7 @@ impl ContextManager {
                     // TODO: Iterate only the relations that changed between the old head and the apply head
 
                     // For now, we are assuming that all slots are present:
-                    for link in all_relation_links_including_empties {
+                    for link in all_head_links_including_empties {
                         if let Some(rel_item_id) = item.relations[link.slot_id as usize] {
                             // Existing relation
                             let mut rel_item = inner.items[rel_item_id].as_ref().expect("inner.items sanity error");

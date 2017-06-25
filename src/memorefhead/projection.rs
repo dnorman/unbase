@@ -18,7 +18,7 @@ impl MemoRefHead {
     // Kind of a brute force way to do this
     // TODO: Consider calculating deltas during memoref application,
     //       and use that to perform a minimum cost subject_head_link edit
-    pub fn project_all_relation_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
+    pub fn project_all_head_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
         let mut relation_links : [(SubjectId,Option<MemoRefHead>); SUBJECT_MAX_RELATIONS] = [(0,None); SUBJECT_MAX_RELATIONS];
 
         // TODO: how to handle relationship nullification?

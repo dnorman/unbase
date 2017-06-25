@@ -1,4 +1,3 @@
-use core::ops::Deref;
 use std::fmt;
 use std::collections::HashMap;
 use std::sync::{Arc,RwLock,Weak};
@@ -12,100 +11,36 @@ pub type SubjectId     = u64;
 pub type SubjectField  = String;
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 
-#[derive(Clone)]
-pub struct Subject(Arc<SubjectInner>);
-impl Deref for Subject {
-    type Target = SubjectInner;
-    fn deref(&self) -> &SubjectInner {
-        &*self.0
-    }
-}
-pub struct WeakSubject(Weak<SubjectInner>);
-
-pub struct SubjectInner {
+pub struct SubjectCore {
     pub id:     SubjectId,
-    head:       RwLock<MemoRefHead>,
-    contextref: ContextRef,
+    head:       RwLock<MemoRefHead>
 }
 
-impl Subject {
-    pub fn new ( context: &Context, vals: HashMap<String, String>, is_index: bool ) -> Result<Subject,String> {
-        Self::new_with_contextref( ContextRef::Strong(context.clone()), vals, is_index )
+impl SubjectCore {
+    pub new (id: SubjectId, head: MemoRefHead) -> Arc<Self> {
+        Arc::new(SubjectCore{
+            id: id,
+            head: RwLock::new(head)
+        })
     }
-    pub fn new_with_contextref ( contextref: ContextRef, vals: HashMap<String, String>, is_index: bool ) -> Result<Subject,String> {
-        // don't store this
-        let context = contextref.get_context();
-
-        let slab = &context.slab;
-        let subject_id = slab.generate_subject_id();
-        //println!("# Subject({}).new()",subject_id);
-
-        let memoref = slab.new_memo_basic_noparent(
-                Some(subject_id),
-                MemoBody::FullyMaterialized {v: vals, r: RelationSlotSubjectHead(HashMap::new()) }
-            );
-        let head = memoref.to_head();
-
-        let subject = Subject(Arc::new(SubjectInner{
-            id: subject_id,
-            head: RwLock::new(head),
-            contextref: contextref
-        }));
-
-        context.subscribe_subject( &subject );
-
-        // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
-        if !is_index {
-            // NOTE: important that we do this after the subject.shared.lock is released
-            context.insert_into_root_index( subject_id, &subject );
-        }
-        Ok(subject)
-    }
-    pub fn reconstitute (contextref: ContextRef, head: MemoRefHead) -> Subject {
-        //println!("Subject.reconstitute({:?})", head);
-        let context = contextref.get_context();
-
-        let subject_id = head.first_subject_id().unwrap();
-
-        let subject = Subject(Arc::new(SubjectInner{
-            id: subject_id,
-            head: RwLock::new(head),
-            contextref: contextref
-        }));
-
-        context.subscribe_subject( &subject );
-
-        subject
-    }
-    pub fn new_blank ( context: &Context ) -> Result<Subject,String> {
-        Self::new( context, HashMap::new(), false )
-    }
-    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<Subject,String> {
-        let mut vals = HashMap::new();
-        vals.insert(key.to_string(), value.to_string());
-
-        Self::new( context, vals, false )
-    }
-    pub fn get_value ( &self, key: &str ) -> Option<String> {
+    pub fn get_value ( &self, context: Arc<ContextCore>, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
 
-        self.head.read().unwrap().project_value(&self.contextref.get_context(), key)
+        self.head.read().unwrap().project_value(context, key)
     }
-    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Subject, RetrieveError> {
+    pub fn get_relation ( &self, context: Arc<ContextCore>, key: RelationSlotId ) -> Result<Subject, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
 
-        let context = self.contextref.get_context();
         match self.head.read().unwrap().project_relation(&context, key) {
             Ok((subject_id, head)) => context.get_subject_with_head(subject_id,head),
             Err(e)   => Err(e)
 
         }
     }
-    pub fn set_value (&self, key: &str, value: &str) -> bool {
+    pub fn set_value (&self, context: Arc<ContextCore>, key: &str, value: &str) -> bool {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
-        let context = self.contextref.get_context();
         let slab = &context.slab;
         let mut head = self.head.write().unwrap();
 
@@ -120,12 +55,11 @@ impl Subject {
 
         true
     }
-    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) {
+    pub fn set_relation (&self,context: Arc<ContextCore>, key: RelationSlotId, relation: &Self) {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
         let mut memoref_map : HashMap<RelationSlotId, (SubjectId,MemoRefHead)> = HashMap::new();
         memoref_map.insert(key, (relation.id, relation.get_head().clone()) );
 
-        let context = self.contextref.get_context();
         let slab = &context.slab;
         let mut head = self.head.write().unwrap();
 
@@ -140,10 +74,9 @@ impl Subject {
 
     }
     // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
-    pub fn apply_head (&self, new: &MemoRefHead){
+    pub fn apply_head (&self, context: Arc<ContextCore>, new: &MemoRefHead){
         //println!("# Subject({}).apply_head({:?})", &self.id, new.memo_ids() );
 
-        let context = self.contextref.get_context();
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
 
         //println!("# Record({}) calling apply_memoref", self.id);
@@ -152,17 +85,15 @@ impl Subject {
     pub fn get_head (&self) -> MemoRefHead {
         self.head.read().unwrap().clone()
     }
-    pub fn get_all_memo_ids ( &self ) -> Vec<MemoId> {
+    pub fn get_all_memo_ids ( &self, context: Arc<ContextCore> ) -> Vec<MemoId> {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
-        let context = self.contextref.get_context();
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
         self.head.read().unwrap().causal_memo_iter( &slab ).map(|m| m.id).collect()
     }
     pub fn weak (&self) -> WeakSubject {
         WeakSubject(Arc::downgrade(&self.0))
     }
-    pub fn is_fully_materialized (&self) -> bool {
-        let context = self.contextref.get_context();
+    pub fn is_fully_materialized (&self, context: Arc<ContextCore>) -> bool {
         self.head.read().unwrap().is_fully_materialized(&context.slab)
     }
     pub fn fully_materialize (&self, _slab: &Slab) -> bool {
@@ -171,7 +102,7 @@ impl Subject {
     }
 }
 
-impl Drop for SubjectInner {
+impl Drop for SubjectCore {
     fn drop (&mut self) {
         //println!("# Subject({}).drop", &self.id);
         match self.contextref {
@@ -189,9 +120,8 @@ impl Drop for SubjectInner {
         }
     }
 }
-impl fmt::Debug for SubjectInner {
+impl fmt::Debug for SubjectCore {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-
         fmt.debug_struct("Subject")
             .field("subject_id", &self.id)
             .field("head", &self.head)
@@ -199,7 +129,7 @@ impl fmt::Debug for SubjectInner {
     }
 }
 
-impl fmt::Debug for Subject {
+impl fmt::Debug for SubjectCore {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Subject")
             .field("subject_id", &self.id)
