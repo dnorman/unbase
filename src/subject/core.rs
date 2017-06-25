@@ -4,10 +4,9 @@ use std::sync::{Arc,RwLock,Weak};
 
 use slab::*;
 use memorefhead::*;
-use context::{Context,ContextRef};
+use context::ContextCore;
 use error::*;
 
-pub type SubjectId     = u64;
 pub type SubjectField  = String;
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 
@@ -17,20 +16,19 @@ pub struct SubjectCore {
 }
 
 impl SubjectCore {
-    pub new (id: SubjectId, head: MemoRefHead) -> Arc<Self> {
+    pub new (id: SubjectId, head: MemoRefHead, context: &Arc<ContextCore>) -> Arc<Self> {
         Arc::new(SubjectCore{
             id: id,
-            head: RwLock::new(head)
+            head: RwLock::new(head),
+            // drop_channel: context.drop_channel.clone()
         })
     }
     pub fn get_value ( &self, context: Arc<ContextCore>, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
-
         self.head.read().unwrap().project_value(context, key)
     }
     pub fn get_relation ( &self, context: Arc<ContextCore>, key: RelationSlotId ) -> Result<Subject, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-
         match self.head.read().unwrap().project_relation(&context, key) {
             Ok((subject_id, head)) => context.get_subject_with_head(subject_id,head),
             Err(e)   => Err(e)
@@ -105,30 +103,10 @@ impl SubjectCore {
 impl Drop for SubjectCore {
     fn drop (&mut self) {
         //println!("# Subject({}).drop", &self.id);
-        match self.contextref {
-            ContextRef::Strong(ref c) => {
-                c.unsubscribe_subject(self.id);
-            }
-            ContextRef::Weak(ref c) => {
-                match c.upgrade() {
-                    Some(c) => {
-                        c.unsubscribe_subject(self.id);
-                    }
-                    None => {}
-                }
-            }
-        }
+        // TODO: send a drop signal to the owning context via channel
+        // self.drop_channel.send(self.id);
     }
 }
-impl fmt::Debug for SubjectCore {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Subject")
-            .field("subject_id", &self.id)
-            .field("head", &self.head)
-            .finish()
-    }
-}
-
 impl fmt::Debug for SubjectCore {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Subject")

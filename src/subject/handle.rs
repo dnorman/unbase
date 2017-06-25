@@ -3,8 +3,8 @@ use context::core::ContextCore;
 
 #[derive(Clone)]
 struct SubjectHandle {
-    core:    Arc<SubjectCore>,
-    context: Arc<ContextCore>
+    pub core:    Arc<SubjectCore>,
+    pub context: Arc<ContextCore>
 }
 
 impl SubjectHandle{
@@ -22,5 +22,15 @@ impl SubjectHandle{
     }
     pub fn get_all_memo_ids ( &self ) -> Vec<MemoId> {
         self.core.get_all_memo_ids(&self.context)
+    }
+}
+
+
+impl fmt::Debug for SubjectHandle {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Subject")
+            .field("subject_id", &self.core.id)
+            .field("head", &self.core.head)
+            .finish()
     }
 }
