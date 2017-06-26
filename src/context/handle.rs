@@ -4,14 +4,13 @@
 
 use slab::*;
 use subject::*;
+use context::*;
 use memorefhead::MemoRefHead;
 use error::RetrieveError;
 use index::IndexFixed;
-
-use std::ops::Deref;
 use std::fmt;
 use std::collections::HashMap;
-use std::sync::{Mutex, RwLock, Arc, Weak};
+use std::sync::{Mutex, RwLock, Arc};
 
 #[derive(Clone)]
 pub struct ContextHandle(pub Arc<ContextCore>);
@@ -88,9 +87,6 @@ impl ContextHandle {
         // unstable way:
         // Arc::ptr_eq(&self.inner,&other.inner)
     }
-    pub fn weak(&self) -> WeakContext {
-        WeakContext(Arc::downgrade(&self.0))
-    }
 
     /// Attempt to compress the present query context.
     /// We do this by issuing Relation memos for any subject heads which reference other subject heads presently in the query context.
@@ -127,31 +123,5 @@ impl fmt::Debug for Context {
         //     // TODO: restore Debug for WeakSubject
         //     //.field("subjects", &self.subjects)
         //     .finish()
-    }
-}
-
-impl WeakContext {
-    pub fn upgrade(&self) -> Option<Context> {
-        match self.0.upgrade() {
-            Some(i) => Some(Context(i)),
-            None => None,
-        }
-    }
-    pub fn cmp(&self, other: &WeakContext) -> bool {
-        if let Some(context) = self.upgrade() {
-            if let Some(other) = other.upgrade() {
-                // stable way:
-                &*(context.0) as *const _ != &*(other.0) as *const _
-
-                // unstable way:
-                // Arc::ptr_eq(&context.inner,&other.inner)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-
-
     }
 }

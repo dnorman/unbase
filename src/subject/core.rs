@@ -23,6 +23,9 @@ impl SubjectCore {
             // drop_channel: context.drop_channel.clone()
         })
     }
+    pub fn is_root_index {
+        unimplemented!();
+    }
     pub fn get_value ( &self, context: Arc<ContextCore>, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
         self.head.read().unwrap().project_value(context, key)
@@ -87,9 +90,6 @@ impl SubjectCore {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
         self.head.read().unwrap().causal_memo_iter( &slab ).map(|m| m.id).collect()
-    }
-    pub fn weak (&self) -> WeakSubject {
-        WeakSubject(Arc::downgrade(&self.0))
     }
     pub fn is_fully_materialized (&self, context: Arc<ContextCore>) -> bool {
         self.head.read().unwrap().is_fully_materialized(&context.slab)

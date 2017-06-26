@@ -142,6 +142,18 @@ impl ContextManager {
     pub fn apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> MemoRefHead {
 
 
+        if head.is_root_index() {
+            // project child relations
+            // iterate over any resident ones
+            // expunge them if they descend or equal the references
+        }else{
+            // iterate over resident parent relation(s?)
+            // NoOp if they descend or are equal
+        }
+
+        //TODO: refactor the below into other functions
+        unimplemented!();
+
         // Notes on future concurrency upgrades:
         // Most likely, will want to decompose MemoRefHead here such that we can add the new memos to the set first, then remove the superseded memorefs after that.
         // Provided that the memoref add operation completes before the memoref remove operation, this should be concurrency safe (I think) so long as (non A,B,A) addition to and removal from the set is idempotent.
@@ -152,10 +164,12 @@ impl ContextManager {
         // * get the resident head (if any) and generation for the subject id in question
         // * project all head links
         // * 
+
         loop {
             let (maybe_head, edit_counter) = self.get_head_and_generation(subject_id);
             // Can't span the fetch/apply/set with a lock, due to the potential for deadlock. Therefore, employing a quick hack:
             // Any edit that is applied after this edit counter is gotten will trigger a do-over
+
 
             let head = match maybe_head {
                 Some(head) => {
@@ -168,6 +182,10 @@ impl ContextManager {
                     apply_head.clone()
                 }
             };
+
+            // when inserting, 
+
+
 
             // IMPORTANT! no locks may be held here.
             // projection may require memo retrieval, which is a blocking operation.
@@ -218,7 +236,7 @@ impl ContextManager {
                                 // >>>> PROBLEM 2 <<<< Needs be execute for new relationships, not just existing
                                 if let Some(ref existing_rel_head) = rel_item.head {
                                     if new_rel_head.descends(existing_rel_head, slab) {
-                                        inner.increment_descendents(rel_item)
+
                                     }
                                 }
                             }

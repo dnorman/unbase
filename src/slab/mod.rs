@@ -9,7 +9,7 @@ pub use self::memo::serde as memo_serde;
 
 use subject::SubjectId;
 use memorefhead::*;
-use context::{Context,WeakContext};
+use context::*;
 use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
 
 use std::ops::Deref;
@@ -42,7 +42,7 @@ pub struct SlabInner{
     pub id: SlabId,
     memorefs_by_id: RwLock<HashMap<MemoId,MemoRef>>,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
-    subject_subscriptions: RwLock<HashMap<SubjectId, Vec<WeakContext>>>,
+    subject_subscriptions: RwLock<HashMap<SubjectId, Vec<()>>>, // temporarily removed stuffs here
 
     counters: RwLock<SlabCounters>,
 

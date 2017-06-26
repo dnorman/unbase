@@ -75,9 +75,9 @@ impl Slab {
     pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub fn subscribe_subject (&self, subject_id: u64, context: &Context) {
+    pub fn subscribe_subject (&self, subject_id: u64, context: &ContextCore) {
         //println!("Slab({}).subscribe_subject({})", self.id, subject_id );
-        let weakcontext : WeakContext = context.weak();
+        let contextref : ContextRef = context.ref();
 
         match self.subject_subscriptions.write().unwrap().entry(subject_id){
             Entry::Occupied(mut e) => {
@@ -89,14 +89,15 @@ impl Slab {
         }
         return;
     }
-    pub fn unsubscribe_subject (&self,  subject_id: u64, context: &Context ){
-        if let Some(subs) = self.subject_subscriptions.write().unwrap().get_mut(&subject_id) {
-            let weak_context = context.weak();
-            subs.retain(|c| {
-                c.cmp(&weak_context)
-            });
-            return;
-        }
+    pub fn unsubscribe_subject (&self,  subject_id: u64, context: &ContextCore ){
+        unimplemented!()
+        // if let Some(subs) = self.subject_subscriptions.write().unwrap().get_mut(&subject_id) {
+        //     let weak_context = context.ref();
+        //     subs.retain(|c| {
+        //         c.cmp(&weak_context)
+        //     });
+        //     return;
+        // }
     }
     pub fn memo_wait_channel (&self, memo_id: MemoId ) -> mpsc::Receiver<Memo> {
         let (tx, rx) = channel::<Memo>();

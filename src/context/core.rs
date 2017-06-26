@@ -1,6 +1,10 @@
 use super::*;
-use memorefhead::{RelationSlotId,RelationLink};
+use slab::{RelationSlotId,RelationLink};
+use subject::*;
+use memorefhead::*;
+
 use std::sync::{Arc,Mutex,RwLock};
+use std::ops::Deref;
 
 type ItemId = usize;
 
@@ -11,6 +15,7 @@ struct Item {
     relations:    Vec<Option<ItemId>>,
     edit_counter: usize,
 }
+
 
 /// Performs topological sorting.
 pub struct ContextCore {
@@ -122,12 +127,15 @@ impl ContextCore {
 
         /// Subscribes a resident subject struct to relevant updates from this context
     /// Used by the subject constructor
-    pub fn subscribe_subject(&self, subject: &Subject) {
+    pub fn subscribe_subject(&self, subject: &SubjectCore) {
         // println!("Context.subscribe_subject({})", subject.id );
         {
             self.subjects.write().unwrap().insert(subject.id, subject.weak());
         }
-        self.slab.subscribe_subject(subject.id, self);
+
+        // TODO: determine if we want to use channels, or futures streams, or what.
+        //       giving out Arcs to the context doesn't seem like the way to go
+        //self.slab.subscribe_subject(subject.id, self);
     }
     /// Unsubscribes the subject from further updates. Used by Subject.drop
     /// ( Temporarily defeated due to deadlocks. TODO )

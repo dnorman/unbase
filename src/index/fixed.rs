@@ -1,6 +1,7 @@
-use context::ContextRef;
+use super::*;
+use context::*;
 use subject::*;
-use memorefhead::{MemoRefHead,RelationSlotId};
+use memorefhead::MemoRefHead;
 use error::RetrieveError;
 use std::collections::HashMap;
 

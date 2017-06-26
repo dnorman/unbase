@@ -1,12 +1,19 @@
 mod core;
 mod handle;
 
+use self::core::*;
+use self::handle::*;
+use context::*;
+use slab::*;
 // use core;
 // use handle;
 
 pub type SubjectId     = u64;
 pub struct Subject;
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
+
+use std::sync::Arc;
+use std::collections::HashMap;
 
 impl Subject {
     pub fn new ( context: &ContextHandle, vals: HashMap<String, String>, is_index: bool ) -> Result<SubjectHandle,String> {
@@ -20,14 +27,14 @@ impl Subject {
             );
         let head = memoref.to_head();
 
-        let core = Arc::new(core::SubjectCore(subject_id, head));
+        let core = Arc::new(SubjectCore::new(subject_id, head, context));
 
         context.subscribe_subject( &core );
 
         // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
         if !is_index {
             // NOTE: important that we do this after the subject.shared.lock is released
-            context.insert_into_root_index( subject_id, &subject );
+            context.insert_into_root_index( subject_id, &core );
         }
 
         let handle = SubjectHandle{
@@ -42,7 +49,7 @@ impl Subject {
 
         let subject_id = head.first_subject_id().unwrap();
 
-        let core = Arc::new(SubjectCore( subject_id, head, &context.core ) );
+        let core = Arc::new(SubjectCore::new( subject_id, head, &context.core ) );
         context.subscribe_subject( &core );
 
         subject

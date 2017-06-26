@@ -9,7 +9,7 @@ impl Slab {
 
         if let Some(subject_id) = memoref.subject_id {
 
-            let maybe_sub : Option<Vec<WeakContext>> = {
+            let maybe_sub : Option<Vec<ContextHandleWeak>> = {
                 // we want to make sure the lock is released before continuing
                 if let Some(ref s) = self.subject_subscriptions.read().unwrap().get( &subject_id ) {
                     Some((*s).clone())

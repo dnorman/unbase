@@ -1,8 +1,14 @@
-use super::core;
+use super::*;
+use super::core::*;
 use context::core::ContextCore;
+use slab::*;
+use error::*;
+
+use std::fmt;
+use std::sync::Arc;
 
 #[derive(Clone)]
-struct SubjectHandle {
+pub struct SubjectHandle {
     pub core:    Arc<SubjectCore>,
     pub context: Arc<ContextCore>
 }
