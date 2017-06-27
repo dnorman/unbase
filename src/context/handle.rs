@@ -13,28 +13,16 @@ use std::collections::HashMap;
 use std::sync::{Mutex, RwLock, Arc};
 
 #[derive(Clone)]
-pub struct ContextHandle(pub Arc<ContextCore>);
-
+pub struct ContextHandle{
+    pub core: Arc<ContextCore>
+}
 /// User-exposed handle for a query context.
 /// Only functionality to be exposed to the user should be defined here
 impl ContextHandle {
-    /// Retrieves a subject by ID from this context only if it is currently resedent
-    fn get_subject_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
-
-        if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
-            if let Some(subject) = weaksub.upgrade() {
-                // NOTE: In theory we shouldn't need to apply the current context
-                //      to this subject, as it shouldddd have already happened
-                return Some(subject);
-            }
-        }
-
-        None
-    }
     /// Retrive a Subject from the root index by ID
     pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
 
-        match *self.root_index.read().unwrap() {
+        match *self.core.root_index.read().unwrap() {
             Some(ref index) => index.get(subject_id),
             None => Err(RetrieveError::IndexNotInitialized),
         }
@@ -55,7 +43,7 @@ impl ContextHandle {
 
         // for subject_head in self.manager.subject_head_iter() {
         //     memoref_count += subject_head.head.len();
-        //     other.apply_subject_head(subject_head.subject_id,
+        //     other.apply_head(subject_head.subject_id,
         //                              &subject_head.head
         //                                  .clone_for_slab(&from_slabref, &other.slab, false),
         //                              true);
@@ -109,12 +97,7 @@ impl ContextHandle {
     }
 }
 
-impl Drop for ContextInner {
-    fn drop(&mut self) {
-        // println!("# ContextShared.drop");
-    }
-}
-impl fmt::Debug for Context {
+impl fmt::Debug for ContextHandle {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         unimplemented!();
 

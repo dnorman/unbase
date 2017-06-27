@@ -5,6 +5,7 @@ use self::core::*;
 use self::handle::*;
 use context::*;
 use slab::*;
+use memorefhead::MemoRefHead;
 // use core;
 // use handle;
 
@@ -17,7 +18,7 @@ use std::collections::HashMap;
 
 impl Subject {
     pub fn new ( context: &ContextHandle, vals: HashMap<String, String>, is_index: bool ) -> Result<SubjectHandle,String> {
-        let slab = &context.slab;
+        let slab = &context.core.slab;
         let subject_id = slab.generate_subject_id();
         //println!("# Subject({}).new()",subject_id);
 
@@ -44,20 +45,20 @@ impl Subject {
 
         Ok(handle)
     }
-    pub fn reconstitute (context: &ContextHandle, head: MemoRefHead) -> SubjectCore {
+    pub fn reconstitute (context: &Arc<ContextCore>, head: MemoRefHead) -> Arc<SubjectCore> {
         //println!("Subject.reconstitute({:?})", head);
 
         let subject_id = head.first_subject_id().unwrap();
 
-        let core = Arc::new(SubjectCore::new( subject_id, head, &context.core ) );
+        let core = Arc::new(SubjectCore::new( subject_id, head, context ) );
         context.subscribe_subject( &core );
 
-        subject
+        core
     }
-    pub fn new_blank ( context: &ContextHandle ) -> Result<Subject,String> {
+    pub fn new_blank ( context: &ContextHandle ) -> Result<SubjectHandle,String> {
         Self::new( context, HashMap::new(), false )
     }
-    pub fn new_kv ( context: &ContextHandle, key: &str, value: &str ) -> Result<Subject,String> {
+    pub fn new_kv ( context: &ContextHandle, key: &str, value: &str ) -> Result<SubjectHandle,String> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 

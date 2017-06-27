@@ -2,7 +2,7 @@ use super::*;
 
 impl Slab {
     // NOTE: this is run inside a dedicated thread, as fetches from other slabs may be required for
-    // apply_subject_head ( which calls descends, which calls get_memo, which blocks )
+    // apply_head ( which calls descends, which calls get_memo, which blocks )
     // QUESTION: could this be managed with a marker?
     pub fn dispatch_memoref (&self, memoref : MemoRef){
         //println!("# \t\\ Slab({}).dispatch_memoref({})", self.id, &memoref.id );
@@ -24,7 +24,7 @@ impl Slab {
 
                     if let Some(context) = weakcontext.upgrade() {
 
-                        context.apply_subject_head( subject_id, &memoref.to_head(), true );
+                        context.apply_head( subject_id, &memoref.to_head(), true );
                     }
                 }
             }

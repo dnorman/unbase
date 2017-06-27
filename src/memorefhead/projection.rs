@@ -22,7 +22,7 @@ impl MemoRefHead {
     //       and use that to perform a minimum cost subject_head_link edit
     pub fn project_all_head_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
 
-        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS] = [None,SUBJECT_MAX_RELATIONS];
+        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS] = iter::repeat(None).take(SUBJECT_MAX_RELATIONS).collect();
 
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
@@ -35,9 +35,9 @@ impl MemoRefHead {
                         if let None = relation_links[ *slot_id as usize ] {
                             relation_links[ *slot_id as usize ] = Some(
                                 if subject_id == 0 {
-                                    RelationLink::Vacant{ slot_id };
+                                    RelationLink::Vacant{ slot_id: *slot_id }
                                 }else{
-                                    RelationLink::Occupied{ slot_id, subject_id, rel_head };
+                                    RelationLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
                                 }
                             );
                         }
@@ -52,9 +52,9 @@ impl MemoRefHead {
                         if let None = relation_links[ *slot_id as usize ] {
                             relation_links[ *slot_id as usize ] = Some(
                                 if subject_id == 0 {
-                                    RelationLink::Vacant{ slot_id };
+                                    RelationLink::Vacant{ slot_id: *slot_id }
                                 }else{
-                                    RelationLink::Occupied{ slot_id, subject_id, rel_head };
+                                    RelationLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
                                 }
                             )
                         }
@@ -76,7 +76,7 @@ impl MemoRefHead {
     pub fn project_relation_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<RelationLink>{
         unimplemented!()
     }
-    pub fn project_value ( &self, context: &Context, key: &str ) -> Option<String> {
+    pub fn project_value ( &self, context: &ContextCore, key: &str ) -> Option<String> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses
         for memo in self.causal_memo_iter(&context.slab) {

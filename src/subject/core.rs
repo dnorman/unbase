@@ -26,14 +26,19 @@ impl SubjectCore {
     pub fn is_root_index {
         unimplemented!();
     }
-    pub fn get_value ( &self, context: Arc<ContextCore>, key: &str ) -> Option<String> {
+    pub fn get_value ( &self, context: &Arc<ContextCore>, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
         self.head.read().unwrap().project_value(context, key)
     }
-    pub fn get_relation ( &self, context: Arc<ContextCore>, key: RelationSlotId ) -> Result<Subject, RetrieveError> {
+    pub fn get_relation ( &self, context: &Arc<ContextCore>, key: RelationSlotId ) -> Result<SubjectHandle, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_relation(&context, key) {
-            Ok((subject_id, head)) => context.get_subject_with_head(subject_id,head),
+            Ok((subject_id, head)) => {
+                SubjectHandle{
+                    context: context.clone(),
+                    core: context.get_subject_with_head(subject_id,head)?
+                }
+            },
             Err(e)   => Err(e)
 
         }
@@ -52,7 +57,7 @@ impl SubjectCore {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_subject_head( self.id,  &head, false );
+        context.apply_head( self.id,  &head, false );
 
         true
     }
@@ -71,7 +76,7 @@ impl SubjectCore {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_subject_head( self.id, &head, false );
+        context.apply_head( self.id, &head, false );
 
     }
     // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
