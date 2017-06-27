@@ -14,7 +14,7 @@ use std::sync::{Mutex, RwLock, Arc};
 
 #[derive(Clone)]
 pub struct ContextHandle{
-    pub core: Arc<ContextCore>
+    pub (in subject::handle) core: Arc<ContextCore>
 }
 /// User-exposed handle for a query context.
 /// Only functionality to be exposed to the user should be defined here
@@ -37,7 +37,7 @@ impl ContextHandle {
     pub fn hack_send_context(&self, other: &Self) -> usize {
         self.compress();
 
-        let from_slabref = self.slab.my_ref.clone_for_slab(&other.slab);
+        let from_slabref = self.core.slab.my_ref.clone_for_slab(&other.slab);
 
         let mut memoref_count = 0;
 

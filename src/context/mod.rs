@@ -1,5 +1,5 @@
 mod handle;
-pub mod core;
+pub (crate) mod core;
 
 use slab::*;
 pub use self::handle::ContextHandle;
@@ -12,6 +12,6 @@ pub struct Context;
 /// TODO: Explain what a context is here
 impl Context{
     pub fn new(slab: &Slab) -> ContextHandle {
-        ContextHandle(ContextCore::new( slab ))
+        ContextHandle{ core: Arc::new(ContextCore::new( slab )) }
     }
 }
