@@ -76,18 +76,7 @@ impl Slab {
         Context::new(self)
     }
     pub fn subscribe_subject (&self, subject_id: u64, context: &ContextCore) {
-        //println!("Slab({}).subscribe_subject({})", self.id, subject_id );
-        let contextref : ContextRef = context.ref();
-
-        match self.subject_subscriptions.write().unwrap().entry(subject_id){
-            Entry::Occupied(mut e) => {
-                e.get_mut().push(weakcontext)
-            }
-            Entry::Vacant(e) => {
-                e.insert(vec![weakcontext]);
-            }
-        }
-        return;
+        unimplemented!()
     }
     pub fn unsubscribe_subject (&self,  subject_id: u64, context: &ContextCore ){
         unimplemented!()

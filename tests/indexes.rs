@@ -16,7 +16,7 @@ fn index_construction() {
 
     // Create a new fixed tier index (fancier indexes not necessary for the proof of concept)
 
-    let index = IndexFixed::new(&ContextRef::Strong(context_a.clone()), 5);
+    let index = IndexFixed::new(&context_a.core, 5);
 
     assert_eq!( context_a.is_fully_materialized(), true );
 

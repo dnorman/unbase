@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 
 pub struct IndexFixed {
-    pub root: Subject,
+    pub root: SubjectCore,
     pub depth: u8
 }
 
@@ -15,7 +15,7 @@ impl IndexFixed {
     pub fn new (context: &ContextCore, depth: u8) -> IndexFixed {
 
         Self {
-            root: Subject::new( context, HashMap::new(), true ).unwrap(),
+            root: SubjectCore::new( context, HashMap::new(), true ).unwrap(),
             depth: depth
         }
     }

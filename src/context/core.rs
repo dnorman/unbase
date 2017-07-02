@@ -2,13 +2,16 @@ use super::*;
 use slab::{RelationSlotId,RelationLink};
 use subject::*;
 use memorefhead::*;
+use index::IndexFixed;
+use error::*;
 
 use std::sync::{Arc,Mutex,RwLock};
+use std::collections::HashMap;
 use std::ops::Deref;
 
 type ItemId = usize;
 
-struct Item {
+struct ContextItem {
     subject_id:   SubjectId,
     refcount:     usize,
     head:         Option<MemoRefHead>,
@@ -16,17 +19,25 @@ struct Item {
     edit_counter: usize,
 }
 
+#[derive(Clone)]
+pub struct ContextCore(Arc<ContextCoreInner>);
+
+impl Deref for ContextCore {
+    type Target = ContextCoreInner;
+    fn deref(&self) -> &ContextCoreInner {
+        &*self.0
+    }
+}
 
 /// Performs topological sorting.
-pub struct ContextCore {
+pub struct ContextCoreInner {
     pub slab: Slab,
     pub root_index: RwLock<Option<IndexFixed>>,
-    /// For active subjects / subject subscription management
-    subjects: RwLock<HashMap<SubjectId, WeakSubject>>,
-
     heads:      Mutex<ContextSubjectHeads>,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
 }
+
+#[derive(Default)]
 struct ContextSubjectHeads{
     items:             Vec<Option<ContextItem>>,
     index:             Vec<(SubjectId,ItemId)>,
@@ -36,13 +47,14 @@ struct ContextSubjectHeads{
     edit_counter:      usize
 }
 
-impl Item {
+impl ContextItem {
     fn new(subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> Self {
         ContextItem {
             subject_id: subject_id,
             head: maybe_head,
-            children: Vec::new(),
-            edit_counter: 0
+            relations: Vec::new(),
+            edit_counter: 0,
+            refcount: 0
         }
     }
 }
@@ -51,11 +63,15 @@ impl Item {
 
 impl ContextCore {
     pub fn new (slab: &Slab) -> Self {
-        let new_self = ContextCore {
-            slab: slab.clone(),
-            root_index: RwLock::new(None),
-            subjects: RwLock::new(HashMap::new()),
-        };
+        let new_self = ContextCore(
+            Arc::new(
+                ContextCoreInner{
+                    slab: slab.clone(),
+                    root_index: RwLock::new(None),
+                    heads: Default::default()
+                }
+            )
+        );
 
         // Typically subjects, and the indexes that use them, have a hard link to their originating
         // contexts. This is useful because we want to make sure the context (and associated slab)
@@ -68,7 +84,7 @@ impl ContextCore {
 
         let seed = slab.get_root_index_seed().expect("Uninitialized slab");
 
-        let index = IndexFixed::new_from_memorefhead(new_self, 5, seed);
+        let index = IndexFixed::new_from_memorefhead(&new_self, 5, seed);
 
         *new_self.root_index.write().unwrap() = Some(index);
 

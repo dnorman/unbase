@@ -23,7 +23,7 @@ impl SubjectCore {
             // drop_channel: context.drop_channel.clone()
         })
     }
-    pub fn is_root_index {
+    pub fn is_root_index () -> bool {
         unimplemented!();
     }
     pub fn get_value ( &self, context: &Arc<ContextCore>, key: &str ) -> Option<String> {
@@ -32,12 +32,12 @@ impl SubjectCore {
     }
     pub fn get_relation ( &self, context: &Arc<ContextCore>, key: RelationSlotId ) -> Result<SubjectHandle, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-        match self.head.read().unwrap().project_relation(&context, key) {
+        match self.head.read().unwrap().project_relation(context, key) {
             Ok((subject_id, head)) => {
-                SubjectHandle{
+                Ok(SubjectHandle{
                     context: context.clone(),
                     core: context.get_subject_with_head(subject_id,head)?
-                }
+                })
             },
             Err(e)   => Err(e)
 

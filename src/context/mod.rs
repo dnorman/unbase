@@ -12,6 +12,8 @@ pub struct Context;
 /// TODO: Explain what a context is here
 impl Context{
     pub fn new(slab: &Slab) -> ContextHandle {
-        ContextHandle{ core: Arc::new(ContextCore::new( slab )) }
+        ContextHandle{
+            core: ContextCore::new( slab )
+        }
     }
 }
