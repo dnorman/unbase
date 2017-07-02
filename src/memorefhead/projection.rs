@@ -27,7 +27,7 @@ impl MemoRefHead {
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
             match memo.body {
-                MemoBody::FullyMaterialized { v: _, ref r } => {
+                MemoBody::FullyMaterialized { v: _, ref r, t: _ } => {
 
                     for (slot_id,&(subject_id,rel_head)) in &r.0 {
 
@@ -66,7 +66,7 @@ impl MemoRefHead {
 
         relation_links.iter().enumerate().map(|(slot_id,maybe_link)| {
             // Fill in the non-visited links with vacants
-            match maybe_link {
+            match *maybe_link {
                 None       => RelationLink::Vacant{ slot_id: slot_id as RelationSlotId },
                 Some(link) => link
             }

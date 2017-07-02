@@ -20,10 +20,10 @@ pub struct ContextHandle{
 /// Only functionality to be exposed to the user should be defined here
 impl ContextHandle {
     /// Retrive a Subject from the root index by ID
-    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
+    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<SubjectHandle, RetrieveError> {
 
         match *self.core.root_index.read().unwrap() {
-            Some(ref index) => index.get(subject_id),
+            Some(ref index) => index.get(&self.core,subject_id),
             None => Err(RetrieveError::IndexNotInitialized),
         }
     }

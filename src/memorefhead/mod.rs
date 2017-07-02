@@ -30,6 +30,9 @@ impl MemoRefHead {
     pub fn from_memoref (memoref: MemoRef) -> Self {
         MemoRefHead( vec![memoref] )
     }
+    pub fn is_root_index (&self) -> bool{
+        unimplemented!()
+    }
     pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> bool {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
@@ -167,7 +170,7 @@ impl MemoRefHead {
         for memoref in self.iter(){
             if let Ok(memo) = memoref.get_memo(slab) {
                 match memo.body {
-                    MemoBody::FullyMaterialized { v: _, r: _ } => {},
+                    MemoBody::FullyMaterialized { v: _, r: _, t: _ } => {},
                     _                           => { return false }
                 }
             }else{

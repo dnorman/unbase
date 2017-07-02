@@ -1,7 +1,9 @@
 use super::*;
 use context::*;
 use subject::*;
+use slab::*;
 use memorefhead::MemoRefHead;
+
 use error::RetrieveError;
 use std::collections::HashMap;
 
@@ -13,19 +15,18 @@ pub struct IndexFixed {
 
 impl IndexFixed {
     pub fn new (context: &ContextCore, depth: u8) -> IndexFixed {
-
         Self {
-            root: SubjectCore::new( context, HashMap::new(), true ).unwrap(),
+            root: SubjectCore::new( context, SubjectType::IndexNode, HashMap::new() ),
             depth: depth
         }
     }
     pub fn new_from_memorefhead (context: &ContextCore, depth: u8, memorefhead: MemoRefHead ) -> IndexFixed {
         Self {
-            root: Subject::reconstitute( context, memorefhead ),
+            root: SubjectCore::reconstitute( context, memorefhead ),
             depth: depth
         }
     }
-    pub fn insert <'a> (&self, key: u64, subject: &Subject) {
+    pub fn insert <'a> (&self, key: u64, subject: &SubjectCore) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -39,7 +40,7 @@ impl IndexFixed {
     }
     // Temporarily managing our own bubble-up
     // TODO: finish moving the management of this to context / context::subject_graph
-    fn recurse_set(&self, tier: usize, key: u64, node: &Subject, subject: &Subject) {
+    fn recurse_set(&self, context: &ContextCore, tier: usize, key: u64, node: &SubjectCore, subject: &SubjectCore) {
         // TODO: refactor this in a way that is generalizable for strings and such
         // Could just assume we're dealing with whole bytes here, but I'd rather
         // allow for SUBJECT_MAX_RELATIONS <> 256. Values like 128, 512, 1024 may not be entirely ridiculous
@@ -52,26 +53,26 @@ impl IndexFixed {
         if exponent == 0 {
             // BUG: move this clause up
             //println!("]]] end of the line");
-            node.set_relation(y as RelationSlotId,&subject);
+            node.set_relation(context, y as RelationSlotId,&subject);
         }else{
-            match node.get_relation(y) {
+            match node.get_relation(context,y) {
                 Ok(n) => {
-                    self.recurse_set(tier+1, key, &n, subject);
+                    self.recurse_set(context, tier+1, key, &n, subject);
 
                     //TEMPORARY - to be replaced by automatic context compaction
-                    node.set_relation(y, &n);
+                    node.set_relation(context, y, &n);
                 }
                 Err( RetrieveError::NotFound ) => {
                     let mut values = HashMap::new();
                     values.insert("tier".to_string(),tier.to_string());
 
-                    let new_node = Subject::new( node.context.clone(), values, true ).unwrap();
-                    node.set_relation(y,&new_node);
+                    let new_node = SubjectCore::new( context, SubjectType::IndexNode, values );
+                    node.set_relation(context, y,&new_node);
 
-                    self.recurse_set(tier+1, key, &new_node, subject);
+                    self.recurse_set(context, tier+1, key, &new_node, subject);
 
                     //TEMPORARY - to be replaced by automatic context compaction
-                    node.set_relation(y, &new_node);
+                    node.set_relation(context, y, &new_node);
                 }
                 _ => {
                     panic!("unhandled error")
@@ -80,7 +81,7 @@ impl IndexFixed {
         }
 
     }
-    pub fn get (&self, key: u64 ) -> Result<Subject, RetrieveError> {
+    pub fn get ( &self, context: &ContextCore, key: u64 ) -> Result<SubjectCore, RetrieveError> {
 
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here
@@ -97,10 +98,10 @@ impl IndexFixed {
 
             if exponent == 0 {
                 //println!("]]] end of the line");
-                return node.get_relation(y as RelationSlotId);
+                return node.get_relation( context, y as RelationSlotId);
 
             }else{
-                if let Ok(n) = node.get_relation(y){
+                if let Ok(n) = node.get_relation( context, y){
                     node = n;
                 }else{
                     return Err(RetrieveError::NotFound);

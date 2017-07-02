@@ -9,25 +9,28 @@ impl Slab {
 
         if let Some(subject_id) = memoref.subject_id {
 
-            let maybe_sub : Option<Vec<ContextHandleWeak>> = {
-                // we want to make sure the lock is released before continuing
-                if let Some(ref s) = self.subject_subscriptions.read().unwrap().get( &subject_id ) {
-                    Some((*s).clone())
-                }else{
-                    None
-                }
-            };
+            unimplemented!();
+            // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
 
-            if let Some(subscribers) = maybe_sub {;
+            // let maybe_sub : Option<Vec<ContextHandleWeak>> = {
+            //     // we want to make sure the lock is released before continuing
+            //     if let Some(ref s) = self.subject_subscriptions.read().unwrap().get( &subject_id ) {
+            //         Some((*s).clone())
+            //     }else{
+            //         None
+            //     }
+            // };
 
-                for weakcontext in subscribers {
+            // if let Some(subscribers) = maybe_sub {;
 
-                    if let Some(context) = weakcontext.upgrade() {
+            //     for weakcontext in subscribers {
 
-                        context.apply_head( subject_id, &memoref.to_head(), true );
-                    }
-                }
-            }
+            //         if let Some(context) = weakcontext.upgrade() {
+
+            //             context.apply_head( subject_id, &memoref.to_head(), true );
+            //         }
+            //     }
+            // }
 
         }
     }

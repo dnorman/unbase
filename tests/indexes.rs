@@ -1,6 +1,5 @@
 extern crate unbase;
 use unbase::subject::*;
-use unbase::context::ContextRef;
 use unbase::index::IndexFixed;
 use std::collections::HashMap;
 

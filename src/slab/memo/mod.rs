@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
 
-use subject::{SubjectId};
+use subject::{SubjectId,SubjectType};
 use slab::MemoRef;
 use network::{SlabRef,SlabPresence};
 use super::*;
@@ -40,7 +40,7 @@ pub enum MemoBody{
     SlabPresence{ p: SlabPresence, r: Option<MemoRefHead> }, // TODO: split out root_index_seed conveyance to another memobody type
     Relation(RelationSlotSubjectHead),
     Edit(HashMap<String, String>),
-    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead },
+    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSlotSubjectHead },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
     MemoRequest(Vec<MemoId>,SlabRef)
@@ -81,7 +81,7 @@ impl Memo {
         match self.body {
             MemoBody::Edit(ref v)
                 => Some((v.clone(),false)),
-            MemoBody::FullyMaterialized { ref v, r: _ }
+            MemoBody::FullyMaterialized { ref v, r: _, t: _ }
                 => Some((v.clone(),true)),
             _   => None
         }
@@ -91,7 +91,7 @@ impl Memo {
         match self.body {
             MemoBody::Relation(ref r)
                 => Some((r.clone(),false)),
-            MemoBody::FullyMaterialized { v: _, ref r }
+            MemoBody::FullyMaterialized { v: _, ref r, t: _ }
                 => Some((r.clone(),true)),
             _   => None
         }
@@ -170,8 +170,8 @@ impl MemoBody {
             &MemoBody::Edit(ref hm) => {
                 MemoBody::Edit(hm.clone())
             }
-            &MemoBody::FullyMaterialized{ ref v, ref r } => {
-                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab)}
+            &MemoBody::FullyMaterialized{ ref v, ref r, ref t } => {
+                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), t: t.clone() }
             }
             &MemoBody::PartiallyMaterialized{ ref v, ref r } => {
                 MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab)}

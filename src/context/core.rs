@@ -1,6 +1,6 @@
 use super::*;
 use slab::{RelationSlotId,RelationLink};
-use subject::*;
+use subject::{Subject,SubjectCore,SubjectId};
 use memorefhead::*;
 use index::IndexFixed;
 use error::*;
@@ -91,7 +91,7 @@ impl ContextCore {
         new_self
     }
 
-    pub fn insert_into_root_index(&self, subject_id: SubjectId, subject: &Subject) {
+    pub fn insert_into_root_index(&self, subject_id: SubjectId, subject: &SubjectCore) {
         if let Some(ref index) = *self.root_index.write().unwrap() {
             index.insert(subject_id, subject);
         } else {
@@ -104,7 +104,7 @@ impl ContextCore {
     pub fn get_subject_with_head(&self,
                                  subject_id: SubjectId,
                                  mut head: MemoRefHead)
-                                 -> Result<Subject, RetrieveError> {
+                                 -> Result<SubjectCore, RetrieveError> {
         // println!("# Context.get_subject_with_head({},{:?})", subject_id, head.memo_ids() );
 
         if head.len() == 0 {
@@ -138,7 +138,7 @@ impl ContextCore {
 
         // NOTE: Subject::reconstitute calls back to Context.subscribe_subject()
         //       so we need to release the mutex prior to this
-        let subject = Subject::reconstitute(&self, head);
+        let subject = SubjectCore::reconstitute(&self, head);
         return Ok(subject);
 
     }
@@ -147,9 +147,9 @@ impl ContextCore {
     /// Used by the subject constructor
     pub fn subscribe_subject(&self, subject: &SubjectCore) {
         // println!("Context.subscribe_subject({})", subject.id );
-        {
-            self.subjects.write().unwrap().insert(subject.id, subject.weak());
-        }
+        // {
+        //     self.subjects.write().unwrap().insert(subject.id, subject.weak());
+        // }
 
         // TODO: determine if we want to use channels, or futures streams, or what.
         //       giving out Arcs to the context doesn't seem like the way to go
@@ -160,7 +160,7 @@ impl ContextCore {
     pub fn unsubscribe_subject(&self, subject_id: SubjectId) {
         // println!("# Context.unsubscribe_subject({})", subject_id);
         // let _ = subject_id;
-        self.subjects.write().unwrap().remove(&subject_id);
+        //self.subjects.write().unwrap().remove(&subject_id);
 
         // BUG/TODO: Temporarily disabled unsubscription
         // 1. Because it was causing deadlocks on the context AND slab mutexes
@@ -185,15 +185,16 @@ impl ContextCore {
     /// Retrieves a subject by ID from this context only if it is currently resedent
     fn get_subject_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
 
-        if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
-            if let Some(subject) = weaksub.upgrade() {
-                // NOTE: In theory we shouldn't need to apply the current context
-                //      to this subject, as it shouldddd have already happened
-                return Some(subject);
-            }
-        }
+        unimplemented!()
+        // if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
+        //     if let Some(subject) = weaksub.upgrade() {
+        //         // NOTE: In theory we shouldn't need to apply the current context
+        //         //      to this subject, as it shouldddd have already happened
+        //         return Some(subject);
+        //     }
+        // }
 
-        None
+        // None
     }
     /// Called by the Slab whenever memos matching one of our subscriptions comes in, or by the Subject when an edit is made
     pub fn apply_subject_head(&self, subject_id: SubjectId, apply_head: &MemoRefHead) {
@@ -209,11 +210,11 @@ impl ContextCore {
     //}
 
     /// Apply the provided MemoRefHead for a given subject. Project relation references and add placeholders as needed to the context
-    pub fn apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab, notify_subject: bool) -> MemoRefHead {
+    pub fn apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, notify_subject: bool) -> MemoRefHead {
 
         // LEFT OFF HERERERERERERERERERERER
         // Think more aboot this
-        if head.is_root_index() {
+        if apply_head.is_root_index() {
             // lock
             //     get existing head and edit number / generation
             // unlock
@@ -227,11 +228,11 @@ impl ContextCore {
 
         if notify_subject {
             if let Some(ref subject) = self.get_subject_if_resident(subject_id) {
-                subject.apply_head(apply_head);
+                subject.apply_head(apply_head)
             }
         }
     }
-    fn apply_head_parts_bin_delete_me {
+    fn apply_head_parts_bin_delete_me () {
         //TODO: refactor the below into other functions
         unimplemented!();
 

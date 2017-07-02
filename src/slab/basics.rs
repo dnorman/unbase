@@ -72,7 +72,7 @@ impl Slab {
     pub fn get_root_index_seed (&self) -> Option<MemoRefHead> {
         self.net.get_root_index_seed(self)
     }
-    pub fn create_context (&self) -> Context {
+    pub fn create_context (&self) -> ContextHandle {
         Context::new(self)
     }
     pub fn subscribe_subject (&self, subject_id: u64, context: &ContextCore) {

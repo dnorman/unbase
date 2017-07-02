@@ -8,42 +8,89 @@ use memorefhead::*;
 use context::ContextCore;
 use error::*;
 
+use std::ops::Deref;
+
 pub type SubjectField  = String;
 
-pub struct SubjectCore {
+
+#[derive(Clone)]
+pub struct SubjectCore(Arc<SubjectCoreInner>);
+
+impl Deref for SubjectCore {
+    type Target = SubjectCoreInner;
+    fn deref(&self) -> &SubjectCoreInner {
+        &*self.0
+    }
+}
+
+pub struct SubjectCoreInner {
     pub id:     SubjectId,
-    head:       RwLock<MemoRefHead>
+    pub (crate) head:       RwLock<MemoRefHead>
 }
 
 impl SubjectCore {
-    pub fn new (id: SubjectId, head: MemoRefHead, context: &Arc<ContextCore>) -> Arc<Self> {
-        Arc::new(SubjectCore{
+    pub fn new (context: &ContextCore, stype: SubjectType, vals: HashMap<String,String> ) -> Self {
+
+        let slab = &context.slab;
+        let id = slab.generate_subject_id();
+        //println!("# Subject({}).new()",subject_id);
+
+        let memoref = slab.new_memo_basic_noparent(
+                Some(id),
+                MemoBody::FullyMaterialized {v: vals, r: RelationSlotSubjectHead(HashMap::new()), t: stype }
+            );
+        let head = memoref.to_head();
+
+        let core = SubjectCore(Arc::new(SubjectCoreInner{ id, head: RwLock::new(head) }));
+
+        context.subscribe_subject( &core );
+
+        // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
+        if let SubjectType::Record = stype {
+            // NOTE: important that we do this after the subject.shared.lock is released
+            context.insert_into_root_index( id, &core );
+        }
+
+        SubjectCore(Arc::new(SubjectCoreInner{
             id: id,
             head: RwLock::new(head),
             // drop_channel: context.drop_channel.clone()
-        })
+        }))
+    }
+
+    pub fn reconstitute (context: &ContextCore, head: MemoRefHead) -> SubjectCore {
+        //println!("Subject.reconstitute({:?})", head);
+
+        let subject_id = head.first_subject_id().unwrap();
+
+        let core = SubjectCore(Arc::new(SubjectCoreInner{
+            id: subject_id,
+            head: RwLock::new(head),
+            // drop_channel: context.drop_channel.clone()
+        }));
+
+        context.subscribe_subject( &core );
+
+        core
     }
     pub fn is_root_index () -> bool {
         unimplemented!();
     }
-    pub fn get_value ( &self, context: &Arc<ContextCore>, key: &str ) -> Option<String> {
+    pub fn get_value ( &self, context: &ContextCore, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
         self.head.read().unwrap().project_value(context, key)
     }
-    pub fn get_relation ( &self, context: &Arc<ContextCore>, key: RelationSlotId ) -> Result<SubjectHandle, RetrieveError> {
+    pub fn get_relation ( &self, context: &ContextCore, key: RelationSlotId ) -> Result<SubjectCore, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_relation(context, key) {
             Ok((subject_id, head)) => {
-                Ok(SubjectHandle{
-                    context: context.clone(),
-                    core: context.get_subject_with_head(subject_id,head)?
-                })
+                Ok( context.get_subject_with_head(subject_id,head)? )
             },
             Err(e)   => Err(e)
 
         }
     }
-    pub fn set_value (&self, context: Arc<ContextCore>, key: &str, value: &str) -> bool {
+    pub fn set_value (&self, context: &ContextCore, key: &str, value: &str) -> bool {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
@@ -61,7 +108,7 @@ impl SubjectCore {
 
         true
     }
-    pub fn set_relation (&self,context: Arc<ContextCore>, key: RelationSlotId, relation: &Self) {
+    pub fn set_relation (&self,context: &ContextCore, key: RelationSlotId, relation: &Self) {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
         let mut memoref_map : HashMap<RelationSlotId, (SubjectId,MemoRefHead)> = HashMap::new();
         memoref_map.insert(key, (relation.id, relation.get_head().clone()) );
@@ -80,7 +127,7 @@ impl SubjectCore {
 
     }
     // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
-    pub fn apply_head (&self, context: Arc<ContextCore>, new: &MemoRefHead){
+    pub fn apply_head (&self, context: &ContextCore, new: &MemoRefHead){
         //println!("# Subject({}).apply_head({:?})", &self.id, new.memo_ids() );
 
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
@@ -91,12 +138,12 @@ impl SubjectCore {
     pub fn get_head (&self) -> MemoRefHead {
         self.head.read().unwrap().clone()
     }
-    pub fn get_all_memo_ids ( &self, context: Arc<ContextCore> ) -> Vec<MemoId> {
+    pub fn get_all_memo_ids ( &self, context: &ContextCore ) -> Vec<MemoId> {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
         self.head.read().unwrap().causal_memo_iter( &slab ).map(|m| m.id).collect()
     }
-    pub fn is_fully_materialized (&self, context: Arc<ContextCore>) -> bool {
+    pub fn is_fully_materialized (&self, context: &ContextCore) -> bool {
         self.head.read().unwrap().is_fully_materialized(&context.slab)
     }
     pub fn fully_materialize (&self, _slab: &Slab) -> bool {
@@ -118,14 +165,5 @@ impl fmt::Debug for SubjectCore {
             .field("subject_id", &self.id)
             .field("head", &self.head)
             .finish()
-    }
-}
-
-impl WeakSubject {
-    pub fn upgrade (&self) -> Option<Subject> {
-        match self.0.upgrade() {
-            Some(s) => Some( Subject(s) ),
-            None    => None
-        }
     }
 }

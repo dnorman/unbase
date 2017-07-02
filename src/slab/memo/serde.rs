@@ -59,10 +59,11 @@ impl StatefulSerialize for MemoBody {
                 serializer.serialize_newtype_variant("MemoBody", 2, "Edit", &e )
 
             },
-            FullyMaterialized{ ref r, ref v }  => {
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 3, "FullyMaterialized", 2)?;
+            FullyMaterialized{ ref r, ref v, ref t }  => {
+                let mut sv = serializer.serialize_struct_variant("MemoBody", 3, "FullyMaterialized", 3)?;
                 sv.serialize_field("r", &SerializeWrapper(&r.0, helper))?;
                 sv.serialize_field("v", v)?;
+                sv.serialize_field("t", t)?;
                 sv.end()
             },
             PartiallyMaterialized{ ref r, ref v }  => {
@@ -367,15 +368,17 @@ impl<'a> Visitor for MBFullyMaterializedSeed<'a> {
 
         let mut relations = None;
         let mut values    = None;
+        let mut stype     = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 'r' => relations = Some(visitor.visit_value_seed(RelationMRHSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
                 'v' => values    = visitor.visit_value()?,
+                't' => stype     = visitor.visit_value()?,
                 _   => {}
             }
         }
-        if relations.is_some() && values.is_some() {
-            Ok(MemoBody::FullyMaterialized{ r: relations.unwrap(), v: values.unwrap() })
+        if relations.is_some() && values.is_some() && stype.is_some() {
+            Ok(MemoBody::FullyMaterialized{ r: relations.unwrap(), v: values.unwrap(), t: stype.unwrap() })
         }else{
             Err(DeError::invalid_length(0, &self))
         }

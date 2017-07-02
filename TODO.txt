@@ -21,7 +21,10 @@ Notes / Outstanding questions:
 
 Steps remaining prior to topic/topo-compression3 merge:
  [ ] The thing compiles
-     * Should ContextHandle be different from ContextCore? Seems flimsy. Stronger case for SubjectHandle though.
+     * Consider Consolidating Context, ContextCore, and ContextHandle.
+     * Consider consolidating Subject and SubjectHandle ( Subject Core vs Handle must stay separate though )
+     * Consider renaming SubjectHandle to RecordHandle and hardcoding SubjectType::Record
+ [ ] Subject type differentiation and detection
  [ ] Context compaction
  [ ] Observer interface
  [ ] Channels for Slab -> Context -> Subject
