@@ -22,7 +22,10 @@ impl MemoRefHead {
     //       and use that to perform a minimum cost subject_head_link edit
     pub fn project_all_head_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
 
-        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS] = iter::repeat(None).take(SUBJECT_MAX_RELATIONS).collect();
+        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS];
+        for i in 0..SUBJECT_MAX_RELATIONS as usize {
+            relation_links[i] = None;
+        }
 
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){

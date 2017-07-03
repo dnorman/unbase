@@ -26,7 +26,7 @@ impl IndexFixed {
             depth: depth
         }
     }
-    pub fn insert <'a> (&self, key: u64, subject: &SubjectCore) {
+    pub fn insert <'a> (&self, context: &ContextCore, key: u64, subject: &SubjectCore) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -36,7 +36,7 @@ impl IndexFixed {
         // after the fact if we don't strictly have to. That said, this gives us a great excuse
         // to work on the consistency model, so I'm doing that first.
 
-        self.recurse_set(0, key, node, subject);
+        self.recurse_set(context, 0, key, node, subject);
     }
     // Temporarily managing our own bubble-up
     // TODO: finish moving the management of this to context / context::subject_graph

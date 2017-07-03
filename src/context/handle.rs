@@ -23,7 +23,14 @@ impl ContextHandle {
     pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<SubjectHandle, RetrieveError> {
 
         match *self.core.root_index.read().unwrap() {
-            Some(ref index) => index.get(&self.core,subject_id),
+            Some(ref index) => {
+                Ok(
+                    SubjectHandle{
+                        core: index.get(&self.core,subject_id)?,
+                        context: self.core.clone()
+                    }
+                )
+            }
             None => Err(RetrieveError::IndexNotInitialized),
         }
     }

@@ -1,6 +1,6 @@
 use super::*;
 use slab::{RelationSlotId,RelationLink};
-use subject::{Subject,SubjectCore,SubjectId};
+use subject::{Subject,SubjectCore,SubjectId,SubjectType};
 use memorefhead::*;
 use index::IndexFixed;
 use error::*;
@@ -93,7 +93,7 @@ impl ContextCore {
 
     pub fn insert_into_root_index(&self, subject_id: SubjectId, subject: &SubjectCore) {
         if let Some(ref index) = *self.root_index.write().unwrap() {
-            index.insert(subject_id, subject);
+            index.insert(self,subject_id, subject);
         } else {
             panic!("no root index")
         }
@@ -348,9 +348,10 @@ impl ContextCore {
         }else{
             RelationSlotSubjectHead::empty()
         };
-        let head = slab.new_memo_basic_noparent(Some(subject_id), MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty() }).to_head();
+        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSlotSubjectHead::empty(), t: SubjectType::Record };
+        let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
 
-        self.apply_head(subject_id, &head, slab)
+        self.apply_head(subject_id, &head, false)
     }
 }
 
