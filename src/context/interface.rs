@@ -1,41 +1,23 @@
-// mod manager;
-// mod subject_graph;
-// mod topo_subject_head_iter;
+use super::*;
+use subject::SubjectHandle;
 
-use slab::*;
-use subject::*;
-use context::*;
-use memorefhead::MemoRefHead;
-use error::RetrieveError;
-use index::IndexFixed;
-use std::fmt;
-use std::collections::HashMap;
-use std::sync::{Mutex, RwLock, Arc};
-
-#[derive(Clone)]
-pub struct ContextHandle{
-    pub (crate) core: ContextCore
-}
-/// User-exposed handle for a query context.
-/// Only functionality to be exposed to the user should be defined here
-impl ContextHandle {
+/// User interface functions - Programmer API for `Context`
+impl Context {
     /// Retrive a Subject from the root index by ID
     pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<SubjectHandle, RetrieveError> {
 
-        match *self.core.root_index.read().unwrap() {
+        match *self.root_index.read().unwrap() {
             Some(ref index) => {
                 Ok(
                     SubjectHandle{
-                        core: index.get(&self.core,subject_id)?,
-                        context: self.core.clone()
+                        core: index.get(&self, subject_id)?,
+                        context: self.clone()
                     }
                 )
             }
             None => Err(RetrieveError::IndexNotInitialized),
         }
     }
-
-    
 
     // Magically transport subject heads into another context in the same process.
     // This is a temporary hack for testing purposes until such time as proper context exchange is enabled
@@ -44,7 +26,7 @@ impl ContextHandle {
     pub fn hack_send_context(&self, other: &Self) -> usize {
         self.compress();
 
-        let from_slabref = self.core.slab.my_ref.clone_for_slab(&other.core.slab);
+        let from_slabref = self.slab.my_ref.clone_for_slab(&other.slab);
 
         let mut memoref_count = 0;
 
@@ -77,7 +59,7 @@ impl ContextHandle {
     }
     pub fn cmp(&self, other: &Self) -> bool {
         // stable way:
-        &*(self.core) as *const _ != &*(other.core) as *const _
+        &*(self.0) as *const _ != &*(other.0) as *const _
 
         // unstable way:
         // Arc::ptr_eq(&self.inner,&other.inner)
@@ -104,7 +86,7 @@ impl ContextHandle {
     }
 }
 
-impl fmt::Debug for ContextHandle {
+impl fmt::Debug for Context {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         unimplemented!();
 

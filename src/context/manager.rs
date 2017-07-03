@@ -45,59 +45,9 @@
 /// Invariant 1: The each state of the context manager must be descendent of its prior state
 ///  
 impl ContextManager {
-    pub fn new() -> ContextManager {
-        ContextManager {
-            inner: Mutex::new(ContextManagerInner{
-                items:        Vec::with_capacity(30),
-                index:        Vec::with_capacity(30),
-                vacancies:    Vec::with_capacity(30),
-                pending_vacancies: Vec::with_capacity(30),
-                edit_counter: 0,
-                iter_counter: 0
-            }),
-            //pathology: None
-        }
-    }
-    pub fn new_pathological( pathology: Box<Fn(String)> ) -> ContextManager {
-        unimplemented!();
 
-        // ContextManager {
-        //     inner: Mutex::new(ContextManagerInner{
-        //         items:          Vec::with_capacity(30),
-        //         index:  Vec::with_capacity(30),
-        //         vacancies:      Vec::with_capacity(30)
-        //     }),
-        //     pathology: Some(pathology)
-        // }
-    }
 
-    /// Returns the number of subjects in the `ContextManager` including placeholders.
-    pub fn subject_count(&self) -> usize {
-        self.inner.lock().unwrap().index.len()
-    }
-    /// Returns the number of subject heads in the `ContextManager`
-    pub fn subject_head_count(&self) -> usize {
-        self.inner.lock().unwrap().items.iter().filter(|i| {
-            if let &&Some(ref item) = i {
-                if let Some(_) = item.head{
-                    return true;
-                }
-            }
-            false
-        }).count()
-    }
-    pub fn vacancies(&self) -> usize {
-        self.inner.lock().unwrap().vacancies.len()
-    }
 
-    /// Returns true if the `ContextManager` contains no entries.
-    pub fn is_empty(&self) -> bool {
-        self.inner.lock().unwrap().items.is_empty()
-    }
-
-    pub fn subject_ids(&self) -> Vec<SubjectId> {
-        self.inner.lock().unwrap().index.iter().map(|i| i.0 ).collect()
-    }
 
     pub fn get_edit_counter(&self) -> usize {
         self.inner.lock().unwrap().edit_counter
@@ -119,20 +69,6 @@ impl ContextManager {
         }
     }
     
-    fn get_head_and_generation(&mut self, subject_id: SubjectId) -> (Option<MemoRefHead>, usize) {
-        let inner = self.inner.lock().unwrap();
-        match inner.get_item_id_for_subject(subject_id) {
-            Some(item_id) => {
-                match inner.items.get(item_id) {
-                    Some(&Some(item @ ContextItem{ head: Some(h), .. })) => {
-                        (Some( h.clone() ), item.edit_counter)
-                    },
-                    None => (None,0)
-                }
-            }
-            None => (None,0)
-        }
-    }
     pub fn subject_head_iter (&self) -> SubjectHeadIter {
         let inner = self.inner.lock().unwrap();
         inner.iter_counter += 1;
@@ -217,13 +153,6 @@ impl ContextManager {
 }
 
 impl ContextManagerInner {
-    /// Fetch item id for a subject if present
-    pub fn get_item_id_for_subject(&self, subject_id: SubjectId ) -> Option<ItemId>{
-        match self.index.binary_search_by(|x| x.0.cmp(&subject_id)){
-            Ok(i)  => Some(self.index[i].1),
-            Err(_) => None
-        }
-    }
     /// Creates or returns a ContextManager item for a given subject_id
     fn assert_item(&mut self, subject_id: SubjectId) -> ItemId {
 
