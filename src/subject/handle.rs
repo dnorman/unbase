@@ -1,6 +1,6 @@
 use super::*;
 use super::core::*;
-use context::core::ContextCore;
+use context::Context;
 use slab::*;
 use error::*;
 
@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct SubjectHandle {
     pub core:    SubjectCore,
-    pub context: ContextCore
+    pub context: Context
 }
 
 impl SubjectHandle{

@@ -72,13 +72,13 @@ impl Slab {
     pub fn get_root_index_seed (&self) -> Option<MemoRefHead> {
         self.net.get_root_index_seed(self)
     }
-    pub fn create_context (&self) -> ContextHandle {
+    pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub fn subscribe_subject (&self, subject_id: u64, context: &ContextCore) {
+    pub fn subscribe_subject (&self, subject_id: u64, context: &Context) {
         unimplemented!()
     }
-    pub fn unsubscribe_subject (&self,  subject_id: u64, context: &ContextCore ){
+    pub fn unsubscribe_subject (&self,  subject_id: u64, context: &Context ){
         unimplemented!()
         // if let Some(subs) = self.subject_subscriptions.write().unwrap().get_mut(&subject_id) {
         //     let weak_context = context.ref();

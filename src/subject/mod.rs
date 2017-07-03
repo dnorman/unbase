@@ -28,21 +28,21 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 impl Subject {
-    pub fn new ( context: &ContextHandle, vals: HashMap<String, String> ) -> Result<SubjectHandle,String> {
+    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,String> {
 
-        let core = SubjectCore::new(&context.core, SubjectType::Record, vals );
+        let core = SubjectCore::new(&context, SubjectType::Record, vals );
 
         let handle = SubjectHandle{
             core: core,
-            context: context.core.clone()
+            context: context.clone()
         };
 
         Ok(handle)
     }
-    pub fn new_blank ( context: &ContextHandle ) -> Result<SubjectHandle,String> {
+    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,String> {
         Self::new( context, HashMap::new() )
     }
-    pub fn new_kv ( context: &ContextHandle, key: &str, value: &str ) -> Result<SubjectHandle,String> {
+    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,String> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 

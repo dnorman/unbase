@@ -148,6 +148,22 @@ impl MemoRefHead {
             None
         }
     }
+    pub fn subject_type(&self, slab: &Slab) -> SubjectType {
+        for memoref in self.iter(){
+            if let Ok(memo) = memoref.get_memo(slab) {
+                match memo.body {
+                    MemoBody::FullyMaterialized { v: _, r: _, t: t } => {
+                        t
+                    }
+                }
+            }else{
+                // TODO: do something more intelligent here
+                panic!("failed to retrieve memo")
+            }
+        }
+
+        panic!("no FullyMaterialized memobody found")
+    }
     pub fn to_vec (&self) -> Vec<MemoRef> {
         self.0.clone()
     }

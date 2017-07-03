@@ -14,19 +14,19 @@ pub struct IndexFixed {
 }
 
 impl IndexFixed {
-    pub fn new (context: &ContextCore, depth: u8) -> IndexFixed {
+    pub fn new (context: &Context, depth: u8) -> IndexFixed {
         Self {
             root: SubjectCore::new( context, SubjectType::IndexNode, HashMap::new() ),
             depth: depth
         }
     }
-    pub fn new_from_memorefhead (context: &ContextCore, depth: u8, memorefhead: MemoRefHead ) -> IndexFixed {
+    pub fn new_from_memorefhead (context: &Context, depth: u8, memorefhead: MemoRefHead ) -> IndexFixed {
         Self {
             root: SubjectCore::reconstitute( context, memorefhead ),
             depth: depth
         }
     }
-    pub fn insert <'a> (&self, context: &ContextCore, key: u64, subject: &SubjectCore) {
+    pub fn insert <'a> (&self, context: &Context, key: u64, subject: &SubjectCore) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -40,7 +40,7 @@ impl IndexFixed {
     }
     // Temporarily managing our own bubble-up
     // TODO: finish moving the management of this to context / context::subject_graph
-    fn recurse_set(&self, context: &ContextCore, tier: usize, key: u64, node: &SubjectCore, subject: &SubjectCore) {
+    fn recurse_set(&self, context: &Context, tier: usize, key: u64, node: &SubjectCore, subject: &SubjectCore) {
         // TODO: refactor this in a way that is generalizable for strings and such
         // Could just assume we're dealing with whole bytes here, but I'd rather
         // allow for SUBJECT_MAX_RELATIONS <> 256. Values like 128, 512, 1024 may not be entirely ridiculous
@@ -81,7 +81,7 @@ impl IndexFixed {
         }
 
     }
-    pub fn get ( &self, context: &ContextCore, key: u64 ) -> Result<SubjectCore, RetrieveError> {
+    pub fn get ( &self, context: &Context, key: u64 ) -> Result<SubjectCore, RetrieveError> {
 
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here

@@ -79,7 +79,7 @@ impl MemoRefHead {
     pub fn project_relation_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<RelationLink>{
         unimplemented!()
     }
-    pub fn project_value ( &self, context: &ContextCore, key: &str ) -> Option<String> {
+    pub fn project_value ( &self, context: &Context, key: &str ) -> Option<String> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses
         for memo in self.causal_memo_iter(&context.slab) {
@@ -95,7 +95,7 @@ impl MemoRefHead {
         }
         None
     }
-    pub fn project_relation ( &self, context: &ContextCore, key: RelationSlotId ) -> Result<(SubjectId,Self), RetrieveError> {
+    pub fn project_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<(SubjectId,Self), RetrieveError> {
         // TODO: Make error handling more robust
 
         for memo in self.causal_memo_iter( &context.slab ) {

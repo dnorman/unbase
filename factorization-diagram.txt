@@ -10,23 +10,23 @@
                             slabs -------------------------                     
                                                            \                    
                                                             \                   
-   ContextHandle                                             -WeakSlab          
-    core ------------------                                        |            
-                           \                                 -Slab |            
-                            \                               /  Arc<SlabInner>   
-                             \                             /                    
-                              -ContextCore                /                     
-                             /  Arc<ContextCoreInner>    /                      
-                            /    slab ------------------/                       
-   SubjectHandle           /     root_index -                                   
-    context --------------/                  \                                  
-    core    -----                             \                                 
-                 \                             -IndexFixed                      
-                  \                              root -                         
-                   \                                   \                        
-                    \                                   \                       
-                     -------------------------------------SubjectCore           
-                                                           Arc<SubjectCoreInner>
+                                                             -WeakSlab          
+                                                                   |            
+                                                             -Slab |            
+                                                            /   \ Arc<SlabInner>   
+                                                           /                    
+                              -Context                    /                     
+                             /   \ Arc<ContextInner>     /                      
+                            /        slab --------------/                       
+   SubjectHandle           /         root_index -                                   
+    context --------------/                       \                                  
+    core    -----                                  \                                 
+                 \                                  -IndexFixed                      
+                  \                                   root -                         
+                   \                                        \                        
+                    \                                        \                       
+                     ------------------------------------------SubjectCore           
+                                                                  \ Arc<SubjectCoreInner>
                                                                                 
                                                                                 
                                                                                 
