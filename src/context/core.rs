@@ -1,16 +1,6 @@
 
 
-impl ContextItem {
-    fn new(subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> Self {
-        ContextItem {
-            subject_id: subject_id,
-            head: maybe_head,
-            relations: Vec::new(),
-            edit_counter: 0,
-            refcount: 0
-        }
-    }
-}
+
 
 
 
@@ -99,42 +89,10 @@ impl ContextCore {
 
     }
 
-    /// Retrieves a subject by ID from this context only if it is currently resedent
-    fn get_subject_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
-
-        unimplemented!()
-        // if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
-        //     if let Some(subject) = weaksub.upgrade() {
-        //         // NOTE: In theory we shouldn't need to apply the current context
-        //         //      to this subject, as it shouldddd have already happened
-        //         return Some(subject);
-        //     }
-        // }
-
-        // None
-    }
     /// For a given SubjectId, apply a MemoRefHead to the one stored in the ContextManager, but only if a MemoRefHead was already present.
     /// Return Some(applied head) or None if none was present for the provided SubjectId
     //pub fn conditional_apply_head (&self, subject_id: SubjectId, apply_head: &MemoRefHead, slab: &Slab) -> Option<MemoRefHead> {
     //}
-
-
-    fn apply_head_parts_bin_delete_me () {
-        //TODO: refactor the below into other functions
-        unimplemented!();
-
-        // Notes on future concurrency upgrades:
-        // Most likely, will want to decompose MemoRefHead here such that we can add the new memos to the set first, then remove the superseded memorefs after that.
-        // Provided that the memoref add operation completes before the memoref remove operation, this should be concurrency safe (I think) so long as (non A,B,A) addition to and removal from the set is idempotent.
-        // The A/B/A scenario is fine because it doesn't hurt correctness to have too much in the context, only too little.
-        // Question is: how do atomics fit into this?
-        //
-        // Going with the low road for now:
-        // * get the resident head (if any) and generation for the subject id in question
-        // * project all head links
-        // * 
-
-    }
 
     pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<MemoRefHead>, slab: &Slab) -> MemoRefHead {
         let rssh = if let Some(rel_head) = maybe_relation {

@@ -45,69 +45,12 @@
 /// Invariant 1: The each state of the context manager must be descendent of its prior state
 ///  
 impl ContextManager {
-
-
-
-
-    pub fn get_edit_counter(&self) -> usize {
-        self.inner.lock().unwrap().edit_counter
-    }
-    /// Get MemoRefHead (if resident) for the provided subject_id
-    pub fn get_head(&mut self, subject_id: SubjectId) -> Option<MemoRefHead> {
-        let inner = self.inner.lock().unwrap();
-
-        match inner.get_item_id_for_subject(subject_id) {
-            Some(item_id) => {
-                match inner.items.get(item_id) {
-                    Some(&Some(ContextItem{ head: Some(ref h), .. })) => {
-                        Some(h.clone())
-                    },
-                    None => None
-                }
-            }
-            None => None
-        }
-    }
     
     pub fn subject_head_iter (&self) -> SubjectHeadIter {
         let inner = self.inner.lock().unwrap();
         inner.iter_counter += 1;
 
         SubjectHeadIter::new(self.clone())
-    }
-    fn increment(&mut self, item_id: ItemId, increment: isize, seen: &mut Vec<bool>) {
-        // Avoid traversing cycles
-        if Some(&true) == seen.get(item_id) {
-            return; // dejavu! Bail out
-        }
-        seen[item_id] = true;
-
-        let relations: Vec<ItemId>;
-        let mut remove = false;
-        {
-            if let &mut Some(ref mut item) = &mut self.items[item_id] {
-                item.indirect_references += increment;
-                if item.indirect_references == 0 && item.head.is_none(){
-                    remove = true;
-                }
-                assert!(item.indirect_references >= 0,
-                        "sanity error. indirect_references below zero");
-
-                relations = item.relations.iter().filter_map(|r| *r).collect();
-            } else {
-                panic!("sanity error. increment for item_id");
-            }
-        };
-
-        if remove {
-            self.items[item_id] = None;
-            self.vacancies.push(item_id);
-        }
-
-        for rel_item_id in relations {
-            self.increment(rel_item_id, increment, seen);
-        }
-
     }
     // I don't really like have this be internal to the manager, but there's presently no item_id based interface and I'm not sure if there will be.
     // It's inefficient to have to convert back and forth between SubjectId and ItemId.
@@ -152,53 +95,6 @@ impl ContextManager {
     }
 }
 
-impl ContextManagerInner {
-    /// Creates or returns a ContextManager item for a given subject_id
-    fn assert_item(&mut self, subject_id: SubjectId) -> ItemId {
-
-        let index = &mut self.index;
-        match index.binary_search_by(|x| x.0.cmp(&subject_id) ){
-            Ok(i) => {
-                index[i].1
-            }
-            Err(i) =>{
-                let item = ContextItem::new(subject_id, None);
-
-                let item_id = if let Some(item_id) = self.vacancies.pop() {
-                    self.items[item_id] = Some(item);
-                    item_id
-                } else {
-                    self.items.push(Some(item));
-                    self.items.len() - 1
-                };
-
-                index.insert(i, (subject_id, item_id) );
-                item_id
-            }
-        }
-    }
-    fn increment_item(&mut self, item: &ContextItem){
-        unimplemented!();
-    }
-    fn decrement_item(&mut self, item: &ContextItem) {
-        unimplemented!();
-    }
-    fn increment_descendents (&mut self, item: &ContextItem){
-        unimplemented!();
-    }
-    fn remove_head (&self, subject_id: SubjectId) {
-        unimplemented!();
-        // let inner = self.inner.lock().unwrap();
-
-        // if *inner.iter_counter == 0 {
-        //     inner.vacancies.push(item_id);
-        // }else{
-        //     // avoid use after free until all iters have finished
-        //     // we don't have to guarantee that the item sticks around, just that we don't give the iter the wrong item
-        //     inner.pending_vacancies.push(item_id);
-        // }
-    }
-}
 
 //impl ContextManager {
 

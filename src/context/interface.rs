@@ -1,5 +1,6 @@
 use super::*;
 use subject::SubjectHandle;
+use std::fmt;
 
 /// User interface functions - Programmer API for `Context`
 impl Context {

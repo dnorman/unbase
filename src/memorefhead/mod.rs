@@ -112,10 +112,16 @@ impl MemoRefHead {
             self.apply_memoref(new, slab);
         }
     }
-    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab){
+    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> bool {
+        let mut applied = false;
+
         for new in other.iter(){
-            self.apply_memoref( new, slab );
+            if self.apply_memoref( new, slab ) {
+                applied = true;
+            }
         }
+
+        applied
     }
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
@@ -152,8 +158,8 @@ impl MemoRefHead {
         for memoref in self.iter(){
             if let Ok(memo) = memoref.get_memo(slab) {
                 match memo.body {
-                    MemoBody::FullyMaterialized { v: _, r: _, t: t } => {
-                        t
+                    MemoBody::FullyMaterialized { t, .. } => {
+                        return t;
                     }
                 }
             }else{

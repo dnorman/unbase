@@ -42,7 +42,7 @@ impl Context{
                 ContextInner{
                     slab: slab.clone(),
                     root_index: RwLock::new(None),
-                    stash: Mutex::new(Stash::new())
+                    stash: Stash::new()
                 }
             )
         );
