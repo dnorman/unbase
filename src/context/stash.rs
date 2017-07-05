@@ -70,7 +70,7 @@ impl Stash {
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
         match apply_head.subject_type(slab) {
-            SubjectType::IndexNode => {
+            Some(SubjectType::IndexNode) => {
 
                 loop {
                     let (new_head, edit_counter) = match self.get_head_and_editcount(subject_id) {
@@ -83,12 +83,12 @@ impl Stash {
                         None => ( apply_head.clone(),0 )
                     };
 
-                    let links = new_head.project_all_head_links_including_empties(slab); // May block here
+                    let links = new_head.project_all_edge_links_including_empties(slab); // May block here
 
                     if self.try_set_head( subject_id, new_head, &links, edit_counter ) {
 
                         for link in links.iter() {
-                            if let RelationLink::Occupied{ subject_id, ref head, .. } = *link {
+                            if let EdgeLink::Occupied{ subject_id, ref head, .. } = *link {
                                 self.prune_head(slab, subject_id, head);
                             }
                         }
@@ -122,7 +122,7 @@ impl Stash {
         false
     }
     /// Try to set a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
-    fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, links: &Vec<RelationLink>, edit_counter: usize) -> bool {
+    fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, links: &Vec<EdgeLink>, edit_counter: usize) -> bool {
         let inner   = self.inner.lock().unwrap();
         let item_id = inner.assert_item(subject_id);
         let mut item = inner.items[item_id].as_mut().unwrap();
@@ -133,13 +133,13 @@ impl Stash {
 
         for link in links.iter() {
             match *link {
-                RelationLink::Vacant{ slot_id} => {
+                EdgeLink::Vacant{ slot_id} => {
                     if let Some(rel_item_id) = item.relations[slot_id as usize]{
                         // Not sure what exactly ought to occur here
                     }
                     item.relations[ slot_id as usize ] = None;
                 },
-                RelationLink::Occupied{slot_id, subject_id: rel_subject_id, head: rel_head} => {
+                EdgeLink::Occupied{slot_id, subject_id: rel_subject_id, head: rel_head} => {
                     let rel_item_id = inner.assert_item(rel_subject_id);
                     item.relations[ slot_id as usize ] = Some(rel_item_id);
                 }

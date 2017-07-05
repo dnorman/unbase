@@ -29,7 +29,7 @@ pub enum MemoOrigin<'a>{
             self.handle_memoref( memo_origin, &memoref ); // located in memohandling.rs
 
             if let Some(subject_id) = memoref.subject_id {
-                let mut head = subject_updates.entry( subject_id ).or_insert( MemoRefHead::new() );
+                let mut head = subject_updates.entry( subject_id ).or_insert( MemoRefHead::None );
                 head.apply_memoref(&memoref, self);
             }
 

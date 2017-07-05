@@ -161,7 +161,8 @@ impl MemoRef {
         match self.get_memo( slab ) {
             Ok(my_memo) => {
                 if my_memo.descends(&memoref, slab) {
-                    return true }
+                    return true
+                }
             }
             Err(_) => {
                 // TODO: convert this into a Result<>

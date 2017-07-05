@@ -66,6 +66,18 @@ impl Context {
         // Arc::ptr_eq(&self.inner,&other.inner)
     }
 
+    pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<SubjectId>, slab: &Slab) -> MemoRefHead {
+        let relset = if let Some(subject_id) = maybe_relation {
+            RelationSet::single(0, subject_id )
+        }else{
+            RelationSet::empty()
+        };
+        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: relset, e: EdgeSet::empty(), t: SubjectType::Record };
+        let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
+
+        self.apply_head(subject_id, &head)
+    }
+
     /// Attempt to compress the present query context.
     /// We do this by issuing Relation memos for any subject heads which reference other subject heads presently in the query context.
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these

@@ -8,7 +8,7 @@ use error::*;
 
 use std::mem;
 use std::fmt;
-use std::slice;
+use std::{slice,iter};
 use std::collections::VecDeque;
 
 // MemoRefHead is a list of MemoRefs that constitute the "head" of a given causal chain
@@ -18,17 +18,58 @@ use std::collections::VecDeque;
 // other MemoRefHeads such that the mutated list may be pruned as appropriate given the above.
 
 #[derive(Clone, PartialEq)]
-pub struct MemoRefHead (Vec<MemoRef>);
+pub enum MemoRefHead {
+    None,
+    Subject{
+        subject_id: SubjectId,
+        stype:      SubjectType,
+        head:       Vec<MemoRef>
+    },
+    Anonymous{
+        head:       Vec<MemoRef>
+    }
+}
 
 impl MemoRefHead {
-    pub fn new () -> Self {
-        MemoRefHead( Vec::with_capacity(5) )
-    }
-    pub fn new_from_vec ( vec: Vec<MemoRef> ) -> Self {
-        MemoRefHead( vec )
+    pub fn new_from_vec ( vec: Vec<MemoRef>, slab: &Slab ) -> Self {
+
+        unimplemented!()
+        // for memoref in vec.iter(){
+        //     if let Ok(memo) = memoref.get_memo(slab) {
+        //         match memo.body {
+        //             MemoBody::FullyMaterialized { t, .. } => {
+        //                 return t;
+        //             }
+        //         }
+        //     }else{
+        //         // TODO: do something more intelligent here
+        //         panic!("failed to retrieve memo")
+        //     }
+        // }
+
+        // panic!("no FullyMaterialized memobody found")
+
+        // if vec.len() > 0 {
+        //     MemoRefHead::Some{
+        //         subject_id: vec[0].get_subject_id(),
+        //         stype:      
+        //     }
+        // }else{
+        //     MemoRefHead::None
+        // }
     }
     pub fn from_memoref (memoref: MemoRef) -> Self {
-        MemoRefHead( vec![memoref] )
+        match memoref.subject_id {
+            None => MemoRefHead::Anonymous{
+                head: vec![memoref]
+            },
+            Some(subject_id) => 
+                MemoRefHead::Subject {
+                    subject_id: subject_id,
+                    stype:      SubjectType::Record,
+                    head: vec![memoref]
+                }
+        }
     }
     pub fn is_root_index (&self) -> bool{
         unimplemented!()
@@ -126,49 +167,50 @@ impl MemoRefHead {
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
     pub fn descends (&self, other: &MemoRefHead, slab: &Slab) -> bool{
-        if self.len() == 0 || other.len() == 0 {
-            return false // searching for positive descendency, not merely non-ascendency
-        }
 
         // there's probably a more efficient way to do this than iterating over the cartesian product
         // we can get away with it for now though I think
         // TODO: revisit when beacons are implemented
-        for memoref in self.iter(){
-            for other_memoref in other.iter(){
-                if !memoref.descends(other_memoref, slab) {
-                    return false;
-                }
-            }
-        }
+        match *self {
+            MemoRefHead::None             => false,
+            MemoRefHead::Subject{ head, .. } | MemoRefHead::Anonymous{ head, .. } => {
+                match *other {
+                    MemoRefHead::None             => false,
+                    MemoRefHead::Subject{ head: other_head, .. } | MemoRefHead::Anonymous{ head: other_head, .. } => {
+                        if head.len() == 0 || other_head.len() == 0 {
+                            return false // searching for positive descendency, not merely non-ascendency
+                        }
+                        for memoref in head.iter(){
+                            for other_memoref in other_head.iter(){
+                                if !memoref.descends(other_memoref, slab) {
+                                    return false;
+                                }
+                            }
+                        }
 
-        return true;
-    }
-    pub fn memo_ids (&self) -> Vec<MemoId> {
-        self.0.iter().map(|m| m.id).collect()
-    }
-    pub fn first_subject_id (&self) -> Option<SubjectId> {
-        if let Some(memoref) = self.iter().next() {
-            // TODO: Could stand to be much more robust here
-            memoref.subject_id
-        }else{
-            None
-        }
-    }
-    pub fn subject_type(&self, slab: &Slab) -> SubjectType {
-        for memoref in self.iter(){
-            if let Ok(memo) = memoref.get_memo(slab) {
-                match memo.body {
-                    MemoBody::FullyMaterialized { t, .. } => {
-                        return t;
+                        true
                     }
                 }
-            }else{
-                // TODO: do something more intelligent here
-                panic!("failed to retrieve memo")
             }
         }
-
-        panic!("no FullyMaterialized memobody found")
+    }
+    pub fn memo_ids (&self) -> Vec<MemoId> {
+        match *self {
+            MemoRefHead::None => Vec::new(),
+            MemoRefHead::Subject{ head, .. } | MemoRefHead::Anonymous{ head, .. } => head.iter().map(|m| m.id).collect()
+        }
+    }
+    pub fn subject_id (&self) -> Option<SubjectId> {
+        match *self {
+            MemoRefHead::None | MemoRefHead::Anonymous{..} => None,
+            MemoRefHead::Subject{ subject_id, .. }     => Some(subject_id)
+        }
+    }
+    pub fn subject_type(&self, slab: &Slab) -> Option<SubjectType> {
+        match *self {
+            MemoRefHead::None | MemoRefHead::Anonymous{..} => None,
+            MemoRefHead::Subject{ ref stype, .. } => Some(stype.clone())
+        }
     }
     pub fn to_vec (&self) -> Vec<MemoRef> {
         self.0.clone()
@@ -177,10 +219,14 @@ impl MemoRefHead {
         VecDeque::from(self.0.clone())
     }
     pub fn len (&self) -> usize {
+
         self.0.len()
     }
     pub fn iter (&self) -> slice::Iter<MemoRef> {
-        self.0.iter()
+        match *self {
+            //MemoRefHead::None             => iter::empty<MemoRef>() as slice::Iter<MemoRef>,
+            MemoRefHead::Some{ head, .. } => head.iter()
+        }
     }
     pub fn causal_memo_iter(&self, slab: &Slab ) -> CausalMemoIter {
         CausalMemoIter::from_head( &self, slab )
@@ -189,33 +235,59 @@ impl MemoRefHead {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
         //       as part of the list management. That way we won't have to incur the below computational effort.
 
-        for memoref in self.iter(){
-            if let Ok(memo) = memoref.get_memo(slab) {
-                match memo.body {
-                    MemoBody::FullyMaterialized { v: _, r: _, t: _ } => {},
-                    _                           => { return false }
+        match *self {
+            MemoRefHead::None       => {
+                true
+            },
+            MemoRefHead::Some{ subject_id, stype, ref head } => {
+                for memoref in head.iter(){
+                    let memo = memoref.get_memo(slab).unwrap();
+
+                    if let MemoBody::FullyMaterialized { .. } = memo.body {
+                        //
+                    }else{
+                        return false
+                    }
                 }
-            }else{
-                // TODO: do something more intelligent here
-                panic!("failed to retrieve memo")
+
+                true
             }
         }
-
-        true
     }
     pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, include_memos: bool ) -> Self {
         assert!(from_slabref.slab_id != to_slab.id, "slab id should differ");
-        MemoRefHead( self.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect() )
+        match *self {
+            MemoRefHead::None       => MemoRefHead::None,
+            MemoRefHead::Some{ subject_id, stype, ref head } => MemoRefHead::Some {
+                subject_id: subject_id,
+                stype:      stype,
+                head:       head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
+            }
+        }
     }
 }
 
 impl fmt::Debug for MemoRefHead{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-
-        fmt.debug_struct("MemoRefHead")
-            .field("memo_refs", &self.0 )
-            //.field("memo_ids", &self.memo_ids() )
-            .finish()
+        match *self {
+            MemoRefHead::None       => {
+                fmt.debug_struct("MemoRefHead::None").finish()
+            },
+            MemoRefHead::Anonymous{ head, .. } => {
+                fmt.debug_struct("MemoRefHead::Anonymous")
+                    .field("memo_refs",  &head )
+                    //.field("memo_ids", &self.memo_ids() )
+                    .finish()
+            }
+            MemoRefHead::Subject{ subject_id, stype, ref head } => {
+                fmt.debug_struct("MemoRefHead::Subject")
+                    .field("subject_id", &subject_id )
+                    .field("stype",      &stype )
+                    .field("memo_refs",  &head )
+                    //.field("memo_ids", &self.memo_ids() )
+                    .finish()
+            }
+        }
     }
 }
 
@@ -240,6 +312,12 @@ impl CausalMemoIter {
 
         CausalMemoIter {
             queue: head.to_vecdeque(),
+            slab:  slab.clone()
+        }
+    },
+    pub fn from_memoref (memoref: &MemoRef, slab: &Slab ) -> Self {
+        CausalMemoIter {
+            queue: vecdeq![memoref],
             slab:  slab.clone()
         }
     }

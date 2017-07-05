@@ -20,15 +20,14 @@ Notes / Outstanding questions:
 
 
 Steps remaining prior to topic/topo-compression3 merge:
+ [~] Edge/Relation bifurcation
  [ ] The thing compiles
-     * Consider Consolidating Context, ContextCore, and ContextHandle.
-     * Consider consolidating Subject and SubjectHandle ( Subject Core vs Handle must stay separate though )
-     * Consider renaming SubjectHandle to RecordHandle and hardcoding SubjectType::Record
- [ ] Subject type differentiation and detection
+ [X] Subject type differentiation and detection
+ [ ] Subject subscriptions
  [ ] Context compaction
  [ ] Observer interface
  [ ] Channels for Slab -> Context -> Subject
- 
+ [ ] Clean up Factorization diagram 
 
 
 

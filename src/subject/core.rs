@@ -83,6 +83,13 @@ impl SubjectCore {
     pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectCore, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_relation(context, key) {
+            Ok(subject_id) => context.get_subject_core(subject_id),
+            Err(e)         => Err(e)
+        }
+    }
+    pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectCore, RetrieveError> {
+        //println!("# Subject({}).get_relation({})",self.id,key);
+        match self.head.read().unwrap().project_edge(context, key) {
             Ok((subject_id, head)) => {
                 Ok( context.get_subject_with_head(subject_id,head)? )
             },
@@ -104,7 +111,8 @@ impl SubjectCore {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_head( self.id,  &head, false );
+
+        context.apply_head( self.id,  &head );
 
         true
     }
@@ -123,7 +131,7 @@ impl SubjectCore {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_head( self.id, &head, false );
+        context.apply_head( self.id, &head );
 
     }
     // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context

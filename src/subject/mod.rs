@@ -15,7 +15,7 @@ use memorefhead::MemoRefHead;
 
 pub type SubjectId     = u64;
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone,PartialEq,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
     IndexNode,
     Record

@@ -151,7 +151,7 @@ impl Slab {
 
         let request_memo = self.new_memo_basic(
             None,
-            MemoRefHead::new(), // TODO: how should this be parented?
+            MemoRefHead::None,
             MemoBody::MemoRequest(
                 vec![memoref.id],
                 self.my_ref.clone()

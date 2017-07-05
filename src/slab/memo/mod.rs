@@ -39,9 +39,10 @@ pub struct MemoInner {
 pub enum MemoBody{
     SlabPresence{ p: SlabPresence, r: Option<MemoRefHead> }, // TODO: split out root_index_seed conveyance to another memobody type
     Relation(RelationSlotSubjectHead),
+    Edge(EdgeSet),
     Edit(HashMap<String, String>),
-    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead, t: SubjectType },
-    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSlotSubjectHead },
+    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead, e: EdgeSet, t: SubjectType },
+    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSlotSubjectHead, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
     MemoRequest(Vec<MemoId>,SlabRef)
 }
@@ -116,7 +117,6 @@ impl Memo {
         //TODO: parallelize this
         //TODO: Use sparse-vector/beacon to avoid having to trace out the whole lineage
         //      Should be able to stop traversal once happens-before=true. Cannot descend a thing that happens after
-
 
         // breadth-first
         for parent in self.parents.iter() {

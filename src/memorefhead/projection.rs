@@ -20,27 +20,27 @@ impl MemoRefHead {
     // Kind of a brute force way to do this
     // TODO: Consider calculating deltas during memoref application,
     //       and use that to perform a minimum cost subject_head_link edit
-    pub fn project_all_head_links_including_empties (&self, slab: &Slab) -> Vec<RelationLink> {
+    pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
-        let mut relation_links : [Option<RelationLink>; SUBJECT_MAX_RELATIONS];
+        let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];
         for i in 0..SUBJECT_MAX_RELATIONS as usize {
-            relation_links[i] = None;
+            edge_links[i] = None;
         }
 
         // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
             match memo.body {
-                MemoBody::FullyMaterialized { v: _, ref r, t: _ } => {
+                MemoBody::FullyMaterialized { ref e, .. } => {
 
-                    for (slot_id,&(subject_id,rel_head)) in &r.0 {
+                    for (slot_id,&rel_head) in &e.0 {
 
                         // Only consider the non-visited slots
-                        if let None = relation_links[ *slot_id as usize ] {
-                            relation_links[ *slot_id as usize ] = Some(
+                        if let None = edge_links[ *slot_id as usize ] {
+                            edge_links[ *slot_id as usize ] = Some(
                                 if subject_id == 0 {
-                                    RelationLink::Vacant{ slot_id: *slot_id }
+                                    EdgeLink::Vacant{ slot_id: *slot_id }
                                 }else{
-                                    RelationLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
+                                    EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
                                 }
                             );
                         }
@@ -48,16 +48,16 @@ impl MemoRefHead {
                     break;
                     // Fully Materialized memo means we're done here
                 },
-                MemoBody::Relation(ref r) => {
+                MemoBody::Edge(ref r) => {
                     for (slot_id,&(subject_id,rel_head)) in r.iter() {
 
                         // Only consider the non-visited slots
-                        if let None = relation_links[ *slot_id as usize ] {
-                            relation_links[ *slot_id as usize ] = Some(
+                        if let None = edge_links[ *slot_id as usize ] {
+                            edge_links[ *slot_id as usize ] = Some(
                                 if subject_id == 0 {
-                                    RelationLink::Vacant{ slot_id: *slot_id }
+                                    EdgeLink::Vacant{ slot_id: *slot_id }
                                 }else{
-                                    RelationLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
+                                    EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
                                 }
                             )
                         }
@@ -67,16 +67,16 @@ impl MemoRefHead {
             }
         }
 
-        relation_links.iter().enumerate().map(|(slot_id,maybe_link)| {
+        edge_links.iter().enumerate().map(|(slot_id,maybe_link)| {
             // Fill in the non-visited links with vacants
             match *maybe_link {
-                None       => RelationLink::Vacant{ slot_id: slot_id as RelationSlotId },
+                None       => EdgeLink::Vacant{ slot_id: slot_id as RelationSlotId },
                 Some(link) => link
             }
         }).collect()
     }
     /// Project all relation links which were edited between two MemoRefHeads.
-    pub fn project_relation_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<RelationLink>{
+    pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
         unimplemented!()
     }
     pub fn project_value ( &self, context: &Context, key: &str ) -> Option<String> {
@@ -95,14 +95,37 @@ impl MemoRefHead {
         }
         None
     }
-    pub fn project_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<(SubjectId,Self), RetrieveError> {
+    pub fn project_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectId, RetrieveError> {
         // TODO: Make error handling more robust
 
         for memo in self.causal_memo_iter( &context.slab ) {
 
             if let Some((relations,materialized)) = memo.get_relations(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(&(subject_id, ref head)) = relations.get(&key) {
+                if let Some(subject_id) = relations.get(&key) {
+                    // BUG: the parent->child was formed prior to the revision of the child.
+                    // TODO: Should be adding the new head memo to the query context
+                    //       and superseding the referenced head due to its inclusion in the context
+
+                    return Ok(subject_id);
+                }else if materialized {
+                    //println!("\n# \t\\ Not Found (materialized)" );
+                    return Err(RetrieveError::NotFound);
+                }
+            }
+        }
+
+        //println!("\n# \t\\ Not Found" );
+        Err(RetrieveError::NotFound)
+    }    
+    pub fn project_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<(SubjectId,Self), RetrieveError> {
+        // TODO: Make error handling more robust
+
+        for memo in self.causal_memo_iter( &context.slab ) {
+
+            if let Some((edges,materialized)) = memo.get_edges(){
+                //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
+                if let Some(&(subject_id, ref head)) = edges.get(&key) {
                     // BUG: the parent->child was formed prior to the revision of the child.
                     // TODO: Should be adding the new head memo to the query context
                     //       and superseding the referenced head due to its inclusion in the context
