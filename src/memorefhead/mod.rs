@@ -74,11 +74,44 @@ impl MemoRefHead {
     pub fn is_root_index (&self) -> bool{
         unimplemented!()
     }
+    fn stype_for_memoref(memoref: &MemoRef, slab: &Slab) -> SubjectType {
+        for memo in CausalMemoIter::from_memoref(memoref,slab) {
+            match memo.body {
+                MemoBody::FullyMaterialized { t, .. } => {
+                    return t
+                }
+            }
+        }
+
+        // TODO: return a Result
+        panic!("no FullyMaterialized memobody found")
+    }
     pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> bool {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
         // If so, any memorefs that it descends must be removed
+        let mut head = match *self {
+            MemoRefHead::None => {
+                if let Some(subject_id) = new.subject_id {
+                    *self = MemoRefHead::Subject{
+                        head: vec![new.clone()],
+                        subject_id,
+                        stype: Self::stype_for_memoref(new, slab) 
+                    };
+                }else{
+                    *self = MemoRefHead::Anonymous{ head: vec![new.clone()] };
+                }
+
+                return true;
+            },
+            MemoRefHead::Anonymous{ ref mut head } => {
+                head
+            },
+            MemoRefHead::Subject{ ref mut head, ..} => {
+                head
+            }
+        };
 
         // Not suuuper in love with these flag names
         let mut new_is_descended = false;
@@ -91,10 +124,10 @@ impl MemoRefHead {
         // new items are more likely to be at the end, and that's more likely to trigger
         // the cheapest case: (existing descends new)
 
-        'existing: for i in (0..self.0.len()).rev() {
+        'existing: for i in (0..head.len()).rev() {
             let mut remove = false;
             {
-                let ref mut existing = self.0[i];
+                let ref mut existing = head[i];
                 if existing == new {
                     return false; // we already had this
 
@@ -126,7 +159,7 @@ impl MemoRefHead {
 
             if remove {
                 // because we're descending, we know the offset of the next items won't change
-                self.0.remove(i);
+                head.remove(i);
             }
         }
 
@@ -134,7 +167,7 @@ impl MemoRefHead {
             // if the new memoref neither descends nor is descended
             // then it must be concurrent
 
-            self.0.push(new.clone());
+            head.push(new.clone());
             applied = true; // The memoref was "applied" to the MemoRefHead
         }
 
@@ -213,19 +246,31 @@ impl MemoRefHead {
         }
     }
     pub fn to_vec (&self) -> Vec<MemoRef> {
-        self.0.clone()
+        match *self {
+            MemoRefHead::None => vec![],
+            MemoRefHead::Anonymous { ref head, .. } => head.clone(),
+            MemoRefHead::Subject{  ref head, .. }   => head.clone()
+        }
     }
     pub fn to_vecdeque (&self) -> VecDeque<MemoRef> {
-        VecDeque::from(self.0.clone())
+        match *self {
+            MemoRefHead::None       => VecDeque::new(),
+            MemoRefHead::Anonymous { ref head, .. } => VecDeque::from(head.clone()),
+            MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
+        }
     }
     pub fn len (&self) -> usize {
-
-        self.0.len()
+        match *self {
+            MemoRefHead::None       =>  0,
+            MemoRefHead::Anonymous { ref head, .. } => head.len(),
+            MemoRefHead::Subject{  ref head, .. }   => head.len()
+        }
     }
     pub fn iter (&self) -> slice::Iter<MemoRef> {
         match *self {
-            //MemoRefHead::None             => iter::empty<MemoRef>() as slice::Iter<MemoRef>,
-            MemoRefHead::Some{ head, .. } => head.iter()
+            MemoRefHead::None                    => vec![].iter(), // HACK
+            MemoRefHead::Anonymous{ ref head }   => head.iter(),
+            MemoRefHead::Subject{ ref head, .. } => head.iter()
         }
     }
     pub fn causal_memo_iter(&self, slab: &Slab ) -> CausalMemoIter {
@@ -235,30 +280,34 @@ impl MemoRefHead {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
         //       as part of the list management. That way we won't have to incur the below computational effort.
 
-        match *self {
+        let head = match *self {
             MemoRefHead::None       => {
-                true
+                return true;
             },
-            MemoRefHead::Some{ subject_id, stype, ref head } => {
-                for memoref in head.iter(){
-                    let memo = memoref.get_memo(slab).unwrap();
+            MemoRefHead::Anonymous { ref head, .. } => head,
+            MemoRefHead::Subject{  ref head, .. } => head
+        };
+        
+        for memoref in head.iter(){
+            let memo = memoref.get_memo(slab).unwrap();
 
-                    if let MemoBody::FullyMaterialized { .. } = memo.body {
-                        //
-                    }else{
-                        return false
-                    }
-                }
-
-                true
+            if let MemoBody::FullyMaterialized { .. } = memo.body {
+                //
+            }else{
+                return false
             }
         }
+
+        true
     }
     pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, include_memos: bool ) -> Self {
         assert!(from_slabref.slab_id != to_slab.id, "slab id should differ");
         match *self {
-            MemoRefHead::None       => MemoRefHead::None,
-            MemoRefHead::Some{ subject_id, stype, ref head } => MemoRefHead::Some {
+            MemoRefHead::None                    => MemoRefHead::None,
+            MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
+                head: head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
+            },
+            MemoRefHead::Subject{ subject_id, stype, ref head } => MemoRefHead::Subject {
                 subject_id: subject_id,
                 stype:      stype,
                 head:       head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
@@ -314,10 +363,13 @@ impl CausalMemoIter {
             queue: head.to_vecdeque(),
             slab:  slab.clone()
         }
-    },
+    }
     pub fn from_memoref (memoref: &MemoRef, slab: &Slab ) -> Self {
+        let q = VecDeque::new();
+        q.push_front(memoref.clone());
+
         CausalMemoIter {
-            queue: vecdeq![memoref],
+            queue: q,
             slab:  slab.clone()
         }
     }

@@ -37,7 +37,7 @@ impl SubjectCore {
 
         let memoref = slab.new_memo_basic_noparent(
                 Some(id),
-                MemoBody::FullyMaterialized {v: vals, r: RelationSlotSubjectHead(HashMap::new()), t: stype }
+                MemoBody::FullyMaterialized {v: vals, r: RelationSet::empty(), e: EdgeSet::empty(), t: stype }
             );
         let head = memoref.to_head();
 
@@ -61,7 +61,7 @@ impl SubjectCore {
     pub fn reconstitute (context: &Context, head: MemoRefHead) -> SubjectCore {
         //println!("Subject.reconstitute({:?})", head);
 
-        let subject_id = head.first_subject_id().unwrap();
+        let subject_id = head.subject_id().unwrap();
 
         let core = SubjectCore(Arc::new(SubjectCoreInner{
             id: subject_id,
@@ -118,8 +118,8 @@ impl SubjectCore {
     }
     pub fn set_relation (&self,context: &Context, key: RelationSlotId, relation: &Self) {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
-        let mut memoref_map : HashMap<RelationSlotId, (SubjectId,MemoRefHead)> = HashMap::new();
-        memoref_map.insert(key, (relation.id, relation.get_head().clone()) );
+        let mut relationset = RelationSet::empty();
+        relationset.insert( key, relation.id );
 
         let slab = &context.slab;
         let mut head = self.head.write().unwrap();
@@ -127,7 +127,7 @@ impl SubjectCore {
         let memoref = slab.new_memo(
             Some(self.id),
             head.clone(),
-            MemoBody::Relation(RelationSlotSubjectHead(memoref_map))
+            MemoBody::Relation(relationset)
         );
 
         head.apply_memoref(&memoref, &slab);

@@ -176,7 +176,7 @@ impl EdgeSet {
     }
     pub fn single(slot_id: RelationSlotId, subject_id: SubjectId, head: MemoRefHead) -> Self {
         let mut hashmap = HashMap::new();
-        hashmap.insert(slot_id, head);
+        hashmap.insert(slot_id as u8, head);
         EdgeSet(hashmap)
     }
     pub fn insert(&mut self, slot_id: RelationSlotId, head: MemoRefHead) {
