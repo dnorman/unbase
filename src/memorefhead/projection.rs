@@ -49,15 +49,14 @@ impl MemoRefHead {
                     // Fully Materialized memo means we're done here
                 },
                 MemoBody::Edge(ref r) => {
-                    for (slot_id,&(subject_id,rel_head)) in r.iter() {
+                    for (slot_id,maybe_rel_head) in r.iter() {
 
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
                             edge_links[ *slot_id as usize ] = Some(
-                                if subject_id == 0 {
-                                    EdgeLink::Vacant{ slot_id: *slot_id }
-                                }else{
-                                    EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
+                                match maybe_rel_head {
+                                    None               => EdgeLink::Vacant{ slot_id: *slot_id },
+                                    Some(ref rel_head @ MemoRefHead::Subject{ subject_id, .. } ) => EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head.clone() }
                                 }
                             )
                         }

@@ -38,11 +38,11 @@ pub struct MemoInner {
 #[derive(Clone, Debug)]
 pub enum MemoBody{
     SlabPresence{ p: SlabPresence, r: Option<MemoRefHead> }, // TODO: split out root_index_seed conveyance to another memobody type
-    Relation(RelationSlotSubjectHead),
+    Relation(RelationSet),
     Edge(EdgeSet),
     Edit(HashMap<String, String>),
-    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead, e: EdgeSet, t: SubjectType },
-    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSlotSubjectHead, e: EdgeSet, t: SubjectType },
+    FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
+    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
     MemoRequest(Vec<MemoId>,SlabRef)
 }
@@ -82,17 +82,17 @@ impl Memo {
         match self.body {
             MemoBody::Edit(ref v)
                 => Some((v.clone(),false)),
-            MemoBody::FullyMaterialized { ref v, r: _, t: _ }
+            MemoBody::FullyMaterialized { ref v, .. }
                 => Some((v.clone(),true)),
             _   => None
         }
     }
-    pub fn get_relations (&self) -> Option<(RelationSlotSubjectHead,bool)> {
+    pub fn get_relations (&self) -> Option<(RelationSet,bool)> {
 
         match self.body {
             MemoBody::Relation(ref r)
                 => Some((r.clone(),false)),
-            MemoBody::FullyMaterialized { v: _, ref r, t: _ }
+            MemoBody::FullyMaterialized { ref r, .. }
                 => Some((r.clone(),true)),
             _   => None
         }
@@ -170,11 +170,11 @@ impl MemoBody {
             &MemoBody::Edit(ref hm) => {
                 MemoBody::Edit(hm.clone())
             }
-            &MemoBody::FullyMaterialized{ ref v, ref r, ref t } => {
-                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), t: t.clone() }
+            &MemoBody::FullyMaterialized{ ref v, ref r, ref t, ref e } => {
+                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
             }
-            &MemoBody::PartiallyMaterialized{ ref v, ref r } => {
-                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab)}
+            &MemoBody::PartiallyMaterialized{ ref v, ref r,ref e, ref t } => {
+                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
             }
             &MemoBody::Peering(memo_id, subject_id, ref peerlist) => {
                 MemoBody::Peering(memo_id,subject_id,peerlist.clone_for_slab(to_slab))

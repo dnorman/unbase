@@ -16,8 +16,8 @@ impl SystemCreator {
             Some(slab.generate_subject_id()),
             MemoBody::FullyMaterialized {
                 v: values,
-                r: RelationSlotSubjectHead(HashMap::new()),
-                e: Default::default(),
+                r: RelationSet::empty(),
+                e: EdgeSet::empty(),
                 t: SubjectType::IndexNode
             }
         );

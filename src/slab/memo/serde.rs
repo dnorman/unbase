@@ -11,7 +11,8 @@ use serde::ser::*;
 use serde::de::*;
 
 
-struct RelationMRHSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+struct RelationSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+struct EdgeSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
 struct SubjectMRHSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
 pub struct MemoBodySeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef }
 #[derive(Clone)]
@@ -59,17 +60,20 @@ impl StatefulSerialize for MemoBody {
                 serializer.serialize_newtype_variant("MemoBody", 2, "Edit", &e )
 
             },
-            FullyMaterialized{ ref r, ref v, ref t }  => {
+            FullyMaterialized{ ref v,  ref r, ref e, ref t }  => {
                 let mut sv = serializer.serialize_struct_variant("MemoBody", 3, "FullyMaterialized", 3)?;
                 sv.serialize_field("r", &SerializeWrapper(&r.0, helper))?;
+                sv.serialize_field("e", &SerializeWrapper(&e.0, helper))?;
                 sv.serialize_field("v", v)?;
                 sv.serialize_field("t", t)?;
                 sv.end()
             },
-            PartiallyMaterialized{ ref r, ref v }  => {
+            PartiallyMaterialized{ ref v, ref r, ref e, ref t }  => {
                 let mut sv = serializer.serialize_struct_variant("MemoBody", 4, "PartiallyMaterialized", 2)?;
                 sv.serialize_field("r", &SerializeWrapper(&r.0, helper))?;
+                sv.serialize_field("e", &SerializeWrapper(&e.0, helper))?;
                 sv.serialize_field("v", v)?;
+                sv.serialize_field("t", v)?;
                 sv.end()
             },
             Peering( ref memo_id, ref subject_id, ref peerlist ) =>{
@@ -280,7 +284,7 @@ impl<'a> Visitor for MBMemoRequestSeed<'a> {
 }
 
 impl<'a> DeserializeSeed for RelationMRHSeed<'a> {
-    type Value = RelationSlotSubjectHead;
+    type Value = RelationSet;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where D: Deserializer
@@ -290,7 +294,7 @@ impl<'a> DeserializeSeed for RelationMRHSeed<'a> {
 }
 
 impl<'a> Visitor for RelationMRHSeed<'a> {
-    type Value = RelationSlotSubjectHead;
+    type Value = RelationSet;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("MemoBody::Relation")
@@ -306,7 +310,7 @@ impl<'a> Visitor for RelationMRHSeed<'a> {
              values.insert(slot, (subject_id,mrh));
         }
 
-        Ok(RelationSlotSubjectHead(values))
+        Ok(RelationSet(values))
     }
 }
 
@@ -367,18 +371,20 @@ impl<'a> Visitor for MBFullyMaterializedSeed<'a> {
     {
 
         let mut relations = None;
+        let mut edges = None;
         let mut values    = None;
         let mut stype     = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
-                'r' => relations = Some(visitor.visit_value_seed(RelationMRHSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
+                'r' => relations = Some(visitor.visit_value_seed(RelationSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
+                'e' => edges = Some(visitor.visit_value_seed(EdgeSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
                 'v' => values    = visitor.visit_value()?,
                 't' => stype     = visitor.visit_value()?,
                 _   => {}
             }
         }
         if relations.is_some() && values.is_some() && stype.is_some() {
-            Ok(MemoBody::FullyMaterialized{ r: relations.unwrap(), v: values.unwrap(), t: stype.unwrap() })
+            Ok(MemoBody::FullyMaterialized{ v: values.unwrap(), r: relations.unwrap(), e: edges.unwrap(), t: stype.unwrap() })
         }else{
             Err(DeError::invalid_length(0, &self))
         }
@@ -396,7 +402,7 @@ impl<'a> DeserializeSeed for SubjectMRHSeed<'a> {
 
 }
 
-impl<'a> Visitor for SubjectMRHSeed<'a> {
+impl<'a> Visitor for EdgeSetSeed<'a> {
     type Value = (SubjectId,MemoRefHead);
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

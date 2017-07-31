@@ -161,7 +161,7 @@ impl EdgeSet {
             .iter()
             .map(|(slot_id, maybe_mrh)| {
                 (*slot_id, 
-                match maybe_mrh {
+                match *maybe_mrh {
                     None      => None,
                     Some(mrh) => Some(mrh.clone_for_slab(from_slabref, to_slab, false))
                 }
@@ -176,17 +176,17 @@ impl EdgeSet {
     }
     pub fn single(slot_id: RelationSlotId, subject_id: SubjectId, head: MemoRefHead) -> Self {
         let mut hashmap = HashMap::new();
-        hashmap.insert(slot_id as u8, head);
+        hashmap.insert(slot_id as RelationSlotId, Some(head));
         EdgeSet(hashmap)
     }
     pub fn insert(&mut self, slot_id: RelationSlotId, head: MemoRefHead) {
-        self.0.insert(slot_id, head);
+        self.0.insert(slot_id, Some(head));
     }
 }
 
 impl Deref for EdgeSet {
-    type Target = HashMap<RelationSlotId, (SubjectId, MemoRefHead)>;
-    fn deref(&self) -> &HashMap<RelationSlotId, (SubjectId, MemoRefHead)> {
+    type Target = HashMap<RelationSlotId, Option<MemoRefHead>>;
+    fn deref(&self) -> &HashMap<RelationSlotId, Option<MemoRefHead>> {
         &self.0
     }
 }
