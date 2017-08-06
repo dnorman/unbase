@@ -77,6 +77,7 @@ impl StatefulSerialize for MemoPeer {
     }
 }
 
+#[derive(Clone)]
 pub struct MemoRefSeed<'a> { pub dest_slab: &'a Slab, pub origin_slabref: &'a SlabRef }
 
 impl<'a> DeserializeSeed for MemoRefSeed<'a> {

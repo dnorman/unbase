@@ -97,6 +97,16 @@ impl Memo {
             _   => None
         }
     }
+    pub fn get_edges (&self) -> Option<(EdgeSet,bool)> {
+
+        match self.body {
+            MemoBody::Edge(ref e)
+                => Some((e.clone(),false)),
+            MemoBody::FullyMaterialized { ref e, .. }
+                => Some((e.clone(),true)),
+            _   => None
+        }
+    }
     pub fn does_peering (&self) -> bool {
         match self.body {
             MemoBody::MemoRequest(_,_) => {

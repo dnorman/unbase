@@ -88,8 +88,8 @@ impl Stash {
                     if self.try_set_head( subject_id, new_head, &links, edit_counter ) {
 
                         for link in links.iter() {
-                            if let EdgeLink::Occupied{ subject_id, ref head, .. } = *link {
-                                self.prune_head(slab, subject_id, head);
+                            if let EdgeLink::Occupied{ ref head, .. } = *link {
+                                self.prune_head(slab, head);
                             }
                         }
 
@@ -104,19 +104,22 @@ impl Stash {
     }
 
     // Prune a subject head from the `Stash` if it's descended by compare_head
-    pub fn prune_head (&self, slab: &Slab, subject_id: SubjectId, compare_head: &MemoRefHead) -> bool {
-        loop{
-            if let Some((ref head,edit_counter)) = self.get_head_and_editcount(subject_id){
-                if compare_head.descends(head, slab) { // May block here
-                    if self.try_remove_head( subject_id, edit_counter ) {
-                        return true;
-                    }else{
-                        continue;
+    pub fn prune_head (&self, slab: &Slab, compare_head: &MemoRefHead) -> bool {
+
+        if let &MemoRefHead::Subject{ subject_id, .. } = compare_head {
+            loop{
+                if let Some((ref head,edit_counter)) = self.get_head_and_editcount(subject_id){
+                    if compare_head.descends(head, slab) { // May block here
+                        if self.try_remove_head( subject_id, edit_counter ) {
+                            return true;
+                        }else{
+                            continue;
+                        }
                     }
                 }
-            }
 
-            break;
+                break;
+            }
         }
 
         false
@@ -139,9 +142,11 @@ impl Stash {
                     }
                     item.relations[ slot_id as usize ] = None;
                 },
-                EdgeLink::Occupied{slot_id, subject_id: rel_subject_id, head: rel_head} => {
-                    let rel_item_id = inner.assert_item(rel_subject_id);
-                    item.relations[ slot_id as usize ] = Some(rel_item_id);
+                EdgeLink::Occupied{slot_id, head: rel_head} => {
+                    if let MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
+                        let rel_item_id = inner.assert_item(rel_subject_id);
+                        item.relations[ slot_id as usize ] = Some(rel_item_id);
+                    }
                 }
             }
         }

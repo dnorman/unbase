@@ -103,7 +103,7 @@ pub enum MemoPeeringStatus {
 
 pub type RelationSlotId = u8;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
 
 impl RelationSet {
@@ -147,25 +147,19 @@ pub enum EdgeLink{
     },
     Occupied {
         slot_id:    RelationSlotId,
-        subject_id: SubjectId,
         head:       MemoRefHead
     }
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct EdgeSet (pub HashMap<RelationSlotId, Option<MemoRefHead>>);
+pub struct EdgeSet (pub HashMap<RelationSlotId, MemoRefHead>);
 
 impl EdgeSet {
     pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &Slab) -> Self {
         let new = self.0
             .iter()
-            .map(|(slot_id, maybe_mrh)| {
-                (*slot_id, 
-                match *maybe_mrh {
-                    None      => None,
-                    Some(mrh) => Some(mrh.clone_for_slab(from_slabref, to_slab, false))
-                }
-                )
+            .map(|(slot_id, mrh)| {
+                (*slot_id, mrh.clone_for_slab(from_slabref, to_slab, false))
             })
             .collect();
 
@@ -176,17 +170,17 @@ impl EdgeSet {
     }
     pub fn single(slot_id: RelationSlotId, subject_id: SubjectId, head: MemoRefHead) -> Self {
         let mut hashmap = HashMap::new();
-        hashmap.insert(slot_id as RelationSlotId, Some(head));
+        hashmap.insert(slot_id as RelationSlotId, head);
         EdgeSet(hashmap)
     }
     pub fn insert(&mut self, slot_id: RelationSlotId, head: MemoRefHead) {
-        self.0.insert(slot_id, Some(head));
+        self.0.insert(slot_id, head);
     }
 }
 
 impl Deref for EdgeSet {
-    type Target = HashMap<RelationSlotId, Option<MemoRefHead>>;
-    fn deref(&self) -> &HashMap<RelationSlotId, Option<MemoRefHead>> {
+    type Target = HashMap<RelationSlotId, MemoRefHead>;
+    fn deref(&self) -> &HashMap<RelationSlotId, MemoRefHead> {
         &self.0
     }
 }

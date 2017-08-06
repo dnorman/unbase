@@ -20,31 +20,35 @@ impl MemoRefHead {
     // Kind of a brute force way to do this
     // TODO: Consider calculating deltas during memoref application,
     //       and use that to perform a minimum cost subject_head_link edit
+
+    // TODO: This projection method is probably wrong, as it does not consider how to handle concurrent edge-setting
+    //       this problem applies to causal_memo_iter itself really, insofar as it should return sets of concurrent memos to be merged rather than individual memos
+    // This in turn raises questions about how relations should be merged
     pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
         let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];
+
+        // None is an indication that we've not yet visited this slot, and that it is thus eligible for setting
         for i in 0..SUBJECT_MAX_RELATIONS as usize {
             edge_links[i] = None;
         }
 
-        // TODO: how to handle relationship nullification?
         for memo in self.causal_memo_iter(slab){
             match memo.body {
-                MemoBody::FullyMaterialized { ref e, .. } => {
+                MemoBody::FullyMaterialized { e : ref edgeset, .. } => {
 
-                    for (slot_id,&rel_head) in &e.0 {
+                    // Iterate over all the entries in this EdgeSet
+                    for (slot_id,&maybe_rel_head) in &edgeset.0 {
 
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
-                            edge_links[ *slot_id as usize ] = Some(
-                                if subject_id == 0 {
-                                    EdgeLink::Vacant{ slot_id: *slot_id }
-                                }else{
-                                    EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head }
-                                }
-                            );
+                            edge_links[ *slot_id as usize ] = Some(match maybe_rel_head {
+                                None => EdgeLink::Vacant{ slot_id: *slot_id },
+                                Some(rel_head) => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head }
+                            });
                         }
                     }
+
                     break;
                     // Fully Materialized memo means we're done here
                 },
@@ -54,9 +58,9 @@ impl MemoRefHead {
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
                             edge_links[ *slot_id as usize ] = Some(
-                                match maybe_rel_head {
+                                match *maybe_rel_head {
                                     None               => EdgeLink::Vacant{ slot_id: *slot_id },
-                                    Some(ref rel_head @ MemoRefHead::Subject{ subject_id, .. } ) => EdgeLink::Occupied{ slot_id: *slot_id, subject_id, head: rel_head.clone() }
+                                    Some(ref rel_head) => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
                                 }
                             )
                         }
@@ -94,19 +98,19 @@ impl MemoRefHead {
         }
         None
     }
-    pub fn project_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectId, RetrieveError> {
+    pub fn project_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<SubjectId>, RetrieveError> {
         // TODO: Make error handling more robust
 
         for memo in self.causal_memo_iter( &context.slab ) {
 
             if let Some((relations,materialized)) = memo.get_relations(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(subject_id) = relations.get(&key) {
+                if let Some(maybe_subject_id) = relations.get(&key) {
                     // BUG: the parent->child was formed prior to the revision of the child.
                     // TODO: Should be adding the new head memo to the query context
                     //       and superseding the referenced head due to its inclusion in the context
 
-                    return Ok(subject_id);
+                    return Ok(*maybe_subject_id);
                 }else if materialized {
                     //println!("\n# \t\\ Not Found (materialized)" );
                     return Err(RetrieveError::NotFound);
@@ -117,19 +121,19 @@ impl MemoRefHead {
         //println!("\n# \t\\ Not Found" );
         Err(RetrieveError::NotFound)
     }    
-    pub fn project_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<(SubjectId,Self), RetrieveError> {
+    pub fn project_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Self>, RetrieveError> {
         // TODO: Make error handling more robust
 
         for memo in self.causal_memo_iter( &context.slab ) {
 
             if let Some((edges,materialized)) = memo.get_edges(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(&(subject_id, ref head)) = edges.get(&key) {
+                if let Some(ref maybe_head) = edges.get(&key) {
                     // BUG: the parent->child was formed prior to the revision of the child.
                     // TODO: Should be adding the new head memo to the query context
                     //       and superseding the referenced head due to its inclusion in the context
 
-                    return Ok((subject_id,head.clone()));
+                    return Ok(*maybe_head.clone());
                 }else if materialized {
                     //println!("\n# \t\\ Not Found (materialized)" );
                     return Err(RetrieveError::NotFound);
