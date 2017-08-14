@@ -80,18 +80,19 @@ impl SubjectCore {
         //println!("# Subject({}).get_value({})",self.id,key);
         self.head.read().unwrap().project_value(context, key)
     }
-    pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectCore, RetrieveError> {
+    pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<SubjectCore>, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_relation(context, key) {
-            Ok(subject_id) => context.get_subject_core(subject_id),
-            Err(e)         => Err(e)
+            Ok(Some(subject_id)) => Ok(Some(context.get_subject_core(subject_id)?)),
+            Ok(None)             => Ok(None),
+            Err(e)               => Err(e)
         }
     }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<SubjectCore, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_edge(context, key) {
-            Ok((subject_id, head)) => {
-                Ok( context.get_subject_with_head(subject_id,head)? )
+            Ok(Some(head)) => {
+                Ok( context.get_subject_with_head(head)? )
             },
             Err(e)   => Err(e)
 

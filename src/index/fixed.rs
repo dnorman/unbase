@@ -55,7 +55,7 @@ impl IndexFixed {
             //println!("]]] end of the line");
             node.set_relation(context, y as RelationSlotId,&subject);
         }else{
-            match node.get_relation(context,y) {
+            match node.get_edge(context,y) {
                 Ok(n) => {
                     self.recurse_set(context, tier+1, key, &n, subject);
 
@@ -98,10 +98,10 @@ impl IndexFixed {
 
             if exponent == 0 {
                 //println!("]]] end of the line");
-                return node.get_relation( context, y as RelationSlotId);
+                return node.get_edge( context, y as RelationSlotId);
 
             }else{
-                if let Ok(n) = node.get_relation( context, y){
+                if let Ok(n) = node.get_edge( context, y){
                     node = n;
                 }else{
                     return Err(RetrieveError::NotFound);

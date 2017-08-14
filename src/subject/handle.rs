@@ -17,13 +17,19 @@ impl SubjectHandle{
     pub fn get_value ( &self, key: &str ) -> Option<String> {
         self.core.get_value(&self.context, key)
     }
-    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<SubjectHandle, RetrieveError> {
-        let core = self.core.get_relation(&self.context, key)?;
+    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, RetrieveError> {
 
-        Ok(SubjectHandle{
-            context: self.context.clone(),
-            core: core
-        })
+         match self.core.get_relation(&self.context, key)?{
+             Some(rel_sub_core) => {
+                 Ok(Some(SubjectHandle{
+                    context: self.context.clone(),
+                    core: rel_sub_core
+                }))
+             },
+             None => Ok(None)
+         }
+
+        
 
     }
     pub fn set_value (&self, key: &str, value: &str) -> bool {

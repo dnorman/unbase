@@ -38,13 +38,13 @@ impl MemoRefHead {
                 MemoBody::FullyMaterialized { e : ref edgeset, .. } => {
 
                     // Iterate over all the entries in this EdgeSet
-                    for (slot_id,&maybe_rel_head) in &edgeset.0 {
+                    for (slot_id,&rel_head) in &edgeset.0 {
 
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
-                            edge_links[ *slot_id as usize ] = Some(match maybe_rel_head {
-                                None => EdgeLink::Vacant{ slot_id: *slot_id },
-                                Some(rel_head) => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head }
+                            edge_links[ *slot_id as usize ] = Some(match rel_head {
+                                MemoRefHead::None  => EdgeLink::Vacant{ slot_id: *slot_id },
+                                _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head }
                             });
                         }
                     }
@@ -53,14 +53,14 @@ impl MemoRefHead {
                     // Fully Materialized memo means we're done here
                 },
                 MemoBody::Edge(ref r) => {
-                    for (slot_id,maybe_rel_head) in r.iter() {
+                    for (slot_id,rel_head) in r.iter() {
 
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
                             edge_links[ *slot_id as usize ] = Some(
-                                match *maybe_rel_head {
-                                    None               => EdgeLink::Vacant{ slot_id: *slot_id },
-                                    Some(ref rel_head) => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
+                                match *rel_head {
+                                    MemoRefHead::None  => EdgeLink::Vacant{ slot_id: *slot_id },
+                                    _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
                                 }
                             )
                         }
@@ -128,12 +128,12 @@ impl MemoRefHead {
 
             if let Some((edges,materialized)) = memo.get_edges(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(ref maybe_head) = edges.get(&key) {
+                if let Some(ref head) = edges.get(&key) {
                     // BUG: the parent->child was formed prior to the revision of the child.
                     // TODO: Should be adding the new head memo to the query context
                     //       and superseding the referenced head due to its inclusion in the context
 
-                    return Ok(*maybe_head.clone());
+                    return Ok(Some(*head.clone()));
                 }else if materialized {
                     //println!("\n# \t\\ Not Found (materialized)" );
                     return Err(RetrieveError::NotFound);
