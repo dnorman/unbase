@@ -20,6 +20,9 @@ Notes / Outstanding questions:
 
 
 Steps remaining prior to topic/topo-compression3 merge:
+ [ ] Consider edge / relation nomenclature
+ [ ] Think about relation concurrencies, real use cases. LWW seems like pretty weak sauce here
+ [ ] Think about edge concurrencies. Balanced-tree seems like a good exercise
  [~] Edge/Relation bifurcation
  [ ] The thing compiles
  [X] Subject type differentiation and detection

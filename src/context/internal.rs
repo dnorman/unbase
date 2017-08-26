@@ -1,5 +1,6 @@
 use super::*;
 
+
 /// Internal interface functions
 impl Context {
     pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &SubjectCore) {
@@ -22,7 +23,7 @@ impl Context {
         }
     }
     /// Retrieves a subject by ID from this context only if it is currently resedent
-    fn get_subject_if_resident(&self, subject_id: SubjectId) -> Option<SubjectCore> {
+    fn get_subject_core_if_resident(&self, subject_id: SubjectId) -> Option<SubjectCore> {
 
         unimplemented!()
         // if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
@@ -34,6 +35,53 @@ impl Context {
         // }
 
         // None
+    }
+    /// Retrieve a subject for a known MemoRefHead – ususally used for relationship traversal.
+    /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met
+    pub fn get_subject_core_with_head(&self,  mut head: MemoRefHead)  -> Result<SubjectCore, RetrieveError> {
+        // println!("# Context.get_subject_with_head({},{:?})", subject_id, head.memo_ids() );
+
+        if head.len() == 0 {
+            return Err(RetrieveError::InvalidMemoRefHead);
+        }
+
+        let maybe_subject_id = head.subject_id();
+        let maybe_head = {
+            // Don't want to hold the lock while calling head.apply, as it could request a memo from a remote slab, and we'd deadlock
+            if let Some(subject_id) = maybe_subject_id {
+                if let Some(ref head) = self.stash.get_head(subject_id) {
+                    Some((*head).clone())
+                } else {
+                    None
+                }
+            }else{
+                None
+            }
+        };
+
+        if let Some(relevant_context_head) = maybe_head {
+            // println!("# \\ Relevant context head is ({:?})", relevant_context_head.memo_ids() );
+            head.apply(&relevant_context_head, &self.slab);
+
+        } else {
+            // println!("# \\ No relevant head found in context");
+        }
+
+        if let Some(subject_id) = maybe_subject_id {
+            match self.get_subject_core_if_resident(subject_id) {
+                Some(ref mut subject) => {
+                    subject.apply_head(self, &head);
+                    return Ok(subject.clone());
+                }
+                None => {}
+            };
+        };
+
+        // NOTE: Subject::reconstitute calls back to Context.subscribe_subject()
+        //       so we need to release the mutex prior to this
+        let subject = SubjectCore::reconstitute(&self, head);
+        return Ok(subject);
+
     }
     pub (crate) fn subscribe_subject(&self, subject: &SubjectCore) {
         unimplemented!()

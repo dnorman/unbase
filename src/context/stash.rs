@@ -49,7 +49,7 @@ impl Stash {
         self.inner.lock().unwrap().index.iter().map(|i| i.0 ).collect()
     }
     /// Get MemoRefHead (if resident) for the provided subject_id
-    pub fn get_head(&mut self, subject_id: SubjectId) -> Option<MemoRefHead> {
+    pub fn get_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
         let inner = self.inner.lock().unwrap();
 
         match inner.get_item_id_for_subject(subject_id) {
@@ -58,7 +58,7 @@ impl Stash {
                     Some(&Some(StashItem{ head: Some(ref h), .. })) => {
                         Some(h.clone())
                     },
-                    None => None
+                    _ => None
                 }
             }
             None => None
@@ -74,7 +74,7 @@ impl Stash {
 
                 loop {
                     let (new_head, edit_counter) = match self.get_head_and_editcount(subject_id) {
-                        Some((head,ec)) => {
+                        Some((mut head,ec)) => {
                             if !head.apply(apply_head, slab) { // May block here
                                 return head.clone();           // Nothing applied, bail out
                             }
@@ -85,7 +85,7 @@ impl Stash {
 
                     let links = new_head.project_all_edge_links_including_empties(slab); // May block here
 
-                    if self.try_set_head( subject_id, new_head, &links, edit_counter ) {
+                    if { self.try_set_head( subject_id, new_head.clone(), &links, edit_counter ) } {
 
                         for link in links.iter() {
                             if let EdgeLink::Occupied{ ref head, .. } = *link {
@@ -99,6 +99,9 @@ impl Stash {
 
                     return new_head;
                 }
+            },
+            _ => {
+                unimplemented!()
             }
         }
     }
@@ -126,62 +129,72 @@ impl Stash {
     }
     /// Try to set a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
     fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, links: &Vec<EdgeLink>, edit_counter: usize) -> bool {
-        let inner   = self.inner.lock().unwrap();
-        let item_id = inner.assert_item(subject_id);
-        let mut item = inner.items[item_id].as_mut().unwrap();
+        let mut inner   = self.inner.lock().unwrap();
 
-        if item.edit_counter != edit_counter {
-            return false;
+        let item_id = inner.assert_item(subject_id);
+        {
+            let item = inner.items[item_id].as_mut().unwrap();
+            if item.edit_counter != edit_counter {
+                return false;
+            }
         }
 
         for link in links.iter() {
-            match *link {
-                EdgeLink::Vacant{ slot_id} => {
+            match link {
+                &EdgeLink::Vacant{slot_id} => {
+                    let mut item = inner.items[item_id].as_mut().unwrap();
                     if let Some(rel_item_id) = item.relations[slot_id as usize]{
                         // Not sure what exactly ought to occur here
                     }
                     item.relations[ slot_id as usize ] = None;
                 },
-                EdgeLink::Occupied{slot_id, head: rel_head} => {
-                    if let MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
+                &EdgeLink::Occupied{slot_id, head: ref rel_head} => {
+                    if let &MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
                         let rel_item_id = inner.assert_item(rel_subject_id);
+
+                        let mut item = inner.items[item_id].as_mut().unwrap();
                         item.relations[ slot_id as usize ] = Some(rel_item_id);
                     }
                 }
             }
         }
 
-        item.head = Some(new_head);
-        item.edit_counter += 1;
+        {
+            let mut item = inner.items[item_id].as_mut().unwrap();
+            item.head = Some(new_head);
+            item.edit_counter += 1;
+        }
 
         true
     }
 
     /// Try to remove a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
     fn try_remove_head (&self, subject_id: SubjectId, edit_counter: usize ) -> bool {
-        let inner   = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap();
 
         if let Some(item_id) = inner.get_item_id_for_subject(subject_id){
-            let item = inner.items[item_id].as_ref().unwrap();
-            if item.edit_counter != edit_counter {
-                return false;
-            }
+            {
+                let mut item = inner.items[item_id].as_mut().unwrap();
+                if item.edit_counter != edit_counter {
+                    return false;
+                }
 
-            item.edit_counter += 1; // probably pointless
+                item.edit_counter += 1; // probably pointless
+            }
             inner.remove_item(item_id);
         }
 
         true
     }
-    fn get_head_and_editcount(&mut self, subject_id: SubjectId) -> Option<(MemoRefHead, usize)> {
+    fn get_head_and_editcount(&self, subject_id: SubjectId) -> Option<(MemoRefHead, usize)> {
         let inner = self.inner.lock().unwrap();
         match inner.get_item_id_for_subject(subject_id) {
             Some(item_id) => {
                 match inner.items.get(item_id) {
-                    Some(&Some(item @ StashItem{ head: Some(h), .. })) => {
-                        Some((h.clone(), item.edit_counter))
+                    Some(&Some(StashItem{ head: Some(ref h), ref edit_counter, .. })) => {
+                        Some((h.clone(), *edit_counter))
                     },
-                    None => None
+                    _ => None
                 }
             }
             None => None

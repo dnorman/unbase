@@ -77,9 +77,10 @@ impl MemoRefHead {
     fn stype_for_memoref(memoref: &MemoRef, slab: &Slab) -> SubjectType {
         for memo in CausalMemoIter::from_memoref(memoref,slab) {
             match memo.body {
-                MemoBody::FullyMaterialized { t, .. } => {
-                    return t
-                }
+                MemoBody::FullyMaterialized { ref t, .. } => {
+                    return t.clone()
+                },
+                _ => {}
             }
         }
 
@@ -206,10 +207,10 @@ impl MemoRefHead {
         // TODO: revisit when beacons are implemented
         match *self {
             MemoRefHead::None             => false,
-            MemoRefHead::Subject{ head, .. } | MemoRefHead::Anonymous{ head, .. } => {
+            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => {
                 match *other {
                     MemoRefHead::None             => false,
-                    MemoRefHead::Subject{ head: other_head, .. } | MemoRefHead::Anonymous{ head: other_head, .. } => {
+                    MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
                         if head.len() == 0 || other_head.len() == 0 {
                             return false // searching for positive descendency, not merely non-ascendency
                         }
@@ -230,7 +231,7 @@ impl MemoRefHead {
     pub fn memo_ids (&self) -> Vec<MemoId> {
         match *self {
             MemoRefHead::None => Vec::new(),
-            MemoRefHead::Subject{ head, .. } | MemoRefHead::Anonymous{ head, .. } => head.iter().map(|m| m.id).collect()
+            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.id).collect()
         }
     }
     pub fn subject_id (&self) -> Option<SubjectId> {
@@ -307,9 +308,9 @@ impl MemoRefHead {
             MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
                 head: head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
             },
-            MemoRefHead::Subject{ subject_id, stype, ref head } => MemoRefHead::Subject {
+            MemoRefHead::Subject{ subject_id, ref stype, ref head } => MemoRefHead::Subject {
                 subject_id: subject_id,
-                stype:      stype,
+                stype:      stype.clone(),
                 head:       head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
             }
         }
@@ -322,17 +323,17 @@ impl fmt::Debug for MemoRefHead{
             MemoRefHead::None       => {
                 fmt.debug_struct("MemoRefHead::None").finish()
             },
-            MemoRefHead::Anonymous{ head, .. } => {
+            MemoRefHead::Anonymous{ ref head, .. } => {
                 fmt.debug_struct("MemoRefHead::Anonymous")
-                    .field("memo_refs",  &head )
+                    .field("memo_refs",  head )
                     //.field("memo_ids", &self.memo_ids() )
                     .finish()
             }
-            MemoRefHead::Subject{ subject_id, stype, ref head } => {
+            MemoRefHead::Subject{ subject_id, ref stype, ref head } => {
                 fmt.debug_struct("MemoRefHead::Subject")
                     .field("subject_id", &subject_id )
-                    .field("stype",      &stype )
-                    .field("memo_refs",  &head )
+                    .field("stype",      stype )
+                    .field("memo_refs",  head )
                     //.field("memo_ids", &self.memo_ids() )
                     .finish()
             }
@@ -365,7 +366,7 @@ impl CausalMemoIter {
         }
     }
     pub fn from_memoref (memoref: &MemoRef, slab: &Slab ) -> Self {
-        let q = VecDeque::new();
+        let mut q = VecDeque::new();
         q.push_front(memoref.clone());
 
         CausalMemoIter {

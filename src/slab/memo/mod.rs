@@ -173,9 +173,12 @@ impl MemoBody {
                         &None => None
                     }
                 }
-            },
-            &MemoBody::Relation(ref rssh) => {
-                MemoBody::Relation(rssh.clone_for_slab(from_slabref, to_slab))
+            }
+            &MemoBody::Relation(ref relationset) => {
+                MemoBody::Relation(relationset.clone_for_slab(from_slabref, to_slab))
+            }
+            &MemoBody::Edge(ref edgeset) => {
+                MemoBody::Edge(edgeset.clone_for_slab(from_slabref, to_slab))
             }
             &MemoBody::Edit(ref hm) => {
                 MemoBody::Edit(hm.clone())

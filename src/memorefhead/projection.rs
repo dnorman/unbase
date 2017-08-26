@@ -26,7 +26,8 @@ impl MemoRefHead {
     // This in turn raises questions about how relations should be merged
     pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
-        let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];
+        //let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];// = [None; SUBJECT_MAX_RELATIONS];
+        let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(255);
 
         // None is an indication that we've not yet visited this slot, and that it is thus eligible for setting
         for i in 0..SUBJECT_MAX_RELATIONS as usize {
@@ -38,13 +39,13 @@ impl MemoRefHead {
                 MemoBody::FullyMaterialized { e : ref edgeset, .. } => {
 
                     // Iterate over all the entries in this EdgeSet
-                    for (slot_id,&rel_head) in &edgeset.0 {
+                    for (slot_id,rel_head) in &edgeset.0 {
 
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
-                            edge_links[ *slot_id as usize ] = Some(match rel_head {
+                            edge_links[ *slot_id as usize ] = Some(match *rel_head {
                                 MemoRefHead::None  => EdgeLink::Vacant{ slot_id: *slot_id },
-                                _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head }
+                                _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
                             });
                         }
                     }
@@ -72,9 +73,9 @@ impl MemoRefHead {
 
         edge_links.iter().enumerate().map(|(slot_id,maybe_link)| {
             // Fill in the non-visited links with vacants
-            match *maybe_link {
-                None       => EdgeLink::Vacant{ slot_id: slot_id as RelationSlotId },
-                Some(link) => link
+            match maybe_link {
+                &None           => EdgeLink::Vacant{ slot_id: slot_id as RelationSlotId },
+                &Some(ref link) => link.clone()
             }
         }).collect()
     }
@@ -128,12 +129,12 @@ impl MemoRefHead {
 
             if let Some((edges,materialized)) = memo.get_edges(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(ref head) = edges.get(&key) {
+                if let Some(head) = edges.get(&key) {
                     // BUG: the parent->child was formed prior to the revision of the child.
                     // TODO: Should be adding the new head memo to the query context
                     //       and superseding the referenced head due to its inclusion in the context
 
-                    return Ok(Some(*head.clone()));
+                    return Ok(Some(head.clone()));
                 }else if materialized {
                     //println!("\n# \t\\ Not Found (materialized)" );
                     return Err(RetrieveError::NotFound);
