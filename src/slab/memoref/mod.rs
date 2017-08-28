@@ -45,7 +45,7 @@ impl MemoRef {
     }
     pub fn apply_peers ( &self, apply_peerlist: &MemoPeerList ) -> bool {
 
-        let mut peerlist = &mut *self.peerlist.write().unwrap();
+        let mut peerlist = self.peerlist.write().unwrap();
         let mut acted = false;
         for apply_peer in apply_peerlist.0.clone() {
             if apply_peer.slabref.slab_id == self.owning_slab_id {

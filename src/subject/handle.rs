@@ -1,11 +1,9 @@
-use super::*;
 use super::core::*;
 use context::Context;
 use slab::*;
 use error::*;
 
 use std::fmt;
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct SubjectHandle {

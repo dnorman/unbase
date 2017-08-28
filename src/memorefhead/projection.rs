@@ -1,5 +1,4 @@
 use super::*;
-use std::iter;
 use subject::SUBJECT_MAX_RELATIONS;
 
 impl MemoRefHead {

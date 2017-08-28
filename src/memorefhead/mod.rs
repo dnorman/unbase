@@ -8,7 +8,7 @@ use error::*;
 
 use std::mem;
 use std::fmt;
-use std::{slice,iter};
+use std::slice;
 use std::collections::VecDeque;
 
 // MemoRefHead is a list of MemoRefs that constitute the "head" of a given causal chain
@@ -31,33 +31,33 @@ pub enum MemoRefHead {
 }
 
 impl MemoRefHead {
-    pub fn new_from_vec ( vec: Vec<MemoRef>, slab: &Slab ) -> Self {
+    // pub fn new_from_vec ( vec: Vec<MemoRef>, slab: &Slab ) -> Self {
 
-        unimplemented!()
-        // for memoref in vec.iter(){
-        //     if let Ok(memo) = memoref.get_memo(slab) {
-        //         match memo.body {
-        //             MemoBody::FullyMaterialized { t, .. } => {
-        //                 return t;
-        //             }
-        //         }
-        //     }else{
-        //         // TODO: do something more intelligent here
-        //         panic!("failed to retrieve memo")
-        //     }
-        // }
+    //     unimplemented!()
+    //     // for memoref in vec.iter(){
+    //     //     if let Ok(memo) = memoref.get_memo(slab) {
+    //     //         match memo.body {
+    //     //             MemoBody::FullyMaterialized { t, .. } => {
+    //     //                 return t;
+    //     //             }
+    //     //         }
+    //     //     }else{
+    //     //         // TODO: do something more intelligent here
+    //     //         panic!("failed to retrieve memo")
+    //     //     }
+    //     // }
 
-        // panic!("no FullyMaterialized memobody found")
+    //     // panic!("no FullyMaterialized memobody found")
 
-        // if vec.len() > 0 {
-        //     MemoRefHead::Some{
-        //         subject_id: vec[0].get_subject_id(),
-        //         stype:      
-        //     }
-        // }else{
-        //     MemoRefHead::None
-        // }
-    }
+    //     // if vec.len() > 0 {
+    //     //     MemoRefHead::Some{
+    //     //         subject_id: vec[0].get_subject_id(),
+    //     //         stype:      
+    //     //     }
+    //     // }else{
+    //     //     MemoRefHead::None
+    //     // }
+    // }
     pub fn from_memoref (memoref: MemoRef) -> Self {
         match memoref.subject_id {
             None => MemoRefHead::Anonymous{
@@ -92,7 +92,7 @@ impl MemoRefHead {
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
         // If so, any memorefs that it descends must be removed
-        let mut head = match *self {
+        let head = match *self {
             MemoRefHead::None => {
                 if let Some(subject_id) = new.subject_id {
                     *self = MemoRefHead::Subject{
@@ -240,7 +240,7 @@ impl MemoRefHead {
             MemoRefHead::Subject{ subject_id, .. }     => Some(subject_id)
         }
     }
-    pub fn subject_type(&self, slab: &Slab) -> Option<SubjectType> {
+    pub fn subject_type(&self) -> Option<SubjectType> {
         match *self {
             MemoRefHead::None | MemoRefHead::Anonymous{..} => None,
             MemoRefHead::Subject{ ref stype, .. } => Some(stype.clone())
@@ -268,8 +268,12 @@ impl MemoRefHead {
         }
     }
     pub fn iter (&self) -> slice::Iter<MemoRef> {
+
+        // This feels pretty stupid. Probably means something is wrong with the factorization of MRH
+        static EMPTY : &'static [MemoRef] = &[];
+
         match *self {
-            MemoRefHead::None                    => vec![].iter(), // HACK
+            MemoRefHead::None                    => EMPTY.iter(), // HACK
             MemoRefHead::Anonymous{ ref head }   => head.iter(),
             MemoRefHead::Subject{ ref head, .. } => head.iter()
         }

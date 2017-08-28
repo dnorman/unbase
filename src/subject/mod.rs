@@ -1,14 +1,9 @@
 mod core;
 
-use context;
 pub (crate) mod handle;
-
-
 pub (crate) use self::core::*;
 pub (crate) use self::handle::*;
 use context::*;
-use slab::*;
-use memorefhead::MemoRefHead;
 
 // use core;
 // use handle;
@@ -24,7 +19,6 @@ pub enum SubjectType {
 pub struct Subject;
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 
-use std::sync::Arc;
 use std::collections::HashMap;
 
 impl Subject {

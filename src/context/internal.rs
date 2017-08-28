@@ -25,6 +25,11 @@ impl Context {
     /// Retrieves a subject by ID from this context only if it is currently resedent
     fn get_subject_core_if_resident(&self, subject_id: SubjectId) -> Option<SubjectCore> {
 
+        NEXT - Figure out how observables work, and decide if
+        // we should be storing those, or storing weak refs to subject cores
+        // Should there only ever be one copy of a subject core resident per process?
+        // This seems wrongggg, and non concurrency-friendly
+
         unimplemented!()
         // if let Some(weaksub) = self.subjects.read().unwrap().get(&subject_id) {
         //     if let Some(subject) = weaksub.upgrade() {

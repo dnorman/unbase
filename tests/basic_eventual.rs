@@ -95,11 +95,11 @@ fn basic_eventual() {
 
     thread::sleep( time::Duration::from_millis(500) );
 
-    println!("Root Index = {:?}", context_b.get_subject_head_memo_ids(root_index_subject_id)  );
+    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject_id)  );
     // Temporary way to magically, instantly send context
     println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
-    println!("Root Index = {:?}", context_b.get_subject_head_memo_ids(root_index_subject_id)  );
+    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject_id)  );
 
 
     let context_b_copy = context_b.clone();

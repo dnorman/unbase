@@ -1,6 +1,6 @@
 use std::fmt;
 use std::collections::HashMap;
-use std::sync::{Arc,RwLock,Weak};
+use std::sync::{Arc,RwLock};
 
 use super::*;
 use slab::*;
@@ -9,8 +9,6 @@ use context::Context;
 use error::*;
 
 use std::ops::Deref;
-
-pub type SubjectField  = String;
 
 
 #[derive(Clone)]

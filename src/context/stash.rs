@@ -69,7 +69,7 @@ impl Stash {
         // IMPORTANT! no locks may be held in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
-        match apply_head.subject_type(slab) {
+        match apply_head.subject_type() {
             Some(SubjectType::IndexNode) => {
 
                 loop {
