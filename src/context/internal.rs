@@ -3,7 +3,7 @@ use super::*;
 
 /// Internal interface functions
 impl Context {
-    pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &SubjectCore) {
+    pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &Subject) {
         if let Some(ref index) = *self.root_index.write().unwrap() {
             index.insert(self,subject_id, subject);
         } else {
@@ -16,16 +16,16 @@ impl Context {
         // println!("Context.apply_subject_head({}, {:?}) ", subject_id, head.memo_ids() );
         self.stash.apply_head(&self.slab, subject_id, apply_head)
     }
-    pub fn get_subject_core(&self, subject_id: SubjectId) -> Result<SubjectCore, RetrieveError> {
+    pub fn get_subject_core(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
         match *self.root_index.read().unwrap() {
             Some(ref index) => index.get(&self, subject_id),
             None            => Err(RetrieveError::IndexNotInitialized),
         }
     }
     /// Retrieves a subject by ID from this context only if it is currently resedent
-    fn get_subject_core_if_resident(&self, subject_id: SubjectId) -> Option<SubjectCore> {
+    fn get_subject_core_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
 
-        NEXT - Figure out how observables work, and decide if
+        //NEXT - Figure out how observables work, and decide if
         // we should be storing those, or storing weak refs to subject cores
         // Should there only ever be one copy of a subject core resident per process?
         // This seems wrongggg, and non concurrency-friendly
@@ -43,7 +43,7 @@ impl Context {
     }
     /// Retrieve a subject for a known MemoRefHead – ususally used for relationship traversal.
     /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met
-    pub fn get_subject_core_with_head(&self,  mut head: MemoRefHead)  -> Result<SubjectCore, RetrieveError> {
+    pub fn get_subject_core_with_head(&self,  mut head: MemoRefHead)  -> Result<Subject, RetrieveError> {
         // println!("# Context.get_subject_with_head({},{:?})", subject_id, head.memo_ids() );
 
         if head.len() == 0 {
@@ -84,11 +84,12 @@ impl Context {
 
         // NOTE: Subject::reconstitute calls back to Context.subscribe_subject()
         //       so we need to release the mutex prior to this
-        let subject = SubjectCore::reconstitute(&self, head);
+        let subject = Subject
+::reconstitute(&self, head);
         return Ok(subject);
 
     }
-    pub (crate) fn subscribe_subject(&self, subject: &SubjectCore) {
+    pub (crate) fn subscribe_subject(&self, subject: &Subject) {
         unimplemented!()
         // println!("Context.subscribe_subject({})", subject.id );
         // {

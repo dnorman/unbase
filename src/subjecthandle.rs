@@ -1,17 +1,37 @@
-use super::core::*;
+use subject::{Subject, SubjectType};
 use context::Context;
 use slab::*;
 use error::*;
-
 use std::fmt;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct SubjectHandle {
-    pub core:    SubjectCore,
+    pub core:    Subject,
     pub context: Context
 }
 
 impl SubjectHandle{
+    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,String> {
+
+        let core = Subject::new(&context, SubjectType::Record, vals );
+
+        let handle = SubjectHandle{
+            core: core,
+            context: context.clone()
+        };
+
+        Ok(handle)
+    }
+    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,String> {
+        Self::new( context, HashMap::new() )
+    }
+    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,String> {
+        let mut vals = HashMap::new();
+        vals.insert(key.to_string(), value.to_string());
+
+        Self::new( context, vals )
+    }
     pub fn get_value ( &self, key: &str ) -> Option<String> {
         self.core.get_value(&self.context, key)
     }

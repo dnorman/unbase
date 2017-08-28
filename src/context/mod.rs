@@ -4,7 +4,7 @@ mod interface;
 
 
 use slab::{RelationSlotId,EdgeLink};
-use subject::{SubjectCore,SubjectId,SubjectType};
+use subject::{Subject,SubjectId,SubjectType};
 use memorefhead::*;
 use error::*;
 

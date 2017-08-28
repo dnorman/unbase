@@ -55,6 +55,7 @@ pub mod error;
 pub mod index;
 pub mod memorefhead;
 pub mod util;
+pub mod subjecthandle;
 
 pub use network::Network;
 pub use subject::Subject;
