@@ -14,18 +14,9 @@ pub const SUBJECT_MAX_RELATIONS : usize = 256;
 pub type SubjectId     = u64;
 
 #[derive(Clone)]
-pub struct Subject(Arc<SubjectInner>);
-
-impl Deref for Subject {
-    type Target = SubjectInner;
-    fn deref(&self) -> &SubjectInner {
-        &*self.0
-    }
-}
-
-pub struct SubjectInner {
+pub struct Subject {
     pub id:     SubjectId,
-    pub (crate) head:       RwLock<MemoRefHead>
+    pub (crate) head: RwLock<MemoRefHead>
 }
 
 #[derive(Clone,PartialEq,Debug,Serialize,Deserialize)]
@@ -47,9 +38,9 @@ impl Subject {
             );
         let head = memoref.to_head();
 
-        let core = Subject(Arc::new(SubjectInner{ id, head: RwLock::new(head.clone()) }));
+        let subject = Subject{ id, head: RwLock::new(head.clone()) };
 
-        context.subscribe_subject( &core );
+        slab.subscribe_subject( &subject );
 
         // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
         if let SubjectType::Record = stype {
@@ -57,27 +48,24 @@ impl Subject {
             context.insert_into_root_index( id, &core );
         }
 
-        Subject(Arc::new(SubjectInner{
-            id: id,
-            head: RwLock::new(head),
-            // drop_channel: context.drop_channel.clone()
-        }))
+        subject
     }
-
     pub fn reconstitute (context: &Context, head: MemoRefHead) -> Subject {
         //println!("Subject.reconstitute({:?})", head);
 
-        let subject_id = head.subject_id().unwrap();
+        // Arguably we shouldn't ever be reconstituting a subject
+        
+        // let subject_id = head.subject_id().unwrap();
 
-        let core = Subject(Arc::new(SubjectInner{
-            id: subject_id,
-            head: RwLock::new(head),
-            // drop_channel: context.drop_channel.clone()
-        }));
+        // let core = Subject(Arc::new(SubjectInner{
+        //     id: subject_id,
+        //     head: RwLock::new(head),
+        //     // drop_channel: context.drop_channel.clone()
+        // }));
 
-        context.subscribe_subject( &core );
+        // context.subscribe_subject( &core );
 
-        core
+        // core
     }
     pub fn is_root_index () -> bool {
         unimplemented!();

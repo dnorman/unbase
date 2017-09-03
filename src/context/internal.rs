@@ -24,6 +24,12 @@ impl Context {
     }
     /// Retrieves a subject by ID from this context only if it is currently resedent
     fn get_subject_core_if_resident(&self, subject_id: SubjectId) -> Option<Subject> {
+        
+        TODO:
+
+        // Consider getting rid of Subject(Arc<SubjectInner>) in favor of renaming SubjectInner to Subject
+        // and having Subject be an observable which injects a channel into the context
+
 
         //NEXT - Figure out how observables work, and decide if
         // we should be storing those, or storing weak refs to subject cores

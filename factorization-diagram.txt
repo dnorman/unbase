@@ -7,26 +7,29 @@
                                                                                 
                           Network                                               
                            Arc<NetworkInner>                                    
-                            slabs -------------------------                     
-                                                           \                    
-                                                            \                   
-                                                             -WeakSlab          
-                                                                   |            
-                                                             -Slab |            
-                                                            /   \ Arc<SlabInner>   
-                                                           /                    
-                              -Context                    /                     
-                             /   \ Arc<ContextInner>     /                      
-                            /        slab --------------/                       
-   SubjectHandle           /         root_index -                                   
-    context --------------/                       \                                  
-    core    -----                                  \                                 
-                 \                                  -IndexFixed                      
-                  \                                   root -                         
-                   \                                        \                        
-                    \                                        \                       
-                     ------------------------------------------SubjectCore           
-                                                                  \ Arc<SubjectCoreInner>
+                            slabs -----------------------                     
+                                                          \                    
+                                                           \                   
+                                                            -> WeakSlab          
+                                                                     |            
+                                                            -> Slab  v            
+                                                          /   \--> Arc<SlabInner>   
+                                                         /              subject_subscriptions -\             
+                              -> Context                /               unsubscribe_channel    |
+                             /   \ Arc<ContextInner>   /                           ^           |
+                            /        slab ------------/                            |          / 
+   SubjectHandle           /         root_index -                                (mpsc)      / 
+    context --------------/          stash *      \                                |        / 
+    subject -----                    observers     \                               |      (mpsc)  
+                 \                                     -> IndexFixed               |      /
+                  \                                      root -                    |     /
+                   \                    v                      /                   |    /
+                    \               (Observer)                /                    |   /
+                     \                  |||                  /                     |  v
+                      ---------------------------------------------------------> Subject
+
+
+* Context stash not covered in this diagram
                                                                                 
                                                                                 
                                                                                 

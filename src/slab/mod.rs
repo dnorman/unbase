@@ -1,5 +1,4 @@
 
-
 pub use self::common_structs::*;
 pub use self::slabref::{SlabRef,SlabRefInner};
 pub use self::memoref::{MemoRef,MemoRefInner,MemoRefPtr};
@@ -42,8 +41,8 @@ pub struct SlabInner{
     pub id: SlabId,
     memorefs_by_id: RwLock<HashMap<MemoId,MemoRef>>,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
-    subject_subscriptions: RwLock<HashMap<SubjectId, Vec<()>>>, // temporarily removed stuffs here
-
+    subject_subscriptions: RwLock<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>, // Hack. Using option as a way to test channel liveness
+    unsubscribe_channel: chan::Receiver<SubjectId>,
     counters: RwLock<SlabCounters>,
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
