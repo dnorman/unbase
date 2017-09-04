@@ -1,4 +1,5 @@
 use super::*;
+use subject::Subject;
 
 impl Deref for Slab {
     type Target = SlabInner;
@@ -6,6 +7,9 @@ impl Deref for Slab {
         &*self.0
     }
 }
+
+unsafe impl Sync for SlabInner {}
+unsafe impl Send for SlabInner {}
 
 impl Slab {
     pub fn new(net: &Network) -> Slab {
@@ -75,7 +79,7 @@ impl Slab {
     pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub fn subscribe_subject (&self, subject_id: u64, context: &Context) {
+    pub fn subscribe_subject (&self, subject: &Subject) {
         unimplemented!()
     }
     pub fn unsubscribe_subject (&self,  subject_id: u64, context: &Context ){

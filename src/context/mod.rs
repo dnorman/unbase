@@ -2,8 +2,6 @@ mod internal;
 mod stash;
 mod interface;
 
-
-use slab::{RelationSlotId,EdgeLink};
 use subject::{Subject,SubjectId,SubjectType};
 use memorefhead::*;
 use error::*;

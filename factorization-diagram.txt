@@ -15,17 +15,17 @@
                                                             -> Slab  v            
                                                           /   \--> Arc<SlabInner>   
                                                          /              subject_subscriptions -\             
-                              -> Context                /               unsubscribe_channel    |
-                             /   \ Arc<ContextInner>   /                           ^           |
-                            /        slab ------------/                            |          / 
-   SubjectHandle           /         root_index -                                (mpsc)      / 
-    context --------------/          stash *      \                                |        / 
-    subject -----                    observers     \                               |      (mpsc)  
-                 \                                     -> IndexFixed               |      /
-                  \                                      root -                    |     /
-                   \                    v                      /                   |    /
-                    \               (Observer)                /                    |   /
-                     \                  |||                  /                     |  v
+                              -> Context                /               unsubscribe_channel     |
+                             /   \ Arc<ContextInner>   /                           ^            |
+                            /        slab ------------/                            |           / 
+   SubjectHandle           /         root_index -                                (mpsc)       / 
+    context --------------/          stash *      \                                 |-?Weak?-/ 
+    subject -----                                  \                                |      (mpsc)  
+                 \                                  ---> IndexFixed                 |      /
+                  \                                        root --------------.     |     /
+                   \                                                           \    |    /
+                    \                                                           \   |   /
+                     \                                                           v  v  v
                       ---------------------------------------------------------> Subject
 
 

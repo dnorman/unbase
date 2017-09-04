@@ -5,5 +5,5 @@ pub enum RetrieveError {
     AccessDenied,
     InvalidMemoRefHead,
     IndexNotInitialized,
-    SlabError
+    SlabError,
 }

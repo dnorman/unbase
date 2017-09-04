@@ -2,18 +2,15 @@ use slab::*;
 
 use std::fmt;
 use std::collections::HashMap;
-use std::sync::{Arc,RwLock};
+use std::sync::RwLock;
 
 use memorefhead::*;
 use context::Context;
 use error::*;
 
-use std::ops::Deref;
-
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 pub type SubjectId     = u64;
 
-#[derive(Clone)]
 pub struct Subject {
     pub id:     SubjectId,
     pub (crate) head: RwLock<MemoRefHead>
@@ -45,27 +42,28 @@ impl Subject {
         // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
         if let SubjectType::Record = stype {
             // NOTE: important that we do this after the subject.shared.lock is released
-            context.insert_into_root_index( id, &core );
+            context.insert_into_root_index( id, &subject );
         }
 
         subject
     }
-    pub fn reconstitute (context: &Context, head: MemoRefHead) -> Subject {
+    pub fn reconstitute (context: &Context, head: MemoRefHead) -> Result<Subject,RetrieveError> {
         //println!("Subject.reconstitute({:?})", head);
-
         // Arguably we shouldn't ever be reconstituting a subject
-        
-        // let subject_id = head.subject_id().unwrap();
 
-        // let core = Subject(Arc::new(SubjectInner{
-        //     id: subject_id,
-        //     head: RwLock::new(head),
-        //     // drop_channel: context.drop_channel.clone()
-        // }));
+        if let Some(subject_id) = head.subject_id(){
+            let subject = Subject{
+                id:   subject_id,
+                head: RwLock::new(head)
+            };
 
-        // context.subscribe_subject( &core );
+            context.slab.subscribe_subject( &subject );
 
-        // core
+            Ok(subject)
+
+        }else{
+            Err(RetrieveError::InvalidMemoRefHead)
+        }
     }
     pub fn is_root_index () -> bool {
         unimplemented!();
@@ -86,7 +84,7 @@ impl Subject {
         //println!("# Subject({}).get_relation({})",self.id,key);
         match self.head.read().unwrap().project_edge(context, key) {
             Ok(Some(head)) => {
-                Ok(context.get_subject_core_with_head(head)? )
+                Ok(context.get_subject_with_head(head)? )
             },
             Ok(None) => {
                 Err(RetrieveError::NotFound) // OK, this seems kinda dumb
@@ -110,7 +108,7 @@ impl Subject {
 
         head.apply_memoref(&memoref, &slab);
 
-        context.apply_head( self.id,  &head );
+        context.apply_head( &head );
 
         true
     }
@@ -129,7 +127,7 @@ impl Subject {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_head( self.id, &head );
+        context.apply_head( &head );
 
     }
     // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
@@ -158,6 +156,14 @@ impl Subject {
     }
 }
 
+impl Clone for Subject {
+    fn clone (&self) -> Subject {
+        Self{
+            id: self.id,
+            head: RwLock::new(self.head.read().unwrap().clone())
+        }
+    }
+}
 impl Drop for Subject {
     fn drop (&mut self) {
         //println!("# Subject({}).drop", &self.id);

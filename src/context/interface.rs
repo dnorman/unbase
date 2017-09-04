@@ -11,7 +11,7 @@ impl Context {
             Some(ref index) => {
                 Ok(
                     SubjectHandle{
-                        core: index.get(&self, subject_id)?,
+                        subject: index.get(&self, subject_id)?,
                         context: self.clone()
                     }
                 )
@@ -31,15 +31,10 @@ impl Context {
 
         let mut memoref_count = 0;
 
-        // for subject_head in self.manager.subject_head_iter() {
-        //     memoref_count += subject_head.head.len();
-        //     other.apply_head(subject_head.subject_id,
-        //                              &subject_head.head
-        //                                  .clone_for_slab(&from_slabref, &other.slab, false),
-        //                              true);
-        //     // HACK inside a hack - manually updating the remote subject is cheating, but necessary for now because subjects
-        //     //      have a separate MRH versus the context
-        // }
+        for head in self.stash.iter() {
+            memoref_count += head.len();
+            other.apply_head(head.clone_for_slab(&from_slabref, &other.slab, false));
+        }
 
         memoref_count
     }
@@ -74,7 +69,7 @@ impl Context {
         let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: relset, e: EdgeSet::empty(), t: SubjectType::Record };
         let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
 
-        self.apply_head(subject_id, &head)
+        self.apply_head(&head)
     }
 
     /// Attempt to compress the present query context.

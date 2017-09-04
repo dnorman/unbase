@@ -21,7 +21,7 @@ impl IndexFixed {
     }
     pub fn new_from_memorefhead (context: &Context, depth: u8, memorefhead: MemoRefHead ) -> IndexFixed {
         Self {
-            root: Subject::reconstitute( context, memorefhead ),
+            root: Subject::reconstitute( context, memorefhead ).unwrap(),
             depth: depth
         }
     }

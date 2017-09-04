@@ -65,7 +65,7 @@ impl Stash {
         }
     }
     /// Apply the provided MemoRefHead for a given subject. Project relation references and add placeholders as needed
-    pub fn apply_head (&self, slab: &Slab, subject_id: SubjectId, apply_head: &MemoRefHead) -> MemoRefHead {
+    pub fn apply_head (&self, slab: &Slab, apply_head: &MemoRefHead) -> MemoRefHead {
         // IMPORTANT! no locks may be held in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
@@ -73,6 +73,8 @@ impl Stash {
             Some(SubjectType::IndexNode) => {
 
                 loop {
+                    let subject_id = apply_head.subject_id().unwrap();
+                    
                     let (new_head, edit_counter) = match self.get_head_and_editcount(subject_id) {
                         Some((mut head,ec)) => {
                             if !head.apply(apply_head, slab) { // May block here
