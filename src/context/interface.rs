@@ -33,7 +33,7 @@ impl Context {
 
         for head in self.stash.iter() {
             memoref_count += head.len();
-            other.apply_head(head.clone_for_slab(&from_slabref, &other.slab, false));
+            other.apply_head(&head.clone_for_slab(&from_slabref, &other.slab, false));
         }
 
         memoref_count
@@ -95,12 +95,9 @@ impl Context {
 
 impl fmt::Debug for Context {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!();
 
-        // fmt.debug_struct("ContextShared")
-        //     .field("subject_heads", &self.manager.subject_ids() )
-        //     // TODO: restore Debug for WeakSubject
-        //     //.field("subjects", &self.subjects)
-        //     .finish()
+        fmt.debug_struct("ContextShared")
+            .field("subject_heads", &self.stash.subject_ids() )
+            .finish()
     }
 }

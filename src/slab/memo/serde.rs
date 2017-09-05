@@ -75,7 +75,7 @@ impl StatefulSerialize for MemoBody {
                 sv.serialize_field("r", &SerializeWrapper(&r, helper))?;
                 sv.serialize_field("e", &SerializeWrapper(&e.0, helper))?;
                 sv.serialize_field("v", v)?;
-                sv.serialize_field("t", v)?;
+                sv.serialize_field("t", t)?;
                 sv.end()
             },
             Peering( ref memo_id, ref subject_id, ref peerlist ) =>{
