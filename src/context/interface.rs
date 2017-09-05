@@ -79,6 +79,7 @@ impl Context {
     pub fn compress(&self){
         unimplemented!()
         //self.manager.compress(&self.slab);
+        // TODO2: Implement this, or remove it
     }
 
     pub fn is_fully_materialized(&self) -> bool {

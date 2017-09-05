@@ -77,10 +77,12 @@ impl Stash {
         }
 
         // Lets be optimistic about concurrency. Calculate a new head from the existing one (if any)
-        // And keep a count of edits so we can detect if we collide with anybody.
-        // We need to play this game because the stash is used by everybody, and we can't hold a lock on its internals for long.
-        // It is conceivable that this may be substantially improved once the stash internals are switched to use atomics.
-        // Of course that's a whole other can of worms.
+        // And keep a count of edits so we can detect if we collide with anybody. We need to play this
+        // game because the stash is used by everybody. We need to sort out happens-before for MRH.apply_head,
+        // and to project relations. Can't hold a lock on its internals for nearly long enough to do that, lest
+        // we run into deadlocks, or just make other threads wait. It is conceivable that this may be
+        // substantially improved once the stash internals are switched to use atomics. Of course that's a
+        // whole other can of worms.
         loop {
             let subject_id = apply_head.subject_id().unwrap();
 
@@ -97,18 +99,18 @@ impl Stash {
                     (head,ec)
                 },
                 None => {
-                    // Not present means 0 edits.
-                    // Note that the edit counter starts at 1 on item creation
+                    // NOTE: The edit counter is initialized at 1 on item creation to differentiate non-presence (0) from presence (1+)
                     ( apply_head.clone(),0 )
                 }
             };
 
-            let links = new_head.project_all_edge_links_including_empties(slab); // May block here
+            let links = new_head.project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
 
-            if { self.try_set_head( subject_id, new_head.clone(), &links, edit_counter ) } {
+            if self.try_set_head( subject_id, new_head.clone(), &links, edit_counter ) {
 
                 for link in links.iter() {
                     if let EdgeLink::Occupied{ ref head, .. } = *link {
+                        // TODO1 - audit prune_head
                         self.prune_head(slab, head);
                     }
                 }
@@ -121,6 +123,55 @@ impl Stash {
         }
 
 
+    }
+    fn get_head_and_editcount(&self, subject_id: SubjectId) -> Option<(MemoRefHead, usize)> {
+        let inner = self.inner.lock().unwrap();
+        match inner.get_item_id_for_subject(subject_id) {
+            Some(item_id) => {
+                match inner.items.get(item_id) {
+                    Some(&Some(StashItem{ head: Some(ref h), ref edit_counter, .. })) => {
+                        Some((h.clone(), *edit_counter))
+                    },
+                    _ => None
+                }
+            }
+            None => None
+        }
+    }
+    /// Try to set a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
+    fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, edge_links: &Vec<EdgeLink>, edit_counter: usize) -> bool {
+        let mut inner = self.inner.lock().unwrap();
+
+        let item_id = inner.assert_item(subject_id);
+        {
+            // make sure the edit counter hasn't been incremented since the get_head_and_editcount
+            let item = inner.items[item_id].as_ref().unwrap();
+            if item.edit_counter != edit_counter {
+                return false;
+            }
+        }
+
+        for edge_link in edge_links.iter() {
+            match edge_link {
+                &EdgeLink::Vacant{slot_id} => {
+                    inner.set_relation(item_id, slot_id, None);
+                },
+                &EdgeLink::Occupied{slot_id, head: ref rel_head} => {
+                    if let &MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
+                        let rel_item_id = inner.assert_item(rel_subject_id);
+                        inner.set_relation(item_id, slot_id, Some(rel_item_id));
+                    }
+                }
+            }
+        }
+
+        {
+            let item = inner.items[item_id].as_mut().unwrap();
+            item.head = Some(new_head);
+            item.edit_counter += 1;
+        }
+
+        true
     }
     // Prune a subject head from the `Stash` if it's descended by compare_head
     pub fn prune_head (&self, slab: &Slab, compare_head: &MemoRefHead) -> bool {
@@ -143,77 +194,27 @@ impl Stash {
 
         false
     }
-    /// Try to set a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
-    fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, links: &Vec<EdgeLink>, edit_counter: usize) -> bool {
-        let mut inner   = self.inner.lock().unwrap();
-
-        let item_id = inner.assert_item(subject_id);
-        {
-            let item = inner.items[item_id].as_mut().unwrap();
-            if item.edit_counter != edit_counter {
-                return false;
-            }
-        }
-
-        for link in links.iter() {
-            match link {
-                &EdgeLink::Vacant{slot_id} => {
-                    let mut item = inner.items[item_id].as_mut().unwrap();
-                    if let Some(rel_item_id) = item.relations[slot_id as usize]{
-                        // TODO: Not sure what exactly ought to occur here
-                    }
-                    item.relations[ slot_id as usize ] = None;
-                },
-                &EdgeLink::Occupied{slot_id, head: ref rel_head} => {
-                    if let &MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
-                        let rel_item_id = inner.assert_item(rel_subject_id);
-
-                        let mut item = inner.items[item_id].as_mut().unwrap();
-                        item.relations[ slot_id as usize ] = Some(rel_item_id);
-                    }
-                }
-            }
-        }
-
-        {
-            let mut item = inner.items[item_id].as_mut().unwrap();
-            item.head = Some(new_head);
-            item.edit_counter += 1;
-        }
-
-        true
-    }
     /// Try to remove a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
     fn try_remove_head (&self, subject_id: SubjectId, edit_counter: usize ) -> bool {
         let mut inner = self.inner.lock().unwrap();
 
-        if let Some(item_id) = inner.get_item_id_for_subject(subject_id){
-            {
-                let mut item = inner.items[item_id].as_mut().unwrap();
+        let mut remove : Option<ItemId> = None;
+        {
+            if let Some(item_id) = inner.get_item_id_for_subject(subject_id){
+                let item = inner.items[item_id].as_mut().unwrap();
                 if item.edit_counter != edit_counter {
                     return false;
                 }
 
-                item.edit_counter += 1; // probably pointless
+                item.edit_counter += 1;
+                remove = Some(item_id);
             }
-            inner.remove_item(item_id);
+        }
+        if let Some(item_id) = remove {
+            inner.unset_head(item_id);
         }
 
         true
-    }
-    fn get_head_and_editcount(&self, subject_id: SubjectId) -> Option<(MemoRefHead, usize)> {
-        let inner = self.inner.lock().unwrap();
-        match inner.get_item_id_for_subject(subject_id) {
-            Some(item_id) => {
-                match inner.items.get(item_id) {
-                    Some(&Some(StashItem{ head: Some(ref h), ref edit_counter, .. })) => {
-                        Some((h.clone(), *edit_counter))
-                    },
-                    _ => None
-                }
-            }
-            None => None
-        }
     }
 }
 
@@ -248,26 +249,77 @@ impl StashInner {
             }
         }
     }
-    fn remove_item(&mut self, item_id: ItemId) {
-        self.items[item_id] = None;
-        self.vacancies.push(item_id);
+    fn conditional_remove_item(&mut self, item_id: ItemId) {
+        let remove = {
+            let item = self.items[item_id].as_ref().expect("increment_item on None");
+            item.ref_count == 0 && item.head.is_none()
+        };
 
-        if let Ok(i) = self.index.binary_search_by(|x| x.1.cmp(&item_id) ){
-            self.index.remove(i);
+        if remove {
+            self.items[item_id] = None;
+            self.vacancies.push(item_id);
+
+            if let Ok(i) = self.index.binary_search_by(|x| x.1.cmp(&item_id) ){
+                self.index.remove(i);
+            }
         }
     }
-}
+    fn set_relation (&mut self, item_id: ItemId, slot_id: RelationSlotId, maybe_rel_item_id: Option<ItemId>){
+        let mut decrement : Option<ItemId> = None;
+        {
+            let item = self.items[item_id].as_mut().unwrap();
+            // we have an existing relation in this slot
+            if let Some(ex_rel_item_id) = item.relations[slot_id as usize]{
+                // If its the same as we're setting it to, then bail out
+                if Some(ex_rel_item_id) == maybe_rel_item_id {
+                    return;
+                }
 
-// struct StashItemSlot{
-//     item_id: ItemId,
-//     edit_count: usize,
-// }
+                // otherwise we need to decrement the previous occupant
+                decrement = Some(ex_rel_item_id);
+            };
+        }
+
+        if let Some(decrement_item_id) = decrement {
+            self.decrement_item(decrement_item_id);
+        }
+
+        // Increment the new (and different) relation
+        if let Some(rel_item_id) = maybe_rel_item_id {
+            self.increment_item(rel_item_id);
+        }
+
+        let item = self.items[item_id].as_mut().unwrap();
+        item.relations[ slot_id as usize ] = maybe_rel_item_id;
+
+
+    }
+    fn increment_item(&mut self, item_id: ItemId){
+        let item = self.items[item_id].as_mut().expect("increment_item on None");
+        item.ref_count += 1;
+    }
+    fn decrement_item(&mut self, item_id: ItemId) {
+        {
+            let item = self.items[item_id].as_mut().expect("deccrement_item on None");
+            item.ref_count -= 1;
+        }
+        self.conditional_remove_item(item_id);
+    }
+    fn unset_head(&mut self, item_id: ItemId){
+        {
+            let item = self.items[item_id].as_mut().expect("deccrement_item on None");
+            item.head = None;
+        }
+        self.conditional_remove_item(item_id);
+    }
+}
 
 struct StashItem {
     subject_id:   SubjectId,
     head:         Option<MemoRefHead>,
     relations:    Vec<Option<ItemId>>,
     edit_counter: usize,
+    ref_count:    usize,
 }
 
 impl StashItem {
@@ -276,18 +328,10 @@ impl StashItem {
             subject_id: subject_id,
             head: maybe_head,
             relations: Vec::new(),
-            edit_counter: 1 // Important for existence to count as an edit, as it cannot be the same as non-existence (0)
+            edit_counter: 1, // Important for existence to count as an edit, as it cannot be the same as non-existence (0)
+            ref_count: 0
         }
     }
-    // pub fn vacate_relation_slot(&self, inner: &StashInner, slot_id: RelationSlotId ){
-    //     if let Some(rel_item_id) = self.relations[slot_id as usize] {
-    //         let relation = inner.items[rel_item_id];
-    //         // remove the item unless it was edited
-    //         if relation.edit_count = last_edit_count {
-    //             inner.cull_item(rel_item_id)
-    //         }
-    //     }
-    // }
 }
 
 pub (crate) struct StashIterator {
