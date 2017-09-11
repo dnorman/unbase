@@ -23,7 +23,10 @@ impl MemoRefHead {
     // TODO: This projection method is probably wrong, as it does not consider how to handle concurrent edge-setting
     //       this problem applies to causal_memo_iter itself really, insofar as it should return sets of concurrent memos to be merged rather than individual memos
     // This in turn raises questions about how relations should be merged
-    pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
+
+    /// Project all edge links based only on the causal history of this head – No consideration of a query context.
+    /// The name is pretty gnarly, and this is very ripe for refactoring, but at least it says what it does.
+    pub fn noncontextualized_project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
         //let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];// = [None; SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(255);
