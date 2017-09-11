@@ -8,9 +8,6 @@ impl Deref for Slab {
     }
 }
 
-unsafe impl Sync for SlabInner {}
-unsafe impl Send for SlabInner {}
-
 impl Slab {
     pub fn new(net: &Network) -> Slab {
         let slab_id = net.generate_slab_id();
@@ -31,7 +28,7 @@ impl Slab {
             id: slab_id,
             memorefs_by_id:        RwLock::new(HashMap::new()),
             memo_wait_channels:    Mutex::new(HashMap::new()),
-            subject_subscriptions: RwLock::new(HashMap::new()),
+            //subject_subscriptions: RwLock::new(HashMap::new()),
 
             counters: RwLock::new(SlabCounters {
                 last_memo_id: 5000,
