@@ -9,8 +9,8 @@ impl StatefulSerialize for MemoRefHead {
         where S: Serializer
     {
         match *self {
-            MemoRefHead::None => {
-                let mut sv = serializer.serialize_struct_variant("MemoRefHead", 0, "None", 0)?;
+            MemoRefHead::Null => {
+                let sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
                 sv.end()
             },
             MemoRefHead::Anonymous{ref head} => {
@@ -65,7 +65,7 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
         where V: EnumVisitor
     {
         match try!(visitor.visit_variant()) {
-            (MRHVariant::None,       variant) => Ok(MemoRefHead::None),
+            (MRHVariant::None,       _)       => Ok(MemoRefHead::Null),
             (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
         }
@@ -142,8 +142,12 @@ impl<'a> Visitor for MRHSubjectSeed<'a> {
             }
         }
 
-        if head.is_some() {
-            Ok(MemoRefHead::Anonymous{ head: head.unwrap() })
+        if head.is_some() && subject_id.is_some() && stype.is_some(){
+            Ok(MemoRefHead::Subject{
+                head: head.unwrap(),
+                subject_id: subject_id.unwrap(),
+                stype: stype.unwrap()
+            })
         }else{
             Err(DeError::invalid_length(0, &self))
         }

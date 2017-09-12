@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 
 #[derive(Clone, PartialEq)]
 pub enum MemoRefHead {
-    None,
+    Null,
     Subject{
         subject_id: SubjectId,
         stype:      SubjectType,
@@ -55,7 +55,7 @@ impl MemoRefHead {
     //     //         stype:      
     //     //     }
     //     // }else{
-    //     //     MemoRefHead::None
+    //     //     MemoRefHead::Null
     //     // }
     // }
     pub fn from_memoref (memoref: MemoRef) -> Self {
@@ -93,7 +93,7 @@ impl MemoRefHead {
         // Conditionally add the new memoref only if it descends any memorefs in the head
         // If so, any memorefs that it descends must be removed
         let head = match *self {
-            MemoRefHead::None => {
+            MemoRefHead::Null => {
                 if let Some(subject_id) = new.subject_id {
                     *self = MemoRefHead::Subject{
                         head: vec![new.clone()],
@@ -206,10 +206,10 @@ impl MemoRefHead {
         // we can get away with it for now though I think
         // TODO: revisit when beacons are implemented
         match *self {
-            MemoRefHead::None             => false,
+            MemoRefHead::Null             => false,
             MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => {
                 match *other {
-                    MemoRefHead::None             => false,
+                    MemoRefHead::Null             => false,
                     MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
                         if head.len() == 0 || other_head.len() == 0 {
                             return false // searching for positive descendency, not merely non-ascendency
@@ -230,39 +230,45 @@ impl MemoRefHead {
     }
     pub fn memo_ids (&self) -> Vec<MemoId> {
         match *self {
-            MemoRefHead::None => Vec::new(),
+            MemoRefHead::Null => Vec::new(),
             MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.id).collect()
         }
     }
     pub fn subject_id (&self) -> Option<SubjectId> {
         match *self {
-            MemoRefHead::None | MemoRefHead::Anonymous{..} => None,
+            MemoRefHead::Null | MemoRefHead::Anonymous{..} => None,
             MemoRefHead::Subject{ subject_id, .. }     => Some(subject_id)
+        }
+    }
+    pub fn is_some (&self) -> bool {
+        match *self {
+            MemoRefHead::Null => false,
+            _                 => true
         }
     }
     pub fn subject_type(&self) -> Option<SubjectType> {
         match *self {
-            MemoRefHead::None | MemoRefHead::Anonymous{..} => None,
+            MemoRefHead::Null | MemoRefHead::Anonymous{..} => None,
             MemoRefHead::Subject{ ref stype, .. } => Some(stype.clone())
         }
     }
     pub fn to_vec (&self) -> Vec<MemoRef> {
         match *self {
-            MemoRefHead::None => vec![],
+            MemoRefHead::Null => vec![],
             MemoRefHead::Anonymous { ref head, .. } => head.clone(),
             MemoRefHead::Subject{  ref head, .. }   => head.clone()
         }
     }
     pub fn to_vecdeque (&self) -> VecDeque<MemoRef> {
         match *self {
-            MemoRefHead::None       => VecDeque::new(),
+            MemoRefHead::Null       => VecDeque::new(),
             MemoRefHead::Anonymous { ref head, .. } => VecDeque::from(head.clone()),
             MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
         }
     }
     pub fn len (&self) -> usize {
         match *self {
-            MemoRefHead::None       =>  0,
+            MemoRefHead::Null       =>  0,
             MemoRefHead::Anonymous { ref head, .. } => head.len(),
             MemoRefHead::Subject{  ref head, .. }   => head.len()
         }
@@ -273,7 +279,7 @@ impl MemoRefHead {
         static EMPTY : &'static [MemoRef] = &[];
 
         match *self {
-            MemoRefHead::None                    => EMPTY.iter(), // HACK
+            MemoRefHead::Null                    => EMPTY.iter(), // HACK
             MemoRefHead::Anonymous{ ref head }   => head.iter(),
             MemoRefHead::Subject{ ref head, .. } => head.iter()
         }
@@ -286,7 +292,7 @@ impl MemoRefHead {
         //       as part of the list management. That way we won't have to incur the below computational effort.
 
         let head = match *self {
-            MemoRefHead::None       => {
+            MemoRefHead::Null       => {
                 return true;
             },
             MemoRefHead::Anonymous { ref head, .. } => head,
@@ -308,7 +314,7 @@ impl MemoRefHead {
     pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, include_memos: bool ) -> Self {
         assert!(from_slabref.slab_id != to_slab.id, "slab id should differ");
         match *self {
-            MemoRefHead::None                    => MemoRefHead::None,
+            MemoRefHead::Null                    => MemoRefHead::Null,
             MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
                 head: head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
             },
@@ -324,8 +330,8 @@ impl MemoRefHead {
 impl fmt::Debug for MemoRefHead{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MemoRefHead::None       => {
-                fmt.debug_struct("MemoRefHead::None").finish()
+            MemoRefHead::Null       => {
+                fmt.debug_struct("MemoRefHead::Null").finish()
             },
             MemoRefHead::Anonymous{ ref head, .. } => {
                 fmt.debug_struct("MemoRefHead::Anonymous")

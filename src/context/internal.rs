@@ -31,9 +31,7 @@ impl Context {
         }
 
         if let Some(subject_id) = head.subject_id() {
-           if let Some(ref stashed_head) = self.stash.get_head(subject_id) {
-                head.apply(&stashed_head, &self.slab);
-            }
+            head.apply( &self.stash.get_head(subject_id), &self.slab );
         }
         
         let subject = Subject::reconstitute(&self, head)?;

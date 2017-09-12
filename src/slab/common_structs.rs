@@ -61,7 +61,7 @@ impl MemoPeerList {
     pub fn apply_peer(&mut self, peer: MemoPeer) -> bool {
         // assert!(self.owning_slab_id == peer.slabref.owning_slab_id, "apply_peer for dissimilar owning_slab_id peer" );
 
-        let mut peerlist = &mut self.0;
+        let peerlist = &mut self.0;
         {
             if let Some(my_peer) = peerlist.iter_mut()
                 .find(|p| p.slabref.slab_id == peer.slabref.slab_id) {

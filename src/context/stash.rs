@@ -42,19 +42,14 @@ impl Stash {
         StashIterator::new(&self.inner)
     }
     /// Get MemoRefHead (if resident) for the provided subject_id
-    pub fn get_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
+    pub fn get_head(&self, subject_id: SubjectId) -> MemoRefHead {
         let inner = self.inner.lock().unwrap();
 
         match inner.get_item_id_for_subject(subject_id) {
             Some(item_id) => {
-                match inner.items.get(item_id) {
-                    Some(&Some(StashItem{ head: Some(ref h), .. })) => {
-                        Some(h.clone())
-                    },
-                    _ => None
-                }
+                inner.items[item_id].as_ref().unwrap().head.clone()
             }
-            None => None
+            None => MemoRefHead::Null
         }
     }
     /// Apply the a MemoRefHead to the stash, such that we may use it for consistency enforcement of later queries.
@@ -98,28 +93,13 @@ impl Stash {
 
         loop {
             // Get the head and editcount for this specific subject id.
-            let (new_head, edit_counter) = match self.get_head_and_editcount(subject_id) {
-                Some((mut head,ec)) => {
+            let mut item : ItemEditGuard = self.get_head_for_edit(subject_id);
 
-                    // Will likely block here due to MemoRef traversal as needed for happens-before determination
-                    let did_apply = head.apply(apply_head, slab);
+            if ! item.apply_head(apply_head, slab) {
+                return item.get_head().clone()
+            }
 
-                    if !did_apply {
-                        return head.clone(); // Nothing applied, no need to go on – We're done here
-                    }
-                    (head,ec)
-                },
-                None => {
-                    // NOTE: The edit counter is initialized at 1 on item creation to differentiate non-presence (0) from presence (1+)
-                    ( apply_head.clone(),0 )
-                }
-            };
-
-            // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
-            // and the head vs stash descends check would always return true, which is not useful for pruning.
-            let links = new_head.noncontextualized_project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
-
-            if self.try_set_head( subject_id, new_head.clone(), &links, edit_counter ) {
+            if let Ok((_acted, head, links)) = item.try_save() {
                 // It worked!
 
                 for link in links.iter() {
@@ -136,71 +116,18 @@ impl Stash {
                     }
                 }
 
+                return head;
             }else{
                 // Somebody beat us to the punch. Go around and give it another shot
                 // consider putting a random thread sleep here?
                 continue;
             }
-
-            return new_head;
         }
 
 
     }
-    // TODO2: Change to get_head (..) -> Option<ItemGuard>
-    fn get_head_and_editcount(&self, subject_id: SubjectId) -> Option<(MemoRefHead, usize)> {
-        let inner = self.inner.lock().unwrap();
-        match inner.get_item_id_for_subject(subject_id) {
-            Some(item_id) => {
-                match inner.items.get(item_id) {
-                    Some(&Some(StashItem{ head: Some(ref h), ref edit_counter, .. })) => {
-                        //TODO2 Really need to figure out how to make ItemGuard work, but that would require Stash inner to be an Rc.
-                        Some((h.clone(), *edit_counter)) 
-                        // Some(ItemGuard::new(item_id, h.clone(), inner.clone())
-                    },
-                    _ => None
-                }
-            }
-            None => None
-        }
-    }
-    /// Try to set a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
-    fn try_set_head (&self, subject_id: SubjectId, new_head: MemoRefHead, edge_links: &Vec<EdgeLink>, edit_counter: usize) -> bool {
-        let mut inner = self.inner.lock().unwrap();
-
-        let item_id = inner.assert_item(subject_id);
-        {
-            // make sure the edit counter hasn't been incremented since the get_head_and_editcount
-            let item = inner.items[item_id].as_ref().unwrap();
-            if item.edit_counter != edit_counter {
-                return false;
-            }
-        }
-        // Ok! nobody got in our way – Lets do this...
-
-        // record all the projected relations for the new head
-        for edge_link in edge_links.iter() {
-            match edge_link {
-                &EdgeLink::Vacant{slot_id} => {
-                    inner.set_relation(item_id, slot_id, None);
-                },
-                &EdgeLink::Occupied{slot_id, head: ref rel_head} => {
-                    if let &MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
-                        let rel_item_id = inner.assert_item(rel_subject_id);
-                        inner.set_relation(item_id, slot_id, Some(rel_item_id));
-                    }
-                }
-            }
-        }
-
-        // set the new head itself
-        {
-            let item = inner.items[item_id].as_mut().unwrap();
-            item.head = Some(new_head);
-            item.edit_counter += 1;
-        }
-
-        true
+    fn get_head_for_edit(&self, subject_id: SubjectId) -> ItemEditGuard {
+        ItemEditGuard::new(subject_id, self.inner.clone())
     }
 
     /// Prune a subject head from the `Stash` if it's descended by compare_head
@@ -214,16 +141,18 @@ impl Stash {
         // compare_head is the non contextualized-projection of the edge head
         if let &MemoRefHead::Subject{ subject_id, .. } = compare_head {
             loop{
-                if let Some((ref head,edit_counter)) = self.get_head_and_editcount(subject_id){
-                    if compare_head.descends(head, slab) { // May block here
-                        if self.try_remove_head( subject_id, edit_counter ) {
-                            // No interlopers. We were successful
-                            return true;
-                        }else{
-                            // Ruh roh, some sneaky sneak made a change since we got the head
-                            // consider putting a random thread sleep here?
-                            continue;
-                        }
+                let mut item : ItemEditGuard = self.get_head_for_edit(subject_id);
+                    
+                if compare_head.descends(item.get_head(), slab) { // May block here
+                    item.set_head(MemoRefHead::Null, slab);
+
+                    if let Ok((_acted, _head, _links)) = item.try_save() {
+                        // No interlopers. We were successful
+                        return true;
+                    }else{
+                        // Ruh roh, some sneaky sneak made a change since we got the head
+                        // consider putting a random thread sleep here?
+                        continue;
                     }
                 }
 
@@ -232,28 +161,6 @@ impl Stash {
         }
 
         false
-    }
-    /// Try to remove a subject head, aborting if additional edits have occurred since the provided `StashItem` edit counter
-    fn try_remove_head (&self, subject_id: SubjectId, edit_counter: usize ) -> bool {
-        let mut inner = self.inner.lock().unwrap();
-
-        let mut remove : Option<ItemId> = None;
-        {
-            if let Some(item_id) = inner.get_item_id_for_subject(subject_id){
-                let item = inner.items[item_id].as_mut().unwrap();
-                if item.edit_counter != edit_counter {
-                    return false;
-                }
-
-                item.edit_counter += 1;
-                remove = Some(item_id);
-            }
-        }
-        if let Some(item_id) = remove {
-            inner.unset_head(item_id);
-        }
-
-        true
     }
 }
 
@@ -273,7 +180,7 @@ impl StashInner {
                 index[i].1
             }
             Err(i) =>{
-                let item = StashItem::new(subject_id, None);
+                let item = StashItem::new(subject_id, MemoRefHead::Null);
 
                 let item_id = if let Some(item_id) = self.vacancies.pop() {
                     self.items[item_id] = Some(item);
@@ -331,17 +238,10 @@ impl StashInner {
         }
         self.conditional_remove_item(item_id);
     }
-    fn unset_head(&mut self, item_id: ItemId){
-        {
-            let item = self.items[item_id].as_mut().expect("deccrement_item on None");
-            item.head = None;
-        }
-        self.conditional_remove_item(item_id);
-    }
     fn conditional_remove_item(&mut self, item_id: ItemId) {
         let remove = {
             let item = self.items[item_id].as_ref().expect("increment_item on None");
-            item.ref_count == 0 && item.head.is_none()
+            item.ref_count == 0 && item.head == MemoRefHead::Null
         };
 
         if remove {
@@ -357,44 +257,129 @@ impl StashInner {
 
 struct StashItem {
     subject_id:   SubjectId,
-    head:         Option<MemoRefHead>,
+    head:         MemoRefHead,
     relations:    Vec<Option<ItemId>>,
     edit_counter: usize,
     ref_count:    usize,
 }
 
 impl StashItem {
-    fn new(subject_id: SubjectId, maybe_head: Option<MemoRefHead>) -> Self {
+    fn new(subject_id: SubjectId, head: MemoRefHead) -> Self {
         StashItem {
             subject_id: subject_id,
-            head: maybe_head,
+            head: head,
             relations: Vec::new(),
             edit_counter: 1, // Important for existence to count as an edit, as it cannot be the same as non-existence (0)
             ref_count: 0
         }
     }
 }
-// Tentative design for ItemGuard
-// struct ItemGuard {
-//     item_id: ItemId,
-//     head: MemoRefHead,
-//     edit_count: usize,
-//     inner: Rc<StashInner>
-// }
-// impl ItemGuard{
-//     fn new (item_id: ItemId, inner: &mut StashInner, stash: Stash) -> Self {
-//         inner.increment_item(item_id);
-//         ItemGuard{
-//             item_id, stash
-//         }
-//     }
-// }
-// impl Drop for ItemGuard{
-//     fn drop(&mut self) {
-//         let inner = self.stash.inner.lock().unwrap();
-//         inner.decrement_item(self.item_id);
-//     }
-// }
+//Tentative design for ItemGuard
+struct ItemEditGuard {
+    item_id: ItemId,
+    head: MemoRefHead,
+    links: Vec<EdgeLink>,
+    did_edit: bool,
+    edit_counter: usize,
+    inner_arc: Arc<Mutex<StashInner>>
+}
+impl ItemEditGuard{
+    fn new (subject_id: SubjectId, inner_arc: Arc<Mutex<StashInner>>) -> Self {
+
+        let (item_id, head, edit_counter) = {
+            let mut inner = inner_arc.lock().unwrap();
+            let item_id = inner.assert_item(subject_id);
+
+            // Increment to refer to the ItemEditGuard's usage
+            inner.increment_item(item_id);
+
+            let item = inner.items[item_id].as_ref().unwrap();
+            (item_id, item.head.clone(), item.edit_counter)
+        };
+
+        ItemEditGuard{
+            item_id,
+            head: head.clone(),
+            links: Vec::new(),
+            did_edit: false,
+            edit_counter: edit_counter,
+            inner_arc,
+        }
+
+    }
+    fn get_head (&self) -> &MemoRefHead {
+        &self.head
+    }
+    fn set_head (&mut self, set_head: MemoRefHead, slab: &Slab ) {
+        self.head = set_head;
+        // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
+        // and the head vs stash descends check would always return true, which is not useful for pruning.
+        self.links = self.head.noncontextualized_project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
+        self.did_edit = true;
+    }
+    fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> bool {
+        // NO LOCKS IN HERE
+        if !self.head.apply( apply_head, slab ) {
+            return false;
+        }
+        // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
+        // and the head vs stash descends check would always return true, which is not useful for pruning.
+        self.links = self.head.noncontextualized_project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
+        self.did_edit = true;
+        return true;
+    }
+    fn try_save (self) -> Result<(bool,MemoRefHead,Vec<EdgeLink>),()> {
+        if !self.did_edit {
+            // TODO3 - sgopb
+            return Ok((false,self.head.clone(), self.links.clone()));
+        }
+
+        let mut inner = self.inner_arc.lock().unwrap();
+
+        {
+            // make sure the edit counter hasn't been incremented since the get_head_and_editcount
+            let item = inner.items[self.item_id].as_ref().unwrap();
+            if item.edit_counter != self.edit_counter {
+                return Err(());
+            }
+        }
+        // Ok! nobody got in our way – Lets do this...
+
+        // record all the projected relations for the new head
+        for edge_link in self.links.iter() {
+            match edge_link {
+                &EdgeLink::Vacant{slot_id} => {
+                    inner.set_relation(self.item_id, slot_id, None);
+                },
+                &EdgeLink::Occupied{slot_id, head: ref rel_head} => {
+                    if let &MemoRefHead::Subject{ subject_id: rel_subject_id, .. } = rel_head {
+                        let rel_item_id = inner.assert_item(rel_subject_id);
+                        inner.set_relation(self.item_id, slot_id, Some(rel_item_id));
+                    }
+                }
+            }
+        }
+
+        // set the new head itself
+        
+        let item = inner.items[self.item_id].as_mut().unwrap();
+        item.head = self.head.clone();
+        item.edit_counter += 1;
+
+        // IMPORTANT - because we consume self, drop will run after we return, ths calling decrement_item
+        //             which is crucial for the evaluation of item removal in the case that we
+        //             just set head to MemoRefHead::Null (essentially the same as unsetting)
+        return Ok((true, self.head.clone(), self.links.clone()));
+    }
+}
+impl Drop for ItemEditGuard{
+    fn drop(&mut self) {
+        let mut inner = self.inner_arc.lock().unwrap();
+        // decrement to reflect the destruction of our reference. This may cause
+        // the item to be automatically expunged if there are no heads nor relations
+        inner.decrement_item(self.item_id);
+    }
+}
 
 pub (crate) struct StashIterator {
     inner: Arc<Mutex<StashInner>>,
@@ -425,7 +410,7 @@ impl Iterator for StashIterator{
             if let &Some(ref item) = item {
                 if item.head.is_some() && !self.visited.contains(&item.subject_id) {
                     self.visited.push(item.subject_id);
-                    return Some(item.head.clone().unwrap())
+                    return Some(item.head.clone())
                 }
             }
         }

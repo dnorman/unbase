@@ -5,7 +5,7 @@ impl Slab {
         self.new_memo(subject_id, parents, body)
     }
     pub fn new_memo_basic_noparent (&self, subject_id: Option<SubjectId>, body: MemoBody) -> MemoRef {
-        self.new_memo(subject_id, MemoRefHead::None, body)
+        self.new_memo(subject_id, MemoRefHead::Null, body)
     }
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),String>{
         //println!("# Slab({}).remotize_memo_ids({:?})", self.id, memo_ids);

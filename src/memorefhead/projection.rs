@@ -46,7 +46,7 @@ impl MemoRefHead {
                         // Only consider the non-visited slots
                         if let None = edge_links[ *slot_id as usize ] {
                             edge_links[ *slot_id as usize ] = Some(match *rel_head {
-                                MemoRefHead::None  => EdgeLink::Vacant{ slot_id: *slot_id },
+                                MemoRefHead::Null  => EdgeLink::Vacant{ slot_id: *slot_id },
                                 _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
                             });
                         }
@@ -62,7 +62,7 @@ impl MemoRefHead {
                         if let None = edge_links[ *slot_id as usize ] {
                             edge_links[ *slot_id as usize ] = Some(
                                 match *rel_head {
-                                    MemoRefHead::None  => EdgeLink::Vacant{ slot_id: *slot_id },
+                                    MemoRefHead::Null  => EdgeLink::Vacant{ slot_id: *slot_id },
                                     _                  => EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() }
                                 }
                             )

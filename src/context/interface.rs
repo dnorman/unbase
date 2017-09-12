@@ -38,19 +38,11 @@ impl Context {
 
         memoref_count
     }
-    pub fn get_resident_subject_head(&self, subject_id: SubjectId) -> Option<MemoRefHead> {
-        if let Some(ref head) = self.stash.get_head(subject_id) {
-            Some((*head).clone())
-        } else {
-            None
-        }
+    pub fn get_resident_subject_head(&self, subject_id: SubjectId) -> MemoRefHead {
+        self.stash.get_head(subject_id).clone()
     }
     pub fn get_resident_subject_head_memo_ids(&self, subject_id: SubjectId) -> Vec<MemoId> {
-        if let Some(head) = self.get_resident_subject_head(subject_id) {
-            head.memo_ids()
-        } else {
-            vec![]
-        }
+        self.get_resident_subject_head(subject_id).memo_ids()
     }
     pub fn cmp(&self, other: &Self) -> bool {
         // stable way:
