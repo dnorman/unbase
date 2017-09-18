@@ -1,6 +1,7 @@
 //#![allow(dead_code)]
 
 use super::*;
+use std::mem;
 
 /// Stash of Subject MemoRefHeads which must be considered for state projection
 #[derive(Default)]
@@ -64,16 +65,6 @@ impl Stash {
         // IMPORTANT! no locks may be held for longer than a single statement in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
-        // TODO2: Add an in-progress count to guard against the remove-and-readd scenario.
-        //        Could possibly implement this as a phantom refcount increment of the head in question.
-        //
-        //   Example: We get head and edit count, then do stuff for a while.
-        //            Somebody comes along and deletes the subject, and somebody re-adds it.
-        //            We finish doing stuff, and compare the edit count, which matches, even though it shouldn't.
-        //
-        // ORRRR: Just followthrough with the lockfree descendant-invariant design & do away with the
-        //        silly edit count comparison (Better, but harder)
-
         match apply_head.subject_type() {
             Some(SubjectType::IndexNode) => {},
             _ => {
@@ -99,7 +90,7 @@ impl Stash {
                 return item.get_head().clone()
             }
 
-            if let Ok((_acted, head, links)) = item.try_save() {
+            if let Ok(Some((head, links))) = item.try_save() {
                 // It worked!
 
                 for link in links.iter() {
@@ -146,7 +137,7 @@ impl Stash {
                 if compare_head.descends(item.get_head(), slab) { // May block here
                     item.set_head(MemoRefHead::Null, slab);
 
-                    if let Ok((_acted, _head, _links)) = item.try_save() {
+                    if let Ok(Some((_head, _links))) = item.try_save() {
                         // No interlopers. We were successful
                         return true;
                     }else{
@@ -278,7 +269,7 @@ impl StashItem {
 struct ItemEditGuard {
     item_id: ItemId,
     head: MemoRefHead,
-    links: Vec<EdgeLink>,
+    links: Option<Vec<EdgeLink>>,
     did_edit: bool,
     edit_counter: usize,
     inner_arc: Arc<Mutex<StashInner>>
@@ -300,7 +291,7 @@ impl ItemEditGuard{
         ItemEditGuard{
             item_id,
             head: head.clone(),
-            links: Vec::new(),
+            links: None,
             did_edit: false,
             edit_counter: edit_counter,
             inner_arc,
@@ -314,7 +305,7 @@ impl ItemEditGuard{
         self.head = set_head;
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
-        self.links = self.head.noncontextualized_project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
+        self.links = Some(self.head.noncontextualized_project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
         self.did_edit = true;
     }
     fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> bool {
@@ -324,14 +315,13 @@ impl ItemEditGuard{
         }
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
-        self.links = self.head.noncontextualized_project_all_edge_links_including_empties(slab); // May block here due to projection memoref traversal
+        self.links = Some(self.head.noncontextualized_project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
         self.did_edit = true;
         return true;
     }
-    fn try_save (self) -> Result<(bool,MemoRefHead,Vec<EdgeLink>),()> {
+    fn try_save (mut self) -> Result<Option<(MemoRefHead,Vec<EdgeLink>)>,()> {
         if !self.did_edit {
-            // TODO3 - sgopb
-            return Ok((false,self.head.clone(), self.links.clone()));
+            return Ok(None);
         }
 
         let mut inner = self.inner_arc.lock().unwrap();
@@ -346,7 +336,7 @@ impl ItemEditGuard{
         // Ok! nobody got in our way – Lets do this...
 
         // record all the projected relations for the new head
-        for edge_link in self.links.iter() {
+        for edge_link in self.links.as_ref().unwrap().iter() {
             match edge_link {
                 &EdgeLink::Vacant{slot_id} => {
                     inner.set_relation(self.item_id, slot_id, None);
@@ -369,7 +359,10 @@ impl ItemEditGuard{
         // IMPORTANT - because we consume self, drop will run after we return, ths calling decrement_item
         //             which is crucial for the evaluation of item removal in the case that we
         //             just set head to MemoRefHead::Null (essentially the same as unsetting)
-        return Ok((true, self.head.clone(), self.links.clone()));
+        return Ok(Some((
+            mem::replace(&mut self.head,MemoRefHead::Null),
+            mem::replace(&mut self.links,None).unwrap()
+        )));
     }
 }
 impl Drop for ItemEditGuard{
