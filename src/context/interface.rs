@@ -54,7 +54,7 @@ impl Context {
 
     pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<SubjectId>, slab: &Slab) -> MemoRefHead {
         let relset = if let Some(subject_id) = maybe_relation {
-            RelationSet::single(0, subject_id )
+            RelationSet::single(0, subject_id)
         }else{
             RelationSet::empty()
         };
@@ -71,7 +71,7 @@ impl Context {
     pub fn compress(&self){
         unimplemented!()
         //self.manager.compress(&self.slab);
-        // TODO2: Implement this, or remove it
+        // TODO3: Implement this, or remove it
     }
 
     pub fn is_fully_materialized(&self) -> bool {

@@ -28,7 +28,7 @@ impl Slab {
             id: slab_id,
             memorefs_by_id:        RwLock::new(HashMap::new()),
             memo_wait_channels:    Mutex::new(HashMap::new()),
-            //subject_subscriptions: RwLock::new(HashMap::new()),
+            subject_subscriptions: Mutex::new(HashMap::new()),
 
             counters: RwLock::new(SlabCounters {
                 last_memo_id: 5000,
@@ -78,7 +78,7 @@ impl Slab {
     }
     pub fn subscribe_subject (&self, subject: &Subject) {
         unimplemented!()
-        // TODO2
+        // TODO1 - create a closure, need to sort out what thread is doing the applying. One per slab?
     }
     pub fn unsubscribe_subject (&self,  subject_id: u64, context: &Context ){
         unimplemented!()

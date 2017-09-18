@@ -8,30 +8,16 @@ impl Slab {
         //println!("# \t\\ Slab({}).dispatch_memoref({})", self.id, &memoref.id );
 
         if let Some(subject_id) = memoref.subject_id {
-
-            unimplemented!();
+            // TODO1 - switch network modules over to use tokio, ingress to use tokio mpsc stream
             // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
+            // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
-            // let maybe_sub : Option<Vec<ContextHandleWeak>> = {
-            //     // we want to make sure the lock is released before continuing
-            //     if let Some(ref s) = self.subject_subscriptions.read().unwrap().get( &subject_id ) {
-            //         Some((*s).clone())
-            //     }else{
-            //         None
-            //     }
-            // };
-
-            // if let Some(subscribers) = maybe_sub {;
-
-            //     for weakcontext in subscribers {
-
-            //         if let Some(context) = weakcontext.upgrade() {
-
-            //             context.apply_head( subject_id, &memoref.to_head(), true );
-            //         }
-            //     }
-            // }
-
+            if let Some(ref senders) = self.subject_subscriptions.lock().unwrap().get( &subject_id ) {
+                for sender in senders.iter(){
+                    //TODO2 - what to do here when sending fails?
+                    sender.send(Some(memoref.clone())).unwrap();
+                }
+            }
         }
     }
 

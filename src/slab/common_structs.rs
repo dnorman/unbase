@@ -107,16 +107,17 @@ pub type RelationSlotId = u8;
 pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
 
 impl RelationSet {
-    pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &Slab) -> Self {
+    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &Slab) -> Self {
 
-        let new = self.0
-            .iter()
-            .map(|(slot_id, &subject_id)| {
-                (*slot_id, subject_id)
-            })
-            .collect();
+        self.clone()
+        // let new = self.0
+        //     .iter()
+        //     .map(|(slot_id, &subject_id)| {
+        //         (*slot_id, subject_id)
+        //     })
+        //     .collect();
 
-        RelationSet(new)
+        // RelationSet(new)
     }
     pub fn empty() -> Self {
         RelationSet(HashMap::new())
@@ -169,7 +170,7 @@ impl EdgeSet {
     pub fn empty() -> Self {
         EdgeSet(HashMap::new())
     }
-    pub fn single(slot_id: RelationSlotId, subject_id: SubjectId, head: MemoRefHead) -> Self {
+    pub fn single(slot_id: RelationSlotId, head: MemoRefHead) -> Self {
         let mut hashmap = HashMap::new();
         hashmap.insert(slot_id as RelationSlotId, head);
         EdgeSet(hashmap)

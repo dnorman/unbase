@@ -82,9 +82,9 @@ impl MemoRefHead {
         }).collect()
     }
     /// Project all relation links which were edited between two MemoRefHeads.
-    pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
-        unimplemented!()
-    }
+    // pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
+    //     unimplemented!()
+    // }
     pub fn project_value ( &self, context: &Context, key: &str ) -> Option<String> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses

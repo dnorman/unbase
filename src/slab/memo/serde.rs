@@ -100,6 +100,7 @@ impl <'a> StatefulSerialize for &'a RelationSet {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
+        let _ = helper;
         serializer.serialize_newtype_struct("RelationSet",&self.0)
     }
 }
@@ -289,6 +290,9 @@ impl<'a> Visitor for RelationSetSeed<'a> {
         where Visitor: MapVisitor,
     {
         let mut values : HashMap<RelationSlotId,Option<SubjectId>> = HashMap::new();
+
+        let _ = self.dest_slab;
+        let _ = self.origin_slabref;
 
         while let Some(slot) = visitor.visit_key()? {
              let maybe_subject_id = visitor.visit_value()?;
