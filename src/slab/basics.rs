@@ -76,12 +76,12 @@ impl Slab {
     pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub fn subscribe_subject (&self, subject: &Subject) {
-        unimplemented!()
+    pub fn subscribe_subject (&self, _subject: &Subject) {
+        //unimplemented!()
         // TODO1 - create a closure, need to sort out what thread is doing the applying. One per slab?
     }
-    pub fn unsubscribe_subject (&self,  subject_id: u64, context: &Context ){
-        unimplemented!()
+    pub fn unsubscribe_subject (&self,  _subject_id: u64, _context: &Context ){
+        //unimplemented!()
         // if let Some(subs) = self.subject_subscriptions.write().unwrap().get_mut(&subject_id) {
         //     let weak_context = context.ref();
         //     subs.retain(|c| {
