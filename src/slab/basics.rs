@@ -1,5 +1,5 @@
 use super::*;
-use subject::Subject;
+use subject::{Subject,SubjectType};
 
 impl Deref for Slab {
     type Target = SlabInner;
@@ -76,9 +76,9 @@ impl Slab {
     pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub fn subscribe_subject (&self, _subject: &Subject) {
+    pub (crate) fn subscribe_subject (&self, _subject: &Subject) {
         //unimplemented!()
-        // TODO1 - create a closure, need to sort out what thread is doing the applying. One per slab?
+        // TODO3 - create a closure, need to sort out what thread is doing the applying. One per slab?
     }
     pub fn unsubscribe_subject (&self,  _subject_id: u64, _context: &Context ){
         //unimplemented!()
@@ -100,10 +100,11 @@ impl Slab {
 
         rx
     }
-    pub fn generate_subject_id(&self) -> SubjectId {
+    pub fn generate_subject_id(&self, stype: SubjectType) -> SubjectId {
         let mut counters = self.counters.write().unwrap();
         counters.last_subject_id += 1;
-        (self.id as u64).rotate_left(32) | counters.last_subject_id as u64
+        let id = (self.id as u64).rotate_left(32) | counters.last_subject_id as u64;
+        SubjectId{ id, stype }
     }
 }
 

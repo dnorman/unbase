@@ -1,5 +1,5 @@
-
 use super::*;
+
 
 impl Slab {
     pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
@@ -79,7 +79,7 @@ impl Slab {
 
             let peering_memoref = self.new_memo(
                 None,
-                MemoRefHead::from_memoref(memoref.clone()),
+                memoref.to_head(),
                 MemoBody::Peering(
                     memoref.id,
                     memoref.subject_id,
@@ -127,7 +127,7 @@ impl Slab {
 
         let peering_memoref = self.new_memo_basic(
             None,
-            MemoRefHead::from_memoref(memoref.clone()),
+            memoref.to_head(),
             MemoBody::Peering(
                 memoref.id,
                 memoref.subject_id,

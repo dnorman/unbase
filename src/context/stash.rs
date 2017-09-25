@@ -65,10 +65,10 @@ impl Stash {
         // IMPORTANT! no locks may be held for longer than a single statement in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
-        match apply_head.subject_type() {
-            Some(SubjectType::IndexNode) => {},
+        match apply_head.subject_id() {
+            Some(SubjectId{ stype: SubjectType::IndexNode, .. }) => {},
             _ => {
-                panic!("Only SubjectType::IndexNode may be applied to a context")
+                panic!("Only SubjectType::IndexNode may be applied to a context {:?}", apply_head)
             }
         }
 
@@ -166,7 +166,7 @@ impl StashInner {
     fn assert_item(&mut self, subject_id: SubjectId) -> ItemId {
 
         let index = &mut self.index;
-        match index.binary_search_by(|x| x.0.cmp(&subject_id) ){
+        match index.binary_search_by(|x| x.0.id.cmp(&subject_id.id) ){
             Ok(i) => {
                 index[i].1
             }

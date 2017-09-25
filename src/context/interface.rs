@@ -11,6 +11,7 @@ impl Context {
             Some(ref index) => {
                 Ok(
                     SubjectHandle{
+                        id: subject_id,
                         subject: index.get(&self, subject_id)?,
                         context: self.clone()
                     }

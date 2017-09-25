@@ -8,7 +8,7 @@ impl Slab {
         //println!("# \t\\ Slab({}).dispatch_memoref({})", self.id, &memoref.id );
 
         if let Some(subject_id) = memoref.subject_id {
-            // TODO1 - switch network modules over to use tokio, ingress to use tokio mpsc stream
+            // TODO2 - switch network modules over to use tokio, ingress to use tokio mpsc stream
             // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
             // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
@@ -95,7 +95,7 @@ impl Slab {
                         }else{
                             let peering_memoref = self.new_memo(
                                 None,
-                                MemoRefHead::from_memoref(memoref.clone()),
+                                memoref.to_head(),
                                 MemoBody::Peering(
                                     *desired_memo_id,
                                     None,

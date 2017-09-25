@@ -58,5 +58,5 @@ pub mod util;
 pub mod subjecthandle;
 
 pub use network::Network;
-pub use subject::Subject;
+pub use subjecthandle::SubjectHandle;
 pub use slab::Slab;

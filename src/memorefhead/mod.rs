@@ -22,7 +22,6 @@ pub enum MemoRefHead {
     Null,
     Subject{
         subject_id: SubjectId,
-        stype:      SubjectType,
         head:       Vec<MemoRef>
     },
     Anonymous{
@@ -58,34 +57,8 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn from_memoref (memoref: MemoRef) -> Self {
-        match memoref.subject_id {
-            None => MemoRefHead::Anonymous{
-                head: vec![memoref]
-            },
-            Some(subject_id) => 
-                MemoRefHead::Subject {
-                    subject_id: subject_id,
-                    stype:      SubjectType::Record,
-                    head: vec![memoref]
-                }
-        }
-    }
     pub fn is_root_index (&self) -> bool{
         unimplemented!()
-    }
-    fn stype_for_memoref(memoref: &MemoRef, slab: &Slab) -> SubjectType {
-        for memo in CausalMemoIter::from_memoref(memoref,slab) {
-            match memo.body {
-                MemoBody::FullyMaterialized { ref t, .. } => {
-                    return t.clone()
-                },
-                _ => {}
-            }
-        }
-
-        // TODO: return a Result
-        panic!("no FullyMaterialized memobody found")
     }
     pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> bool {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
@@ -97,8 +70,7 @@ impl MemoRefHead {
                 if let Some(subject_id) = new.subject_id {
                     *self = MemoRefHead::Subject{
                         head: vec![new.clone()],
-                        subject_id,
-                        stype: Self::stype_for_memoref(new, slab) 
+                        subject_id
                     };
                 }else{
                     *self = MemoRefHead::Anonymous{ head: vec![new.clone()] };
@@ -246,12 +218,6 @@ impl MemoRefHead {
             _                 => true
         }
     }
-    pub fn subject_type(&self) -> Option<SubjectType> {
-        match *self {
-            MemoRefHead::Null | MemoRefHead::Anonymous{..} => None,
-            MemoRefHead::Subject{ ref stype, .. } => Some(stype.clone())
-        }
-    }
     pub fn to_vec (&self) -> Vec<MemoRef> {
         match *self {
             MemoRefHead::Null => vec![],
@@ -318,9 +284,8 @@ impl MemoRefHead {
             MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
                 head: head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
             },
-            MemoRefHead::Subject{ subject_id, ref stype, ref head } => MemoRefHead::Subject {
+            MemoRefHead::Subject{ subject_id, ref head } => MemoRefHead::Subject {
                 subject_id: subject_id,
-                stype:      stype.clone(),
                 head:       head.iter().map(|mr| mr.clone_for_slab(from_slabref, to_slab, include_memos )).collect()
             }
         }
@@ -339,10 +304,9 @@ impl fmt::Debug for MemoRefHead{
                     //.field("memo_ids", &self.memo_ids() )
                     .finish()
             }
-            MemoRefHead::Subject{ subject_id, ref stype, ref head } => {
+            MemoRefHead::Subject{ subject_id, ref head } => {
                 fmt.debug_struct("MemoRefHead::Subject")
                     .field("subject_id", &subject_id )
-                    .field("stype",      stype )
                     .field("memo_refs",  head )
                     //.field("memo_ids", &self.memo_ids() )
                     .finish()

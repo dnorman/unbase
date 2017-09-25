@@ -1,4 +1,4 @@
-use subject::{Subject, SubjectType};
+use subject::{Subject, SubjectId, SubjectType};
 use context::Context;
 use slab::*;
 use error::*;
@@ -7,8 +7,9 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct SubjectHandle {
-    pub subject: Subject,
-    pub context: Context
+    pub id: SubjectId,
+    pub (crate) subject: Subject,
+    pub (crate) context: Context
 }
 
 impl SubjectHandle{
@@ -17,6 +18,7 @@ impl SubjectHandle{
         let subject = Subject::new(&context, SubjectType::Record, vals );
 
         let handle = SubjectHandle{
+            id: subject.id,
             subject: subject,
             context: context.clone()
         };
@@ -37,18 +39,16 @@ impl SubjectHandle{
     }
     pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, RetrieveError> {
 
-         match self.subject.get_relation(&self.context, key)?{
-             Some(rel_sub_subject) => {
-                 Ok(Some(SubjectHandle{
-                    context: self.context.clone(),
-                    subject: rel_sub_subject
-                }))
-             },
-             None => Ok(None)
-         }
-
-        
-
+        match self.subject.get_relation(&self.context, key)?{
+        Some(rel_sub_subject) => {
+            Ok(Some(SubjectHandle{
+                id: rel_sub_subject.id,
+                context: self.context.clone(),
+                subject: rel_sub_subject
+            }))
+            },
+            None => Ok(None)
+        }
     }
     pub fn set_value (&self, key: &str, value: &str) -> bool {
         self.subject.set_value(&self.context, key, value)

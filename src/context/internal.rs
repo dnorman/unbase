@@ -5,7 +5,7 @@ use super::*;
 impl Context {
     pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &Subject) {
         if let Some(ref index) = *self.root_index.write().unwrap() {
-            index.insert(self,subject_id, subject);
+            index.insert(self, subject_id, subject);
         } else {
             panic!("no root index")
         }
@@ -16,7 +16,7 @@ impl Context {
         // println!("Context.apply_subject_head({}, {:?}) ", subject_id, head.memo_ids() );
         self.stash.apply_head(&self.slab, head)
     }
-    pub fn get_subject_core(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
+    pub (crate) fn get_subject_core(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
         match *self.root_index.read().unwrap() {
             Some(ref index) => index.get(&self, subject_id),
             None            => Err(RetrieveError::IndexNotInitialized),

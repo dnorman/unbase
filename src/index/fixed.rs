@@ -8,8 +8,8 @@ use std::collections::HashMap;
 
 
 pub struct IndexFixed {
-    pub root: Subject,
-    pub depth: u8
+    root: Subject,
+    depth: u8
 }
 
 impl IndexFixed {
@@ -25,7 +25,7 @@ impl IndexFixed {
             depth: depth
         }
     }
-    pub fn insert <'a> (&self, context: &Context, key: u64, subject: &Subject) {
+    pub (crate) fn insert <'a> (&self, context: &Context, key: u64, subject: &Subject) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -51,27 +51,23 @@ impl IndexFixed {
 
         if exponent == 0 {
             // BUG: move this clause up
-            //println!("]]] end of the line");
-            node.set_relation(context, y as RelationSlotId,&subject);
+            println!("]]] end of the line");
+            node.set_edge(context, y as RelationSlotId,&subject);
         }else{
             match node.get_edge(context,y) {
                 Ok(n) => {
                     self.recurse_set(context, tier+1, key, &n, subject);
-
-                    //TEMPORARY - to be replaced by automatic context compaction
-                    node.set_relation(context, y, &n);
                 }
                 Err( RetrieveError::NotFound ) => {
                     let mut values = HashMap::new();
                     values.insert("tier".to_string(),tier.to_string());
 
                     let new_node = Subject::new( context, SubjectType::IndexNode, values );
-                    node.set_relation(context, y,&new_node);
+
+                    println!("MARK2 {:?}", new_node);
+                    node.set_edge(context, y, &new_node);
 
                     self.recurse_set(context, tier+1, key, &new_node, subject);
-
-                    //TEMPORARY - to be replaced by automatic context compaction
-                    node.set_relation(context, y, &new_node);
                 }
                 _ => {
                     panic!("unhandled error")
@@ -80,8 +76,9 @@ impl IndexFixed {
         }
 
     }
-    pub fn get ( &self, context: &Context, key: u64 ) -> Result<Subject, RetrieveError> {
+    pub (crate) fn get ( &self, context: &Context, subject_id: SubjectId ) -> Result<Subject, RetrieveError> {
 
+        let key = subject_id.id;
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects

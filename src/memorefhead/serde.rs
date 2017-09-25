@@ -18,12 +18,10 @@ impl StatefulSerialize for MemoRefHead {
                 sv.serialize_field("h", &SerializeWrapper(head, helper))?;
                 sv.end()
             }
-            MemoRefHead::Subject{subject_id, ref head, ref stype} => {
+            MemoRefHead::Subject{subject_id, ref head} => {
                 let mut sv = serializer.serialize_struct_variant("MemoRefHead", 2, "Subject", 3)?;
                 sv.serialize_field("s", &subject_id)?;
                 sv.serialize_field("h", &SerializeWrapper(&head,helper))?;
-                sv.serialize_field("t", &stype)?;
-
                 sv.end()
             }
         }
@@ -146,7 +144,6 @@ impl<'a> Visitor for MRHSubjectSeed<'a> {
             Ok(MemoRefHead::Subject{
                 head: head.unwrap(),
                 subject_id: subject_id.unwrap(),
-                stype: stype.unwrap()
             })
         }else{
             Err(DeError::invalid_length(0, &self))

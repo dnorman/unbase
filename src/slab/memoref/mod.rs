@@ -22,7 +22,7 @@ pub struct MemoRefInner {
     pub owning_slab_id: SlabId,
     pub subject_id: Option<SubjectId>,
     pub peerlist: RwLock<MemoPeerList>,
-    pub ptr:      RwLock<MemoRefPtr>
+    pub ptr:      RwLock<MemoRefPtr>,
 }
 
 pub enum MemoRefPtr {
@@ -41,7 +41,16 @@ impl MemoRefPtr {
 
 impl MemoRef {
     pub fn to_head (&self) -> MemoRefHead {
-        MemoRefHead::from_memoref(self.clone())
+        match self.subject_id {
+            None => MemoRefHead::Anonymous{
+                head: vec![self.clone()]
+            },
+            Some(subject_id) => 
+                MemoRefHead::Subject {
+                    subject_id: subject_id,
+                    head: vec![self.clone()]
+                }
+        }
     }
     pub fn apply_peers ( &self, apply_peerlist: &MemoPeerList ) -> bool {
 

@@ -9,24 +9,27 @@ use context::Context;
 use error::*;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
-pub type SubjectId     = u64;
-
-pub struct Subject {
-    pub id:     SubjectId,
-    pub (crate) head: RwLock<MemoRefHead>
-}
-
-#[derive(Clone,PartialEq,Debug,Serialize,Deserialize)]
+#[derive(Clone,Eq,PartialEq,Hash,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
     IndexNode,
     Record
+}
+#[derive(Clone,Eq,PartialEq,Hash,Debug,Serialize,Deserialize)]
+pub struct SubjectId {
+    pub id:    u64,
+    pub stype: SubjectType,
+}
+
+pub(crate) struct Subject {
+    pub id:     SubjectId,
+    pub (crate) head: RwLock<MemoRefHead>
 }
 
 impl Subject {
     pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Self {
 
         let slab = &context.slab;
-        let id = slab.generate_subject_id();
+        let id = slab.generate_subject_id(stype);
         //println!("# Subject({}).new()",subject_id);
 
         let memoref = slab.new_memo_basic_noparent(
@@ -39,7 +42,6 @@ impl Subject {
 
         slab.subscribe_subject( &subject );
 
-        // HACK HACK HACK - this should not be a flag on the subject, but something in the payload I think
         if let SubjectType::Record = stype {
             // NOTE: important that we do this after the subject.shared.lock is released
             context.insert_into_root_index( id, &subject );
@@ -124,6 +126,24 @@ impl Subject {
             Some(self.id),
             head.clone(),
             MemoBody::Relation(relationset)
+        );
+
+        head.apply_memoref(&memoref, &slab);
+        context.apply_head( &head );
+
+    }
+    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) {
+        //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
+        let mut edgeset = EdgeSet::empty();
+        edgeset.insert( key, edge.get_head() );
+
+        let slab = &context.slab;
+        let mut head = self.head.write().unwrap();
+
+        let memoref = slab.new_memo(
+            Some(self.id),
+            head.clone(),
+            MemoBody::Edge(edgeset)
         );
 
         head.apply_memoref(&memoref, &slab);
