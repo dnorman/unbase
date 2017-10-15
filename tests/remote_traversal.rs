@@ -1,5 +1,5 @@
 extern crate unbase;
-use unbase::subject::Subject;
+use unbase::SubjectHandle;
 use std::{thread, time};
 
 #[test]
@@ -15,7 +15,7 @@ fn remote_traversal_simulated() {
     let context_a = slab_a.create_context();
     let _context_b = slab_b.create_context();
 
-    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo").unwrap();
+    let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo").unwrap();
 
     rec_a1.set_value("animal_sound","Woof");
     rec_a1.set_value("animal_sound","Meow");
@@ -62,7 +62,7 @@ fn remote_traversal_nondeterministic() {
     let context_a = slab_a.create_context();
     let _context_b = slab_b.create_context();
 
-    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo").unwrap();
+    let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo").unwrap();
 
     rec_a1.set_value("animal_sound","Woof");
     rec_a1.set_value("animal_sound","Meow");
@@ -110,7 +110,7 @@ fn remote_traversal_nondeterministic_udp() {
         thread::sleep( time::Duration::from_millis(150) );
 
         // Do some stuff
-        let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo").unwrap();
+        let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo").unwrap();
         rec_a1.set_value("animal_sound","Woof");
         rec_a1.set_value("animal_sound","Meow");
 

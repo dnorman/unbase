@@ -1,5 +1,5 @@
 extern crate unbase;
-use unbase::subject::Subject;
+use unbase::SubjectHandle;
 use unbase::error::*;
 use std::{thread, time};
 
@@ -27,7 +27,7 @@ fn basic_eventual() {
     let context_b = slab_b.create_context();
     let context_c = slab_c.create_context();
 
-    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Moo");
+    let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo");
 
     assert!(rec_a1.is_ok(), "New subject should be created");
     let rec_a1 = rec_a1.unwrap();
@@ -46,8 +46,8 @@ fn basic_eventual() {
     println!("New subject ID {}", rec_a1.id );
 
     let record_id = rec_a1.id;
-    let root_index_subject_id = if let Some(ref s) = *context_a.root_index.read().unwrap() {
-        s.root.id
+    let root_index_subject = if let Some(ref s) = *context_a.root_index.read().unwrap() {
+        s.get_root_subject_handle(&context_a).unwrap()
     }else{
         panic!("sanity error - uninitialized context");
     };
@@ -95,11 +95,11 @@ fn basic_eventual() {
 
     thread::sleep( time::Duration::from_millis(500) );
 
-    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject_id)  );
+    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
     // Temporary way to magically, instantly send context
     println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
-    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject_id)  );
+    println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
 
     let context_b_copy = context_b.clone();
@@ -178,7 +178,7 @@ fn basic_eventual() {
     thread.join().unwrap();
 /*
 
-    let idx_node = Subject::new_kv(&context_b, "dummy","value").unwrap();
+    let idx_node = SubjectHandle::new_kv(&context_b, "dummy","value").unwrap();
     idx_node.set_relation( 0, rec_b1 );
 
     println!("All rec_b1 MemoIds: {:?}", rec_b1_memoids);
@@ -188,8 +188,8 @@ fn basic_eventual() {
         println!("Retrieved record: {} - {:?}", record.id, record.get_value("animal_sound") );
     }
 
-    let rec_b2 = Subject::new_kv(&context_a, "animal_sound","Meow");
-    let rec_b3 = Subject::new_kv(&context_a, "animal_sound","Ribbit");
+    let rec_b2 = SubjectHandle::new_kv(&context_a, "animal_sound","Meow");
+    let rec_b3 = SubjectHandle::new_kv(&context_a, "animal_sound","Ribbit");
 
     rec_b2.set_relation( 1, rec_b1 );
     */

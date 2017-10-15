@@ -1,5 +1,6 @@
 use context::*;
-use subject::*;
+use subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
+use subjecthandle::SubjectHandle;
 use slab::*;
 use memorefhead::MemoRefHead;
 
@@ -24,6 +25,9 @@ impl IndexFixed {
             root: Subject::reconstitute( context, memorefhead ).unwrap(),
             depth: depth
         }
+    }
+    pub fn insert_subject_handle (&self, key: u64, subjecthandle: &SubjectHandle){
+        self.insert(&subjecthandle.context, key, &subjecthandle.subject);
     }
     pub (crate) fn insert <'a> (&self, context: &Context, key: u64, subject: &Subject) {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
@@ -76,9 +80,23 @@ impl IndexFixed {
         }
 
     }
-    pub (crate) fn get ( &self, context: &Context, subject_id: SubjectId ) -> Result<Subject, RetrieveError> {
+    pub fn get_root_subject_handle(&self, context: &Context) -> Result<SubjectHandle,RetrieveError> {
+        Ok(SubjectHandle{
+            id: self.root.id,
+            subject: self.root.clone(),
+            context: context.clone()
+        })
+    } 
+    pub fn get_subject_handle(&self, context: &Context, key: u64 ) -> Result<SubjectHandle,RetrieveError> {
+        let subject = self.get(context,key)?;
+        Ok(SubjectHandle{
+            id: subject.id,
+            subject: subject,
+            context: context.clone()
+        })
+    } 
+    pub (crate) fn get ( &self, context: &Context, key: u64 ) -> Result<Subject, RetrieveError> {
 
-        let key = subject_id.id;
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects

@@ -19,6 +19,26 @@ pub struct SubjectId {
     pub id:    u64,
     pub stype: SubjectType,
 }
+impl SubjectId {
+    pub fn test(test_id: u64) -> Self{
+        SubjectId{
+            id:    test_id,
+            stype: SubjectType::Record
+        }
+    }
+    pub fn index_test(test_id: u64) -> Self{
+        SubjectId{
+            id:    test_id,
+            stype: SubjectType::IndexNode
+        }
+    }
+}
+
+impl fmt::Display for SubjectId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}-{})", self.stype, self.id)
+    }
+}
 
 pub(crate) struct Subject {
     pub id:     SubjectId,

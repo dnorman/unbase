@@ -1,5 +1,5 @@
 extern crate unbase;
-use unbase::subject::Subject;
+use unbase::SubjectHandle;
 use std::{thread, time};
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
     let context_a = slab_a.create_context();
     let context_b = slab_b.create_context();
 
-    let rec_a1 = Subject::new_kv(&context_a, "animal_sound", "Meow").unwrap();
+    let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Meow").unwrap();
     let rec_id = rec_a1.id; // useful for cross-context retrieval
 
     // ************************************************************************

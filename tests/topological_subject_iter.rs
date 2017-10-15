@@ -1,5 +1,5 @@
 extern crate unbase;
-use unbase::subject::*;
+use unbase::SubjectHandle;
 
 #[test]
 fn acyclic() {
@@ -11,12 +11,12 @@ fn acyclic() {
     let slab_a = unbase::Slab::new(&net);
     let context_a = slab_a.create_context();
 
-    let record1 = Subject::new_blank(&context_a).unwrap();
-    let record2 = Subject::new_blank(&context_a).unwrap();
-    let record3 = Subject::new_blank(&context_a).unwrap();
-    let record4 = Subject::new_blank(&context_a).unwrap();
-    let record5 = Subject::new_blank(&context_a).unwrap();
-    let record6 = Subject::new_blank(&context_a).unwrap();
+    let record1 = SubjectHandle::new_blank(&context_a).unwrap();
+    let record2 = SubjectHandle::new_blank(&context_a).unwrap();
+    let record3 = SubjectHandle::new_blank(&context_a).unwrap();
+    let record4 = SubjectHandle::new_blank(&context_a).unwrap();
+    let record5 = SubjectHandle::new_blank(&context_a).unwrap();
+    let record6 = SubjectHandle::new_blank(&context_a).unwrap();
 
     record2.set_relation(0,&record1);
     record3.set_relation(0,&record1);

@@ -19,7 +19,7 @@ impl Context {
     }
     pub (crate) fn get_subject_core(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
         match *self.root_index.read().unwrap() {
-            Some(ref index) => index.get(&self, subject_id),
+            Some(ref index) => index.get(&self, subject_id.id),
             None            => Err(RetrieveError::IndexNotInitialized),
         }
     }

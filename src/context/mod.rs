@@ -57,22 +57,21 @@ impl Context{
 // TODO1 - rethink testing strategy
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use {Network, Slab};
-    use slab::{MemoBody, RelationSet, EdgeSet};
+    use subject::SubjectId;
     use super::Context;
 
     #[test]
     fn context_basic() {
         let net = Network::create_new_system();
         let slab = Slab::new(&net);
-        let mut context = Context::new(&slab);
+        let context = Context::new(&slab);
 
         // 4 -> 3 -> 2 -> 1
-        let head1 = context.add_test_subject(1, None, &slab    );
-        let head2 = context.add_test_subject(2, Some(1), &slab );
-        let head3 = context.add_test_subject(3, Some(2), &slab );
-        let head4 = context.add_test_subject(4, Some(3), &slab );
+        let _head1 = context.add_test_subject(SubjectId::index_test(1), None, &slab    );
+        let _head2 = context.add_test_subject(SubjectId::index_test(2), Some(SubjectId::index_test(1)), &slab );
+        let _head3 = context.add_test_subject(SubjectId::index_test(3), Some(SubjectId::index_test(2)), &slab );
+        let _head4 = context.add_test_subject(SubjectId::index_test(4), Some(SubjectId::index_test(3)), &slab );
 
         //assert!(context.stash.get_subject_ids() == [1,2,3,4], "Valid contents");
     }

@@ -12,7 +12,7 @@ impl Context {
                 Ok(
                     SubjectHandle{
                         id: subject_id,
-                        subject: index.get(&self, subject_id)?,
+                        subject: index.get(&self, subject_id.id)?,
                         context: self.clone()
                     }
                 )
@@ -59,7 +59,7 @@ impl Context {
         }else{
             RelationSet::empty()
         };
-        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: relset, e: EdgeSet::empty(), t: SubjectType::Record };
+        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: relset, e: EdgeSet::empty(), t: subject_id.stype };
         let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
 
         self.apply_head(&head)

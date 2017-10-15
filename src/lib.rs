@@ -46,10 +46,11 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+
 //#[doc(inline)]
+mod subject;
 pub mod network;
 pub mod slab;
-pub mod subject;
 pub mod context;
 pub mod error;
 pub mod index;
@@ -59,4 +60,5 @@ pub mod subjecthandle;
 
 pub use network::Network;
 pub use subjecthandle::SubjectHandle;
+pub use subject::SubjectId;
 pub use slab::Slab;

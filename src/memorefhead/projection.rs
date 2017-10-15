@@ -29,11 +29,11 @@ impl MemoRefHead {
     pub fn noncontextualized_project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
         //let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];// = [None; SUBJECT_MAX_RELATIONS];
-        let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(255);
+        let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(SUBJECT_MAX_RELATIONS);
 
         // None is an indication that we've not yet visited this slot, and that it is thus eligible for setting
-        for i in 0..SUBJECT_MAX_RELATIONS as usize {
-            edge_links[i] = None;
+        for _ in 0..SUBJECT_MAX_RELATIONS as usize {
+            edge_links.push(None);
         }
 
         for memo in self.causal_memo_iter(slab){
