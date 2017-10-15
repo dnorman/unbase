@@ -37,7 +37,7 @@ pub struct MemoInner {
 
 #[derive(Clone, Debug)]
 pub enum MemoBody{
-    SlabPresence{ p: SlabPresence, r: Option<MemoRefHead> }, // TODO: split out root_index_seed conveyance to another memobody type
+    SlabPresence{ p: SlabPresence, r: MemoRefHead }, // TODO: split out root_index_seed conveyance to another memobody type
     Relation(RelationSet),
     Edge(EdgeSet),
     Edit(HashMap<String, String>),
@@ -166,12 +166,14 @@ impl MemoBody {
             &MemoBody::SlabPresence{ ref p, ref r } => {
                 MemoBody::SlabPresence{
                     p: p.clone(),
-                    r: match r {
-                        &Some(ref root_mrh) => {
-                            Some(root_mrh.clone_for_slab(from_slabref, to_slab, true))
-                        }
-                        &None => None
-                    }
+                    r: r.clone_for_slab(from_slabref, to_slab, true),
+
+                    // match r {
+                    //     &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
+                    //         r.clone_for_slab(from_slabref, to_slab, true)
+                    //     }
+                    //     &MemoRefHead::Null => MemoRefHead::Null
+                    // }
                 }
             }
             &MemoBody::Relation(ref relationset) => {

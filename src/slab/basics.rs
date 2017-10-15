@@ -70,7 +70,7 @@ impl Slab {
             inner: Arc::downgrade(&self.0)
         }
     }
-    pub fn get_root_index_seed (&self) -> Option<MemoRefHead> {
+    pub fn get_root_index_seed (&self) -> MemoRefHead {
         self.net.get_root_index_seed(self)
     }
     pub fn create_context (&self) -> Context {

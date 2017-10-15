@@ -199,20 +199,20 @@ impl Network {
         // No slabs left
         root_index_seed.take();
     }
-    pub fn get_root_index_seed(&self, slab: &Slab) -> Option<MemoRefHead> {
+    pub fn get_root_index_seed(&self, slab: &Slab) -> MemoRefHead {
         let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
 
         match *root_index_seed {
             Some((ref seed, ref from_slabref)) => {
                 if from_slabref.owning_slab_id == slab.id {
                     // seed is resident on the requesting slab
-                    Some(seed.clone())
+                    seed.clone()
                 } else {
                     let owned_slabref = from_slabref.clone_for_slab(&slab);
-                    Some(seed.clone_for_slab(&owned_slabref, slab, true))
+                    seed.clone_for_slab(&owned_slabref, slab, true)
                 }
             }
-            None => None,
+            None => MemoRefHead::Null,
         }
 
     }

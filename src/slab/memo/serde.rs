@@ -160,12 +160,16 @@ impl<'a> Visitor for MemoSeed<'a>{
                return Err(DeError::invalid_length(2, &self));
             }
        };
+
+    println!("MARK 1.1");
        let parents: MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
            }
        };
+
+        println!("MARK 1.2");
 
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
 
@@ -357,11 +361,11 @@ impl<'a> Visitor for MBSlabPresenceSeed<'a> {
     {
 
         let mut presence  = None;
-        let mut root_index_seed : Option<Option<MemoRefHead>>   = None;
+        let mut root_index_seed : Option<MemoRefHead>   = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 'p' => presence        = visitor.visit_value()?,
-                'r' => root_index_seed = Some(visitor.visit_value_seed(OptionSeed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref  }))?),
+                'r' => root_index_seed = Some(visitor.visit_value_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref  })?),
                 _   => {}
             }
         }

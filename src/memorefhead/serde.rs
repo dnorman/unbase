@@ -10,11 +10,12 @@ impl StatefulSerialize for MemoRefHead {
     {
         match *self {
             MemoRefHead::Null => {
-                let sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
+                // TODO1 - Serde json deserialize can't seem to handle empty struct variants?
+                let mut sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
                 sv.end()
             },
             MemoRefHead::Anonymous{ref head} => {
-                let mut sv = serializer.serialize_struct_variant("MemoRefHead", 2, "Anonymous", 1)?;
+                let mut sv = serializer.serialize_struct_variant("MemoRefHead", 1, "Anonymous", 1)?;
                 sv.serialize_field("h", &SerializeWrapper(head, helper))?;
                 sv.end()
             }
@@ -33,7 +34,7 @@ pub struct MemoRefHeadSeed<'a> { pub dest_slab: &'a Slab, pub origin_slabref: &'
 
 #[derive(Deserialize)]
 enum MRHVariant{
-    None,
+    Null,
     Anonymous,
     Subject
 }
@@ -45,10 +46,11 @@ impl<'a> DeserializeSeed for MemoRefHeadSeed<'a> {
         where D: Deserializer
     {
         const MRH_VARIANTS: &'static [&'static str] = &[
-            "None",
+            "Null",
             "Anonymous",
             "Subject"
         ];
+
         deserializer.deserialize_enum("MemoRefHead", MRH_VARIANTS, self)
     }
 }
@@ -62,14 +64,41 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
     fn visit_enum<V>(self, visitor: V) -> Result<MemoRefHead, V::Error>
         where V: EnumVisitor
     {
-        match try!(visitor.visit_variant()) {
-            (MRHVariant::None,       _)       => Ok(MemoRefHead::Null),
+
+        let foo = match try!(visitor.visit_variant()) {
+            (MRHVariant::Null,       variant) => variant.visit_newtype_seed(MRHNullSeed{}),
             (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
-        }
+        };
+
+                println!("MARK 2.2 {:?}", &foo);
+        foo
     }
 }
 
+struct MRHNullSeed{}
+
+impl<'a> DeserializeSeed for MRHNullSeed {
+    type Value = MemoRefHead;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where D: Deserializer
+    {
+        deserializer.deserialize(self)
+    }
+}
+impl<'a> Visitor for MRHNullSeed {
+    type Value = MemoRefHead;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("MemoRefHead::Null")
+    }
+    fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
+        where Visitor: MapVisitor,
+    {
+        Ok(MemoRefHead::Null)
+    }
+}
 
 struct MRHAnonymousSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
 

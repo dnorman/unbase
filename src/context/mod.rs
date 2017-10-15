@@ -45,7 +45,7 @@ impl Context{
             )
         );
 
-        let seed = slab.get_root_index_seed().expect("Uninitialized slab");
+        let seed = slab.get_root_index_seed();//.expect("Uninitialized slab");
         let index = IndexFixed::new_from_memorefhead(&new_self, 5, seed);
 
         *new_self.root_index.write().unwrap() = Some(index);

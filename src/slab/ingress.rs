@@ -27,11 +27,11 @@ impl Slab {
 
         match memo.body {
             // This Memo is a peering status update for another memo
-            MemoBody::SlabPresence{ p: ref presence, r: ref opt_root_index_seed } => {
+            MemoBody::SlabPresence{ p: ref presence, r: ref root_index_seed } => {
 
-                match opt_root_index_seed {
-                    &Some(ref root_index_seed) => {
-
+                //TODO1 - finish converting all Option<MRH> to MRH::Null / Other
+                match root_index_seed {
+                    &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
                         // HACK - this should be done inside the deserialize
                         for memoref in root_index_seed.iter() {
                             memoref.update_peer(origin_slabref, MemoPeeringStatus::Resident);
@@ -39,11 +39,11 @@ impl Slab {
 
                         self.net.apply_root_index_seed( &presence, root_index_seed, &self.my_ref );
                     }
-                    &None => {}
+                    &MemoRefHead::Null => {}
                 }
 
                 let mut reply = false;
-                if let &None = opt_root_index_seed {
+                if let &MemoRefHead::Null = root_index_seed {
                     reply = true;
                 }
 
