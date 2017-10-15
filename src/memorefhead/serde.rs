@@ -18,7 +18,7 @@ impl StatefulSerialize for MemoRefHead {
                 sv.serialize_field("h", &SerializeWrapper(head, helper))?;
                 sv.end()
             }
-            MemoRefHead::Subject{subject_id, ref head} => {
+            MemoRefHead::Subject{ref subject_id, ref head} => {
                 let mut sv = serializer.serialize_struct_variant("MemoRefHead", 2, "Subject", 3)?;
                 sv.serialize_field("s", &subject_id)?;
                 sv.serialize_field("h", &SerializeWrapper(&head,helper))?;

@@ -36,7 +36,7 @@ impl Stash {
         self.inner.lock().unwrap().items.is_empty()
     }
     pub fn subject_ids(&self) -> Vec<SubjectId> {
-        self.inner.lock().unwrap().index.iter().map(|i| i.0 ).collect()
+        self.inner.lock().unwrap().index.iter().map(|i| i.0.clone() ).collect()
     }
     /// Returns an iterator for all MemoRefHeads presently in the stash
     pub (crate) fn iter (&self) -> StashIterator {
@@ -158,6 +158,7 @@ impl Stash {
 impl StashInner {
     /// Fetch item id for a subject if present
     pub fn get_item_id_for_subject(&self, subject_id: SubjectId ) -> Option<ItemId>{
+
         match self.index.binary_search_by(|x| x.0.cmp(&subject_id)){
             Ok(i)  => Some(self.index[i].1),
             Err(_) => None

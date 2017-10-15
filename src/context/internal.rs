@@ -5,7 +5,8 @@ use super::*;
 impl Context {
     pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &Subject) {
         if let Some(ref index) = *self.root_index.write().unwrap() {
-            index.insert(self, subject_id, subject);
+            // TODO3: Trait IndexKey or Hashable
+            index.insert(self, subject_id.id, subject);
         } else {
             panic!("no root index")
         }

@@ -9,12 +9,12 @@ use context::Context;
 use error::*;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
-#[derive(Clone,Eq,PartialEq,Hash,Debug,Serialize,Deserialize)]
+#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
     IndexNode,
     Record
 }
-#[derive(Clone,Eq,PartialEq,Hash,Debug,Serialize,Deserialize)]
+#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub struct SubjectId {
     pub id:    u64,
     pub stype: SubjectType,
@@ -66,9 +66,6 @@ impl Subject {
         }else{
             Err(RetrieveError::InvalidMemoRefHead)
         }
-    }
-    pub fn is_root_index () -> bool {
-        unimplemented!();
     }
     pub fn get_value ( &self, context: &Context, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
@@ -150,15 +147,15 @@ impl Subject {
         context.apply_head( &head );
 
     }
-    // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
-    pub fn apply_head (&self, context: &Context, new: &MemoRefHead){
-        //println!("# Subject({}).apply_head({:?})", &self.id, new.memo_ids() );
+    // // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
+    // pub fn apply_head (&self, context: &Context, new: &MemoRefHead){
+    //     //println!("# Subject({}).apply_head({:?})", &self.id, new.memo_ids() );
 
-        let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
+    //     let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
 
-        //println!("# Record({}) calling apply_memoref", self.id);
-        self.head.write().unwrap().apply(&new, &slab);
-    }
+    //     //println!("# Record({}) calling apply_memoref", self.id);
+    //     self.head.write().unwrap().apply(&new, &slab);
+    // }
     pub fn get_head (&self) -> MemoRefHead {
         self.head.read().unwrap().clone()
     }
@@ -167,13 +164,13 @@ impl Subject {
         let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
         self.head.read().unwrap().causal_memo_iter( &slab ).map(|m| m.id).collect()
     }
-    pub fn is_fully_materialized (&self, context: &Context) -> bool {
-        self.head.read().unwrap().is_fully_materialized(&context.slab)
-    }
-    pub fn fully_materialize (&self, _slab: &Slab) -> bool {
-        unimplemented!();
-        //self.shared.lock().unwrap().head.fully_materialize(slab)
-    }
+    // pub fn is_fully_materialized (&self, context: &Context) -> bool {
+    //     self.head.read().unwrap().is_fully_materialized(&context.slab)
+    // }
+    // pub fn fully_materialize (&self, _slab: &Slab) -> bool {
+    //     unimplemented!();
+    //     //self.shared.lock().unwrap().head.fully_materialize(slab)
+    // }
 }
 
 impl Clone for Subject {

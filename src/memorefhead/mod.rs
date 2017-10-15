@@ -57,9 +57,6 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn is_root_index (&self) -> bool{
-        unimplemented!()
-    }
     pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> bool {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
@@ -304,7 +301,7 @@ impl fmt::Debug for MemoRefHead{
                     //.field("memo_ids", &self.memo_ids() )
                     .finish()
             }
-            MemoRefHead::Subject{ subject_id, ref head } => {
+            MemoRefHead::Subject{ ref subject_id, ref head } => {
                 fmt.debug_struct("MemoRefHead::Subject")
                     .field("subject_id", &subject_id )
                     .field("memo_refs",  head )
