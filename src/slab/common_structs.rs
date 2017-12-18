@@ -142,7 +142,7 @@ impl Deref for RelationSet {
 
 // TODO: convert EdgeSet to use Vec<EdgeLink> - no need for a hashmap I think.
 // Can use a sorted vec + binary search
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum EdgeLink{
     Vacant {
         slot_id:    RelationSlotId,

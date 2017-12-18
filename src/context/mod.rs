@@ -1,5 +1,5 @@
 mod internal;
-mod stash;
+pub mod stash;
 mod interface;
 
 use subject::{Subject,SubjectId,SubjectType};
@@ -68,12 +68,12 @@ mod test {
         let context = Context::new(&slab);
 
         // 4 -> 3 -> 2 -> 1
-        let _head1 = context.add_test_subject(SubjectId::index_test(1), None, &slab    );
-        let _head2 = context.add_test_subject(SubjectId::index_test(2), Some(SubjectId::index_test(1)), &slab );
-        let _head3 = context.add_test_subject(SubjectId::index_test(3), Some(SubjectId::index_test(2)), &slab );
-        let _head4 = context.add_test_subject(SubjectId::index_test(4), Some(SubjectId::index_test(3)), &slab );
+        let head1  = context.add_test_subject(SubjectId::index_test(1), vec![], &slab    );
+        let head2  = context.add_test_subject(SubjectId::index_test(2), vec![head1], &slab );
+        let head3  = context.add_test_subject(SubjectId::index_test(3), vec![head2], &slab );
+        let _head4 = context.add_test_subject(SubjectId::index_test(4), vec![head3], &slab );
 
-        //assert!(context.stash.get_subject_ids() == [1,2,3,4], "Valid contents");
+        assert_eq!(context.stash.concise_contents(),["I1","I2>I1","I3>I2","I4>I3"], "Valid contents");
     }
 
     // #[test]

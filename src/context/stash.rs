@@ -1,6 +1,8 @@
 //#![allow(dead_code)]
+use std::iter;
 
 use super::*;
+use subject::{SubjectId,SUBJECT_MAX_RELATIONS};
 use std::mem;
 
 /// Stash of Subject MemoRefHeads which must be considered for state projection
@@ -37,6 +39,34 @@ impl Stash {
     }
     pub fn subject_ids(&self) -> Vec<SubjectId> {
         self.inner.lock().unwrap().index.iter().map(|i| i.0.clone() ).collect()
+    }
+    #[allow(dead_code)]
+    pub fn concise_contents(&self) -> Vec<String> {
+        let inner = self.inner.lock().unwrap();
+
+        let mut out = Vec::with_capacity(inner.items.len());
+        for &(subject_id,item_id) in inner.index.iter() {
+            let item = inner.items[item_id].as_ref().unwrap();
+
+            let mut outstring = subject_id.concise_string();
+
+            let last_occupied_relation_slot = item.relations.iter().enumerate().filter(|&(_,x)| x.is_some() ).last();
+
+            if let Some((slot_id,_)) = last_occupied_relation_slot {
+                outstring.push_str(">");
+                let relation_subject_ids : String = item.relations.iter().take(slot_id+1).map(|slot| {
+                    match slot {
+                        &Some(ritem_id) => inner.items[ritem_id].as_ref().unwrap().subject_id.concise_string(),
+                        &None           => "_".to_string()
+                    }
+                }).collect::<Vec<String>>().join(",");
+                outstring.push_str(&relation_subject_ids);
+            }
+
+            out.push(outstring);
+        }
+
+        out
     }
     /// Returns an iterator for all MemoRefHeads presently in the stash
     pub (crate) fn iter (&self) -> StashIterator {
@@ -247,6 +277,7 @@ impl StashInner {
     }
 }
 
+#[derive(Debug)]
 struct StashItem {
     subject_id:   SubjectId,
     head:         MemoRefHead,
@@ -260,7 +291,8 @@ impl StashItem {
         StashItem {
             subject_id: subject_id,
             head: head,
-            relations: Vec::new(),
+            //QUESTION: should we preallocate all possible relation slots? or manage the length of relations vec?
+            relations: iter::repeat(None).take(SUBJECT_MAX_RELATIONS).collect(),
             edit_counter: 1, // Important for existence to count as an edit, as it cannot be the same as non-existence (0)
             ref_count: 0
         }
@@ -317,6 +349,7 @@ impl ItemEditGuard{
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
         self.links = Some(self.head.noncontextualized_project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
+
         self.did_edit = true;
         return true;
     }
@@ -375,7 +408,7 @@ impl Drop for ItemEditGuard{
     }
 }
 
-pub (crate) struct StashIterator {
+pub struct StashIterator {
     inner: Arc<Mutex<StashInner>>,
     visited: Vec<SubjectId>,
 }

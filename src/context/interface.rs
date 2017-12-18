@@ -53,13 +53,17 @@ impl Context {
         // Arc::ptr_eq(&self.inner,&other.inner)
     }
 
-    pub fn add_test_subject(&self, subject_id: SubjectId, maybe_relation: Option<SubjectId>, slab: &Slab) -> MemoRefHead {
-        let relset = if let Some(subject_id) = maybe_relation {
-            RelationSet::single(0, subject_id)
-        }else{
-            RelationSet::empty()
-        };
-        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: relset, e: EdgeSet::empty(), t: subject_id.stype };
+    pub fn add_test_subject(&self, subject_id: SubjectId, relations: Vec<MemoRefHead>, slab: &Slab) -> MemoRefHead {
+
+        let mut edgeset = EdgeSet::empty();
+
+        for (slot_id, mrh) in relations.iter().enumerate() {
+            if let &MemoRefHead::Subject{..} = mrh {
+                edgeset.insert(slot_id as RelationSlotId, mrh.clone())
+            }
+        }
+
+        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSet::empty(), e: edgeset, t: subject_id.stype };
         let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
 
         self.apply_head(&head)

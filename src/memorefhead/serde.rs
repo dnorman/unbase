@@ -93,7 +93,7 @@ impl<'a> Visitor for MRHNullSeed {
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("MemoRefHead::Null")
     }
-    fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
+    fn visit_map<Visitor>(self, _visitor: Visitor) -> Result<Self::Value, Visitor::Error>
         where Visitor: MapVisitor,
     {
         Ok(MemoRefHead::Null)

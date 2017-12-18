@@ -1,5 +1,6 @@
 use slab::*;
 
+use core;
 use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -19,6 +20,12 @@ pub struct SubjectId {
     pub id:    u64,
     pub stype: SubjectType,
 }
+impl <'a> core::cmp::PartialEq<&'a str> for SubjectId {
+    fn eq (&self, other: &&'a str) -> bool {
+        self.concise_string() == *other
+    }
+}
+
 impl SubjectId {
     pub fn test(test_id: u64) -> Self{
         SubjectId{
@@ -30,6 +37,13 @@ impl SubjectId {
         SubjectId{
             id:    test_id,
             stype: SubjectType::IndexNode
+        }
+    }
+    pub fn concise_string (&self) -> String {
+        use self::SubjectType::*;
+        match self.stype {
+            IndexNode => format!("I{}", self.id),
+            Record    => format!("R{}", self.id)
         }
     }
 }
