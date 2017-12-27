@@ -19,7 +19,7 @@ impl Deref for MemoRef {
 
 pub struct MemoRefInner {
     pub id:       MemoId,
-    pub owning_slab_id: SlabId,
+    pub owning_slab_id: SlabId, // TODO - rename and conditionalize with a macro
     pub subject_id: Option<SubjectId>,
     pub peerlist: RwLock<MemoPeerList>,
     pub ptr:      RwLock<MemoRefPtr>,

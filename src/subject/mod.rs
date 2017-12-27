@@ -141,7 +141,9 @@ impl Subject {
 
         head.apply_memoref(&memoref, &slab);
 
-        context.apply_head( &head );
+        if let SubjectId { stype: SubjectType::IndexNode, .. } = self.id {
+            context.apply_head( &head );
+        }
 
         true
     }
@@ -160,8 +162,10 @@ impl Subject {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_head( &head );
 
+        if let SubjectId { stype: SubjectType::IndexNode, .. } = self.id {
+            context.apply_head( &head );
+        }
     }
     pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
@@ -178,8 +182,10 @@ impl Subject {
         );
 
         head.apply_memoref(&memoref, &slab);
-        context.apply_head( &head );
-
+        
+        if let SubjectId { stype: SubjectType::IndexNode, .. } = self.id {
+            context.apply_head( &head );
+        }
     }
     // // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
     // pub fn apply_head (&self, context: &Context, new: &MemoRefHead){

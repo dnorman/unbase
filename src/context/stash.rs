@@ -48,7 +48,11 @@ impl Stash {
         for &(subject_id,item_id) in inner.index.iter() {
             let item = inner.items[item_id].as_ref().unwrap();
 
-            let mut outstring = subject_id.concise_string();
+            let mut outstring = String::new();
+            if let MemoRefHead::Null = item.head{
+                outstring.push_str("*"); // This is a phantom member of the stash, whose purpose is only to serve as a placeholder
+            }
+            outstring.push_str( &subject_id.concise_string() );
 
             let last_occupied_relation_slot = item.relations.iter().enumerate().filter(|&(_,x)| x.is_some() ).last();
 
@@ -163,8 +167,8 @@ impl Stash {
         if let &MemoRefHead::Subject{ subject_id, .. } = compare_head {
             loop{
                 let mut item : ItemEditGuard = self.get_head_for_edit(subject_id);
-                    
-                if compare_head.descends(item.get_head(), slab) { // May block here
+
+                if compare_head.descends_or_contains(item.get_head(), slab) { // May block here
                     item.set_head(MemoRefHead::Null, slab);
 
                     if let Ok(Some((_head, _links))) = item.try_save() {

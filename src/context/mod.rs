@@ -59,7 +59,11 @@ impl Context{
 mod test {
     use {Network, Slab};
     use subject::SubjectId;
+    use super::EdgeSet;
     use super::Context;
+    use super::MemoBody;
+
+    use std::collections::HashMap;
 
     #[test]
     fn context_basic() {
@@ -73,8 +77,51 @@ mod test {
         let head3  = context.add_test_subject(SubjectId::index_test(3), vec![head2], &slab );
         let _head4 = context.add_test_subject(SubjectId::index_test(4), vec![head3], &slab );
 
-        assert_eq!(context.stash.concise_contents(),["I1","I2>I1","I3>I2","I4>I3"], "Valid contents");
+        // each preceeding subject should be pruned, leaving us with a fully compacted stash
+        assert_eq!(context.stash.concise_contents(),["*I3","I4>I3"], "Valid contents");
     }
+
+    #[test]
+    fn context_defeat_compaction() {
+        let net = Network::create_new_system();
+        let slab = Slab::new(&net);
+        let context = Context::new(&slab);
+
+        // 4 -> 3 -> 2 -> 1
+        let head1  = context.add_test_subject(SubjectId::index_test(1), vec![], &slab    );
+        let head2  = context.add_test_subject(SubjectId::index_test(2), vec![head1], &slab );
+
+        {
+            // manually defeat compaction
+            let head = slab.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
+            context.apply_head(&head);
+        }
+
+        // additional stuff on I2 should prevent it from being pruned by the I3 edge
+        let head3  = context.add_test_subject(SubjectId::index_test(3), vec![head2.clone()], &slab );
+        let head4 = context.add_test_subject(SubjectId::index_test(4), vec![head3.clone()], &slab );
+
+        assert_eq!(context.stash.concise_contents(),["*I1","I2>I1","*I3","I4>I3"], "Valid contents");
+
+        {
+            // manually perform compaction
+            let updated_head2 = context.stash.get_head( head2.subject_id().unwrap() );
+            let head = slab.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edge(EdgeSet::single(0, updated_head2))).to_head();
+            context.apply_head(&head);
+        }
+
+        assert_eq!(context.stash.concise_contents(),["*I2", "I3>I2", "I4>I3"], "Valid contents");
+
+        {
+            // manually perform compaction
+            let updated_head3 = context.stash.get_head( head3.subject_id().unwrap() );
+            let head = slab.new_memo_basic(head4.subject_id(), head4, MemoBody::Edge(EdgeSet::single(0, updated_head3))).to_head();
+            context.apply_head(&head);
+        }
+             
+        assert_eq!(context.stash.concise_contents(),["*I3", "I4>I3"], "Valid contents");
+    }
+
 
     // #[test]
     // fn context_manager_dual_indegree_zero() {

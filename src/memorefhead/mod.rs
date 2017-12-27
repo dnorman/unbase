@@ -167,9 +167,10 @@ impl MemoRefHead {
 
         applied
     }
+
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
-    pub fn descends (&self, other: &MemoRefHead, slab: &Slab) -> bool{
+    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> bool{
 
         // there's probably a more efficient way to do this than iterating over the cartesian product
         // we can get away with it for now though I think
@@ -184,8 +185,10 @@ impl MemoRefHead {
                             return false // searching for positive descendency, not merely non-ascendency
                         }
                         for memoref in head.iter(){
-                            for other_memoref in other_head.iter(){
-                                if !memoref.descends(other_memoref, slab) {
+                            'other: for other_memoref in other_head.iter(){
+                                if memoref == other_memoref {
+                                    //
+                                } else if !memoref.descends(other_memoref, slab) {
                                     return false;
                                 }
                             }
