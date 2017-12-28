@@ -110,6 +110,7 @@ impl IndexFixed {
             let y = ((key / (x as u64)) % max) as RelationSlotId;
             //println!("Tier {}, {}, {}", tier, x, y );
 
+            println!("INDEX GET {} - {:?}", node.id, node.head.read().unwrap().memo_ids() );
             if exponent == 0 {
                 //println!("]]] end of the line");
                 return node.get_edge( context, y as RelationSlotId);

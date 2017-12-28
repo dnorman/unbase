@@ -50,7 +50,7 @@ impl SubjectId {
 
 impl fmt::Display for SubjectId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}-{})", self.stype, self.id)
+        write!(f, "{:?}-{}", self.stype, self.id)
     }
 }
 

@@ -34,6 +34,7 @@ impl Context {
 
         for head in self.stash.iter() {
             memoref_count += head.len();
+            println!("HACK SEND CONTEXT {} ({:?}) From {} to {}",  head.subject_id().unwrap(), head.memo_ids(), self.slab.id, other.slab.id );
             other.apply_head(&head.clone_for_slab(&from_slabref, &other.slab, false));
         }
 
@@ -74,6 +75,9 @@ impl Context {
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
     pub fn compact(&self){
+
+        //TODO: implement topological MRH iterator for stash
+        //      non-topological iteration will yield sub-optimal compaction
 
         // iterate all heads in the stash
         for parent_mrh in self.stash.iter() {

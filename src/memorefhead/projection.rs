@@ -166,6 +166,8 @@ impl MemoRefHead {
     pub fn project_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Self>, RetrieveError> {
         // TODO: Make error handling more robust
 
+        // TODO1: This is wrong - could be considering the context in the projection
+        // We must always consider the context in any projection, except in rare cases where we EXPRESSLY wish to avoid it
         for memo in self.causal_memo_iter( &context.slab ) {
 
             if let Some((edges,materialized)) = memo.get_edges(){

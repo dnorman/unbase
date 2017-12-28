@@ -1,14 +1,15 @@
 extern crate unbase;
 use unbase::SubjectHandle;
 use unbase::error::*;
-use std::{thread, time};
 
 #[test]
 fn basic_eventual() {
 
     let net = unbase::Network::create_new_system();
-    let simulator = unbase::network::transport::Simulator::new();
+    let mut simulator = unbase::network::transport::Simulator::new();
     net.add_transport( Box::new(simulator.clone()) );
+
+    let timestep = simulator.manual_time_step();
 
     let slab_a = unbase::Slab::new(&net);
     let slab_b = unbase::Slab::new(&net);
@@ -52,36 +53,8 @@ fn basic_eventual() {
         panic!("sanity error - uninitialized context");
     };
 
-    let context_b_copy = context_b.clone();
-    let context_c_copy = context_c.clone();
-    let thread = thread::spawn(move ||{
-        assert!(context_b_copy.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab B");
-        assert!(context_c_copy.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab C");
-    });
-
-    // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-    thread::sleep(time::Duration::from_millis(10));
-
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-
-    // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-    thread::sleep(time::Duration::from_millis(10));
-
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-
-    thread.join().unwrap();
+    assert!(context_b.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab B");
+    assert!(context_c.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab C");
 
     //assert!(slab_a.count_of_memorefs_resident() == 2, "Slab A should have 2 memorefs resident");
     //assert!(slab_b.count_of_memorefs_resident() == 2, "Slab B should have 2 memorefs resident");
@@ -91,91 +64,57 @@ fn basic_eventual() {
     // seconds for this to convey – not just a single clock tick
     // We've made the index artificially chatty for now, but this will
     // change to a timeout-based process once context::subject_graph is working
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-
-    thread::sleep( time::Duration::from_millis(500) );
 
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
+
+    simulator.clear_wait();
+
     // Temporary way to magically, instantly send context
     println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
+    simulator.wait_ticks(10);
 
-    let context_b_copy = context_b.clone();
-    let context_c_copy = context_c.clone();
-    let simulator_copy = simulator.clone();
-    let thread = thread::spawn(move ||{
+    // LEFT OFF HERE - it appears that hack_send_context isn't doing the right thing,
+    // and there's no other mechanism to assimilate index nodes at this time
+    // hack-send_context seems not to include subject 9003 / memo 5003 regardless of whether compaction is on or not
+    // HOWEVER- it does seem to include 5006, which seems to be proper
 
-        let simulator = simulator_copy;
+    // BINGO! - The issue seems to be that subject.project_edge isn't taking the context into consideration AT ALL
+    let rec_b1 = context_b.get_subject_by_id( record_id );
+    let rec_c1 = context_c.get_subject_by_id( record_id );
 
-        let rec_b1 = context_b_copy.get_subject_by_id( record_id );
-        let rec_c1 = context_c_copy.get_subject_by_id( record_id );
+    println!("RID: {}", record_id);
+    assert!(rec_b1.is_ok(), "new subject should now have conveyed to slab B");
+    assert!(rec_c1.is_ok(), "new subject should now have conveyed to slab C");
 
-        assert!(rec_b1.is_ok(), "new subject should now have conveyed to slab B");
-        assert!(rec_c1.is_ok(), "new subject should now have conveyed to slab C");
+    let rec_b1 = rec_b1.unwrap();
+    let rec_c1 = rec_c1.unwrap();
 
-        let rec_b1 = rec_b1.unwrap();
-        let rec_c1 = rec_c1.unwrap();
+    assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab B should be internally consistent");
+    assert!(rec_c1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab C should be internally consistent");
 
-        assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab B should be internally consistent");
-        assert!(rec_c1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab C should be internally consistent");
+    assert_eq!(rec_a1.get_value("animal_sound").unwrap(), "Moo");
+    assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Moo");
+    assert_eq!(rec_c1.get_value("animal_sound").unwrap(), "Moo");
 
-        simulator.advance_clock(1); // advance the simulator clock by one tick
+    rec_b1.set_value("animal_type","Bovine");
+    assert_eq!(rec_b1.get_value("animal_type").unwrap(), "Bovine");
+    assert_eq!(rec_b1.get_value("animal_sound").unwrap(),   "Moo");
 
-        assert_eq!(rec_a1.get_value("animal_sound").unwrap(), "Moo");
-        assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Moo");
-        assert_eq!(rec_c1.get_value("animal_sound").unwrap(), "Moo");
+    rec_b1.set_value("animal_sound","Woof");
+    rec_b1.set_value("animal_type","Kanine");
+    assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Woof");
+    assert_eq!(rec_b1.get_value("animal_type").unwrap(),  "Kanine");
 
+    // Should not yet have propagated to slab A
+    assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
+    assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
 
-        rec_b1.set_value("animal_type","Bovine");
-        assert_eq!(rec_b1.get_value("animal_type").unwrap(), "Bovine");
-        assert_eq!(rec_b1.get_value("animal_sound").unwrap(),   "Moo");
-
-        rec_b1.set_value("animal_sound","Woof");
-        rec_b1.set_value("animal_type","Kanine");
-        assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Woof");
-        assert_eq!(rec_b1.get_value("animal_type").unwrap(),  "Kanine");
-
-        // Should not yet have propagated to slab A
-        assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
-        assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
-
-        simulator.advance_clock(1); // advance the simulator clock by one tick
-        // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-        thread::sleep(time::Duration::from_millis(10));
-        simulator.advance_clock(1); // advance the simulator clock by one tick
-        // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-        thread::sleep(time::Duration::from_millis(10));
-
-        // Nowwww it should have propagated
-        assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Woof");
-        assert_eq!(rec_a1.get_value("animal_type").unwrap(),    "Kanine");
-    });
-
-    // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-    thread::sleep(time::Duration::from_millis(10));
-
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-
-    // HACK HACK HACK HACK - clearly we have a deficiency in the simulator / threading model
-    thread::sleep(time::Duration::from_millis(10));
-
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-    simulator.advance_clock(1); // advance the simulator clock by one tick
-
-    thread.join().unwrap();
+    // Nowwww it should have propagated
+    assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Woof");
+    assert_eq!(rec_a1.get_value("animal_type").unwrap(),    "Kanine");
 /*
 
     let idx_node = SubjectHandle::new_kv(&context_b, "dummy","value").unwrap();

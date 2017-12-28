@@ -147,7 +147,7 @@ impl Slab {
         Ok(())
     }
     pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
-        //println!("Slab({}).request_memo({})", self.id, memoref.id );
+        println!("Slab({}).request_memo({})", self.id, memoref.id );
 
         let request_memo = self.new_memo_basic(
             None,
@@ -160,7 +160,7 @@ impl Slab {
 
         let mut sent = 0u8;
         for peer in memoref.peerlist.read().unwrap().iter().take(5) {
-            //println!("Slab({}).request_memo({}) from {}", self.id, memoref.id, peer.slabref.slab_id );
+            println!("Slab({}).request_memo({}) from {}", self.id, memoref.id, peer.slabref.slab_id );
             peer.slabref.send( &self.my_ref, &request_memo.clone() );
             sent += 1;
         }

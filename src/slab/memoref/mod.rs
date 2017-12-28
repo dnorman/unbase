@@ -135,7 +135,7 @@ impl MemoRef {
 
 
         use std::time;
-        let timeout = time::Duration::from_millis(1000);
+        let timeout = time::Duration::from_millis(100000);
 
         for _ in 0..3 {
             match channel.recv_timeout(timeout) {

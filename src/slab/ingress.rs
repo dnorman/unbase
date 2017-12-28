@@ -23,7 +23,12 @@ impl Slab {
 
     //NOTE: nothing that calls get_memo, directly or indirectly is presently allowed here (but get_memo_if_resident is ok)
     pub fn handle_memo_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
-        //println!("Slab({}).handle_memo_from_other_slab({})", self.id, memo.id );
+        println!("Slab({}).handle_memo_from_other_slab({})", self.id, memo.id );
+
+        // TODO - how do we handle FullyMaterialized, Edge and other memobodies for items which are:
+        // 1. Index Nodes?
+        // 2. In one or more of our contexts?
+        // And why isn't the hack_send_context method working for subject 9003/memo 5003? ( index branch )
 
         match memo.body {
             // This Memo is a peering status update for another memo
