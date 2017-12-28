@@ -50,7 +50,8 @@ impl Stash {
 
             let mut outstring = String::new();
             if let MemoRefHead::Null = item.head{
-                outstring.push_str("*"); // This is a phantom member of the stash, whose purpose is only to serve as a placeholder
+                //outstring.push_str("*"); // This is a phantom member of the stash, whose purpose is only to serve as a placeholder
+                continue;
             }
             outstring.push_str( &subject_id.concise_string() );
 

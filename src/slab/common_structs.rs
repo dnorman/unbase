@@ -178,6 +178,9 @@ impl EdgeSet {
     pub fn insert(&mut self, slot_id: RelationSlotId, head: MemoRefHead) {
         self.0.insert(slot_id, head);
     }
+    pub fn len (&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl Deref for EdgeSet {

@@ -81,6 +81,45 @@ impl MemoRefHead {
             }
         }).collect()
     }
+    /// Contextualized projection of occupied edges
+    pub fn project_occupied_edges_noncontextualized (&self, slab: &Slab) -> Vec<EdgeLink> {
+        let mut visited = [false;SUBJECT_MAX_RELATIONS];
+        let mut edge_links : Vec<EdgeLink> = Vec::new();
+        
+        'memo: for memo in self.causal_memo_iter(&slab){
+            let (edgeset,last) = match memo.body {
+                MemoBody::FullyMaterialized { e : ref edgeset, .. } => {
+                    (edgeset,true)
+                },
+                MemoBody::Edge(ref edgeset) => {
+                    (edgeset,false)
+                },
+                _ => continue 'memo
+            };
+
+            for (slot_id,rel_head) in edgeset.iter() {
+                // Only consider the non-visited slots
+                if !visited[ *slot_id as usize] {
+                    visited[ *slot_id as usize] = true;
+
+                    match *rel_head {
+                        MemoRefHead::Subject{..} | MemoRefHead::Anonymous{..} => {
+                            edge_links.push( EdgeLink::Occupied{ slot_id: *slot_id, head: rel_head.clone() });
+                        },
+                        MemoRefHead::Null => {}
+                    };
+                }
+            }
+                
+            if last {
+                break;
+            }
+        }
+
+        edge_links
+    }
+                        
+    // Fully Materialized memo means we're done here
     /// Project all relation links which were edited between two MemoRefHeads.
     // pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
     //     unimplemented!()

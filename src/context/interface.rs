@@ -26,7 +26,7 @@ impl Context {
     // QUESTION: should context exchanges be happening constantly, but often ignored? or requested? Probably the former,
     //           sent based on an interval and/or compaction ( which would also likely be based on an interval and/or present context size)
     pub fn hack_send_context(&self, other: &Self) -> usize {
-        self.compress();
+        self.compact();
 
         let from_slabref = self.slab.my_ref.clone_for_slab(&other.slab);
 
@@ -53,7 +53,7 @@ impl Context {
         // Arc::ptr_eq(&self.inner,&other.inner)
     }
 
-    pub fn add_test_subject(&self, subject_id: SubjectId, relations: Vec<MemoRefHead>, slab: &Slab) -> MemoRefHead {
+    pub fn add_test_subject(&self, subject_id: SubjectId, relations: Vec<MemoRefHead>) -> MemoRefHead {
 
         let mut edgeset = EdgeSet::empty();
 
@@ -64,7 +64,7 @@ impl Context {
         }
 
         let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSet::empty(), e: edgeset, t: subject_id.stype };
-        let head = slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
+        let head = self.slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
 
         self.apply_head(&head)
     }
@@ -73,10 +73,35 @@ impl Context {
     /// We do this by issuing Relation memos for any subject heads which reference other subject heads presently in the query context.
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
-    pub fn compress(&self){
-        unimplemented!()
-        //self.manager.compress(&self.slab);
-        // TODO3: Implement this, or remove it
+    pub fn compact(&self){
+
+        // iterate all heads in the stash
+        for parent_mrh in self.stash.iter() {
+            let mut updated_edges = EdgeSet::empty();
+
+            for edgelink in parent_mrh.project_occupied_edges_noncontextualized(&self.slab) {
+                if let EdgeLink::Occupied{slot_id,head:edge_mrh} = edgelink {
+
+                    if let Some(subject_id) = edge_mrh.subject_id(){
+                        if let stash_mrh @ MemoRefHead::Subject{..} = self.stash.get_head(subject_id) {
+                            // looking for cases where the stash is fresher than the edge
+                            if stash_mrh.descends_or_contains(&edge_mrh, &self.slab){
+                                updated_edges.insert( slot_id, stash_mrh );
+                            }
+                        }
+                    }
+                }
+            }
+
+            if updated_edges.len() > 0 {
+                // TODO: When should this be materialized?
+                let memobody = MemoBody::Edge(updated_edges);
+                let subject_id = parent_mrh.subject_id().unwrap();
+                let head = self.slab.new_memo_basic(Some(subject_id), parent_mrh, memobody.clone()).to_head();
+                
+                self.apply_head(&head);
+            }
+        }
     }
 
     pub fn is_fully_materialized(&self) -> bool {
