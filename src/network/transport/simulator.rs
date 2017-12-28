@@ -102,6 +102,16 @@ impl Simulator {
             }
         })
     }
+    pub fn metronome (&self, ms: u64) -> thread::JoinHandle<()> {
+        let sim = self.clone();
+        thread::spawn(move ||{
+            println!("Simulator transport - Metronome Timestep Enabled (interval {}ms).\n\n", ms );
+            loop {
+                thread::sleep(time::Duration::from_millis(ms));
+                sim.advance_clock(1);
+            }
+        })
+    }
     pub fn clear_wait(&mut self) {
         self.wait_clock = self.get_clock();
     }
@@ -111,6 +121,17 @@ impl Simulator {
             let clock = self.get_clock();
             if clock >= self.wait_clock + count {
                 self.wait_clock = clock;
+                break;
+            }
+        }
+    }
+    pub fn wait_idle(&mut self) {
+        loop{
+            thread::sleep(time::Duration::from_millis(10));
+            let shared = self.shared.lock().unwrap();
+
+            if shared.queue.len() == 0 {
+                self.wait_clock = shared.clock;
                 break;
             }
         }

@@ -9,7 +9,8 @@ fn basic_eventual() {
     let mut simulator = unbase::network::transport::Simulator::new();
     net.add_transport( Box::new(simulator.clone()) );
 
-    let timestep = simulator.manual_time_step();
+    //let timestep = simulator.manual_time_step();
+    let _joinhandle = simulator.metronome(100);
 
     let slab_a = unbase::Slab::new(&net);
     let slab_b = unbase::Slab::new(&net);
@@ -67,14 +68,12 @@ fn basic_eventual() {
 
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
-    simulator.clear_wait();
-
     // Temporary way to magically, instantly send context
     println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
-    simulator.wait_ticks(5);
+    simulator.wait_idle();
 
     let rec_b1 = context_b.get_subject_by_id( record_id );
     let rec_c1 = context_c.get_subject_by_id( record_id );
