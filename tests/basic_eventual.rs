@@ -74,14 +74,8 @@ fn basic_eventual() {
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
-    simulator.wait_ticks(10);
+    simulator.wait_ticks(5);
 
-    // LEFT OFF HERE - it appears that hack_send_context isn't doing the right thing,
-    // and there's no other mechanism to assimilate index nodes at this time
-    // hack-send_context seems not to include subject 9003 / memo 5003 regardless of whether compaction is on or not
-    // HOWEVER- it does seem to include 5006, which seems to be proper
-
-    // BINGO! - The issue seems to be that subject.project_edge isn't taking the context into consideration AT ALL
     let rec_b1 = context_b.get_subject_by_id( record_id );
     let rec_c1 = context_c.get_subject_by_id( record_id );
 
@@ -111,6 +105,8 @@ fn basic_eventual() {
     // Should not yet have propagated to slab A
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
     assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
+
+    simulator.wait_ticks(5);
 
     // Nowwww it should have propagated
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Woof");

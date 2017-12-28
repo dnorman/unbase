@@ -83,7 +83,7 @@ impl Context {
         for parent_mrh in self.stash.iter() {
             let mut updated_edges = EdgeSet::empty();
 
-            for edgelink in parent_mrh.project_occupied_edges_noncontextualized(&self.slab) {
+            for edgelink in parent_mrh.project_occupied_edges(&self.slab) {
                 if let EdgeLink::Occupied{slot_id,head:edge_mrh} = edgelink {
 
                     if let Some(subject_id) = edge_mrh.subject_id(){

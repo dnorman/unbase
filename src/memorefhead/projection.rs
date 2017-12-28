@@ -26,7 +26,7 @@ impl MemoRefHead {
 
     /// Project all edge links based only on the causal history of this head – No consideration of a query context.
     /// The name is pretty gnarly, and this is very ripe for refactoring, but at least it says what it does.
-    pub fn noncontextualized_project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
+    pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
         //let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];// = [None; SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(SUBJECT_MAX_RELATIONS);
@@ -82,7 +82,7 @@ impl MemoRefHead {
         }).collect()
     }
     /// Contextualized projection of occupied edges
-    pub fn project_occupied_edges_noncontextualized (&self, slab: &Slab) -> Vec<EdgeLink> {
+    pub fn project_occupied_edges (&self, slab: &Slab) -> Vec<EdgeLink> {
         let mut visited = [false;SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<EdgeLink> = Vec::new();
         

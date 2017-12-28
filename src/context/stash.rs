@@ -343,7 +343,7 @@ impl ItemEditGuard{
         self.head = set_head;
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
-        self.links = Some(self.head.noncontextualized_project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
+        self.links = Some(self.head.project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
         self.did_edit = true;
     }
     fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> bool {
@@ -353,7 +353,7 @@ impl ItemEditGuard{
         }
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
-        self.links = Some(self.head.noncontextualized_project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
+        self.links = Some(self.head.project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
 
         self.did_edit = true;
         return true;

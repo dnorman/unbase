@@ -103,10 +103,13 @@ impl Subject {
     }
     pub fn get_value ( &self, context: &Context, key: &str ) -> Option<String> {
         //println!("# Subject({}).get_value({})",self.id,key);
+        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab );
         self.head.read().unwrap().project_value(context, key)
     }
     pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
+        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab );
+
         match self.head.read().unwrap().project_relation(context, key) {
             Ok(Some(subject_id)) => Ok(Some(context.get_subject_core(subject_id)?)),
             Ok(None)             => Ok(None),
@@ -115,6 +118,7 @@ impl Subject {
     }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Subject, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
+        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab );
         match self.head.read().unwrap().project_edge(context, key) {
             Ok(Some(head)) => {
                 Ok(context.get_subject_with_head(head)? )
@@ -199,10 +203,14 @@ impl Subject {
     pub fn get_head (&self) -> MemoRefHead {
         self.head.read().unwrap().clone()
     }
-    pub fn get_all_memo_ids ( &self, context: &Context ) -> Vec<MemoId> {
+    // pub fn get_contextualized_head(&self, context: &Context) -> MemoRefHead {
+    //     let mut head = self.head.read().unwrap().clone();
+    //     head.apply( &context.get_resident_subject_head(self.id), &context.slab );
+    //     head
+    // }
+    pub fn get_all_memo_ids ( &self, slab: &Slab ) -> Vec<MemoId> {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
-        let slab = context.slab.clone(); // TODO: find a way to get rid of this clone
-        self.head.read().unwrap().causal_memo_iter( &slab ).map(|m| m.id).collect()
+        self.get_head().causal_memo_iter( &slab ).map(|m| m.id).collect()
     }
     // pub fn is_fully_materialized (&self, context: &Context) -> bool {
     //     self.head.read().unwrap().is_fully_materialized(&context.slab)
