@@ -54,27 +54,23 @@ impl IndexFixed {
         //println!("Tier {}, {}, {}", tier, x, y );
 
         if exponent == 0 {
-            // BUG: move this clause up
-            println!("]]] end of the line");
+            //println!("]]] end of the line");
             node.set_edge(context, y as RelationSlotId,&subject);
         }else{
-            match node.get_edge(context,y) {
-                Ok(n) => {
+            match node.get_edge(context,y).expect("TODO: update to handle result") {
+                Some(n) => {
                     self.recurse_set(context, tier+1, key, &n, subject);
                 }
-                Err( RetrieveError::NotFound ) => {
+                None => {
                     let mut values = HashMap::new();
                     values.insert("tier".to_string(),tier.to_string());
 
                     let new_node = Subject::new( context, SubjectType::IndexNode, values );
 
-                    println!("MARK2 {:?}", new_node);
+                    //println!("MARK2 {:?}", new_node);
                     node.set_edge(context, y, &new_node);
 
                     self.recurse_set(context, tier+1, key, &new_node, subject);
-                }
-                _ => {
-                    panic!("unhandled error")
                 }
             }
         }
@@ -87,16 +83,25 @@ impl IndexFixed {
             context: context.clone()
         })
     } 
-    pub fn get_subject_handle(&self, context: &Context, key: u64 ) -> Result<SubjectHandle,RetrieveError> {
-        let subject = self.get(context,key)?;
-        Ok(SubjectHandle{
-            id: subject.id,
-            subject: subject,
-            context: context.clone()
-        })
-    } 
-    pub (crate) fn get ( &self, context: &Context, key: u64 ) -> Result<Subject, RetrieveError> {
-
+    pub fn get_subject_handle(&self, context: &Context, key: u64 ) -> Result<Option<SubjectHandle>,RetrieveError> {
+        match self.get(context,key)? {
+            Some(subject) => {
+                Ok(Some(SubjectHandle{
+                    id: subject.id,
+                    subject: subject,
+                    context: context.clone()
+                }))
+            },
+            None => Ok(None)
+        }
+    }
+    pub (crate) fn get ( &self, context: &Context, key: u64 ) -> Result<Option<Subject>, RetrieveError> {
+        match self.get_head( context, key )? {
+            Some(mrh) => Ok(Some( context.get_subject_with_head( mrh )? )),
+            None      => Ok(None)
+        }
+    }
+    pub (crate) fn get_head ( &self, context: &Context, key: u64 ) -> Result<Option<MemoRefHead>, RetrieveError> {
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -110,16 +115,15 @@ impl IndexFixed {
             let y = ((key / (x as u64)) % max) as RelationSlotId;
             //println!("Tier {}, {}, {}", tier, x, y );
 
-            println!("INDEX GET {} - {:?}", node.id, node.head.read().unwrap().memo_ids() );
+            //println!("INDEX GET {} - {:?}", node.id, node.head.read().unwrap().memo_ids() );
             if exponent == 0 {
                 //println!("]]] end of the line");
-                return node.get_edge( context, y as RelationSlotId);
+                return node.get_edge_head( context, y as RelationSlotId);
 
             }else{
-                if let Ok(n) = node.get_edge( context, y){
-                    node = n;
-                }else{
-                    return Err(RetrieveError::NotFound);
+                match node.get_edge( context, y)? {
+                    Some(n) => node = n,
+                    None    => return Ok(None),
                 }
             }
 

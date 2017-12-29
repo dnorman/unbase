@@ -10,7 +10,7 @@ fn basic_eventual() {
     net.add_transport( Box::new(simulator.clone()) );
 
     //let timestep = simulator.manual_time_step();
-    let _joinhandle = simulator.metronome(100);
+    let _joinhandle = simulator.metronome(10);
 
     let slab_a = unbase::Slab::new(&net);
     let slab_b = unbase::Slab::new(&net);
@@ -54,8 +54,8 @@ fn basic_eventual() {
         panic!("sanity error - uninitialized context");
     };
 
-    assert!(context_b.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab B");
-    assert!(context_c.get_subject_by_id( record_id ).unwrap_err() == RetrieveError::NotFound, "new subject should not yet have conveyed to slab C");
+    assert!(context_b.get_subject_by_id( record_id ).unwrap().is_none(), "new subject should not yet have conveyed to slab B");
+    assert!(context_c.get_subject_by_id( record_id ).unwrap().is_none(), "new subject should not yet have conveyed to slab C");
 
     //assert!(slab_a.count_of_memorefs_resident() == 2, "Slab A should have 2 memorefs resident");
     //assert!(slab_b.count_of_memorefs_resident() == 2, "Slab B should have 2 memorefs resident");
@@ -68,6 +68,15 @@ fn basic_eventual() {
 
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
+    // Force compaction of the index to ensure a new root index node is issued.
+    // In the future, this will occur automatically on the basis of a probablistic interval.
+    // This will likely be the primary eventual consistency mechanisim for convergence
+    // context_a.compact();
+    // context_a.compact(); // HACK - run it a couple times, because it's not performing a topologically optimal compaction yet
+    // context_a.compact();
+
+
+
     // Temporary way to magically, instantly send context
     println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
@@ -75,12 +84,12 @@ fn basic_eventual() {
 
     simulator.wait_idle();
 
-    let rec_b1 = context_b.get_subject_by_id( record_id );
-    let rec_c1 = context_c.get_subject_by_id( record_id );
+    let rec_b1 = context_b.get_subject_by_id( record_id ).unwrap();
+    let rec_c1 = context_c.get_subject_by_id( record_id ).unwrap();
 
     println!("RID: {}", record_id);
-    assert!(rec_b1.is_ok(), "new subject should now have conveyed to slab B");
-    assert!(rec_c1.is_ok(), "new subject should now have conveyed to slab C");
+    assert!(rec_b1.is_some(), "new subject should now have conveyed to slab B");
+    assert!(rec_c1.is_some(), "new subject should now have conveyed to slab C");
 
     let rec_b1 = rec_b1.unwrap();
     let rec_c1 = rec_c1.unwrap();
@@ -100,10 +109,14 @@ fn basic_eventual() {
     rec_b1.set_value("animal_type","Kanine");
     assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Woof");
     assert_eq!(rec_b1.get_value("animal_type").unwrap(),  "Kanine");
+   
+    simulator.wait_ticks(5);
 
     // Should not yet have propagated to slab A
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
     assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
+
+    println!("Manually exchanging context from Context B to Context A - Count of MemoRefs: {}", context_b.hack_send_context(&context_a) );
 
     simulator.wait_ticks(5);
 

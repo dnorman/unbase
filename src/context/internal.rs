@@ -17,11 +17,11 @@ impl Context {
         // println!("Context.apply_subject_head({}, {:?}) ", subject_id, head.memo_ids() );
         self.stash.apply_head(&self.slab, head)
     }
-    pub (crate) fn get_subject_core(&self, subject_id: SubjectId) -> Result<Subject, RetrieveError> {
-        match *self.root_index.read().unwrap() {
-            Some(ref index) => index.get(&self, subject_id.id),
-            None            => Err(RetrieveError::IndexNotInitialized),
-        }
+    pub (crate) fn get_subject(&self, subject_id: SubjectId) -> Result<Option<Subject>, RetrieveError> {
+        let ig = self.root_index.read().unwrap();
+        let index = ig.as_ref().ok_or(RetrieveError::IndexNotInitialized)?;
+
+        index.get(&self, subject_id.id)
     }
     /// Retrieve a subject for a known MemoRefHead – ususally used for relationship traversal.
     /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met

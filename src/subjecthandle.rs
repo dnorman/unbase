@@ -35,7 +35,7 @@ impl SubjectHandle{
         Self::new( context, vals )
     }
     pub fn get_value ( &self, key: &str ) -> Option<String> {
-        self.subject.get_value(&self.context, key)
+        self.subject.get_value(&self.context, key).expect("Retrieval error. TODO: Convert to Result<..,RetrieveError>")
     }
     pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, RetrieveError> {
 

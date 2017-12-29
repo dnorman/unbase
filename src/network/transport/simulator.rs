@@ -37,16 +37,16 @@ impl SimEvent {
         //println!("# SimEvent.deliver" );
         if let Some(to_slab) = self.dest.upgrade() {
 
-            let memo = &self.memoref.get_memo_if_resident().unwrap();
-            println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
-                &self.from_slabref.slab_id,
-                &to_slab.id,
-                &self.memoref.id,
-                &self.memoref.subject_id,
-                &memo.body,
-                &memo.parents.memo_ids(),
-                &self.memoref.peerlist.read().unwrap().slab_ids()
-            );
+            // let memo = &self.memoref.get_memo_if_resident().unwrap();
+            // println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
+            //     &self.from_slabref.slab_id,
+            //     &to_slab.id,
+            //     &self.memoref.id,
+            //     &self.memoref.subject_id,
+            //     &memo.body,
+            //     &memo.parents.memo_ids(),
+            //     &self.memoref.peerlist.read().unwrap().slab_ids()
+            // );
             let owned_slabref = &self.from_slabref.clone_for_slab(&to_slab);
             self.memoref.clone_for_slab( &owned_slabref, &to_slab, true );
         }

@@ -6,4 +6,5 @@ pub enum RetrieveError {
     InvalidMemoRefHead,
     IndexNotInitialized,
     SlabError,
+    MemoLineageError,
 }

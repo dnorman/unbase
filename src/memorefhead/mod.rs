@@ -350,9 +350,9 @@ impl CausalMemoIter {
     }
 }
 impl Iterator for CausalMemoIter {
-    type Item = Memo;
+    type Item = Result<Memo,RetrieveError>;
 
-    fn next (&mut self) -> Option<Memo> {
+    fn next (&mut self) -> Option<Result<Memo,RetrieveError>> {
         // iterate over head memos
         // Unnecessarly complex because we're not always dealing with MemoRefs
         // Arguably heads should be stored as Vec<MemoRef> instead of Vec<Memo>
@@ -361,16 +361,13 @@ impl Iterator for CausalMemoIter {
         if let Some(memoref) = self.queue.pop_front() {
             // this is wrong - Will result in G, E, F, C, D, B, A
 
-            match memoref.get_memo( &self.slab ){
+            match memoref.get_memo( &self.slab ) {
                 Ok(memo) => {
                     self.queue.append(&mut memo.get_parent_head().to_vecdeque());
-                    return Some(memo)
+                    return Some(Ok(memo));
                 },
-                Err(err) => {
-                    panic!("Failed to retrieve memo {} ({:?})", memoref.id, err );
-                }
+                Err(e) => return Some(Err(e))
             }
-            //TODO: memoref.get_memo needs to be able to fail
         }
 
         return None;

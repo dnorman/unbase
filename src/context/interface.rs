@@ -5,19 +5,22 @@ use std::fmt;
 /// User interface functions - Programmer API for `Context`
 impl Context {
     /// Retrive a Subject from the root index by ID
-    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<SubjectHandle, RetrieveError> {
+    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<Option<SubjectHandle>, RetrieveError> {
 
-        match *self.root_index.read().unwrap() {
-            Some(ref index) => {
-                Ok(
-                    SubjectHandle{
-                        id: subject_id,
-                        subject: index.get(&self, subject_id.id)?,
-                        context: self.clone()
-                    }
-                )
-            }
-            None => Err(RetrieveError::IndexNotInitialized),
+        let ig = self.root_index.read().unwrap();
+        let index = ig.as_ref().ok_or(RetrieveError::IndexNotInitialized)?;
+        
+        match index.get(&self, subject_id.id)? {
+            Some(s) => {
+                let sh = SubjectHandle{
+                    id: subject_id,
+                    subject: s,
+                    context: self.clone()
+                };
+
+                Ok(Some(sh))
+            },
+            None => Ok(None)
         }
     }
 
@@ -39,6 +42,26 @@ impl Context {
         }
 
         memoref_count
+    }
+    pub fn get_relevant_subject_head(&self, subject_id: SubjectId) -> Result<MemoRefHead, RetrieveError> {
+        match subject_id {
+            SubjectId{ stype: SubjectType::IndexNode,.. } => {
+                Ok(self.stash.get_head(subject_id).clone())
+            },
+            SubjectId{ stype: SubjectType::Record, .. } => {
+                // TODO: figure out a way to noop here in the case that the SubjectHead in question
+                //       was pulled against a sufficiently identical context stash state.
+                //       Perhaps stash edit increment? how can we get this to be really granular?
+
+                let ig = self.root_index.read().unwrap();
+                let index = ig.as_ref().ok_or(RetrieveError::IndexNotInitialized)?;
+
+                match index.get_head(&self, subject_id.id)? {
+                    Some(mrh) => Ok(mrh),
+                    None      => Ok(MemoRefHead::Null)
+                }
+            }
+        }
     }
     pub fn get_resident_subject_head(&self, subject_id: SubjectId) -> MemoRefHead {
         self.stash.get_head(subject_id).clone()
@@ -75,6 +98,8 @@ impl Context {
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
     pub fn compact(&self){
+        //TODO1: figure out why this is panicing:
+        //let before = self.stash.concise_contents();
 
         //TODO: implement topological MRH iterator for stash
         //      non-topological iteration will yield sub-optimal compaction
@@ -106,6 +131,8 @@ impl Context {
                 self.apply_head(&head);
             }
         }
+
+        //println!("COMPACT Before: {:?}, After: {:?}", before, self.stash.concise_contents() );
     }
 
     pub fn is_fully_materialized(&self) -> bool {
