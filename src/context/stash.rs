@@ -202,7 +202,7 @@ impl StashInner {
     fn assert_item(&mut self, subject_id: SubjectId) -> ItemId {
 
         let index = &mut self.index;
-        match index.binary_search_by(|x| x.0.id.cmp(&subject_id.id) ){
+        match index.binary_search_by(|x| x.0.cmp(&subject_id) ){
             Ok(i) => {
                 index[i].1
             }
@@ -214,9 +214,9 @@ impl StashInner {
                     item_id
                 } else {
                     self.items.push(Some(item));
+
                     self.items.len() - 1
                 };
-
                 index.insert(i, (subject_id, item_id));
                 item_id
             }
@@ -266,16 +266,17 @@ impl StashInner {
         self.conditional_remove_item(item_id);
     }
     fn conditional_remove_item(&mut self, item_id: ItemId) {
-        let remove = {
+        
+        let (remove,subject_id) = {
             let item = self.items[item_id].as_ref().expect("increment_item on None");
-            item.ref_count == 0 && item.head == MemoRefHead::Null
+            (item.ref_count == 0 && item.head == MemoRefHead::Null, item.subject_id)
         };
 
         if remove {
             self.items[item_id] = None;
             self.vacancies.push(item_id);
 
-            if let Ok(i) = self.index.binary_search_by(|x| x.1.cmp(&item_id) ){
+            if let Ok(i) = self.index.binary_search_by(|x| x.0.cmp(&subject_id) ){
                 self.index.remove(i);
             }
         }
