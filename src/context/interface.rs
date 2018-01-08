@@ -24,6 +24,9 @@ impl Context {
         }
     }
 
+    pub fn concise_contents (&self) -> Vec<String> {
+        self.stash.concise_contents()
+    }
     // Magically transport subject heads into another context in the same process.
     // This is a temporary hack for testing purposes until such time as proper context exchange is enabled
     // QUESTION: should context exchanges be happening constantly, but often ignored? or requested? Probably the former,
@@ -98,8 +101,7 @@ impl Context {
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
     pub fn compact(&self){
-        //TODO1: figure out why this is panicing:
-        //let before = self.stash.concise_contents();
+        let before = self.stash.concise_contents();
 
         //TODO: implement topological MRH iterator for stash
         //      non-topological iteration will yield sub-optimal compaction
@@ -132,7 +134,7 @@ impl Context {
             }
         }
 
-        //println!("COMPACT Before: {:?}, After: {:?}", before, self.stash.concise_contents() );
+        println!("COMPACT Before: {:?}, After: {:?}", before, self.stash.concise_contents() );
     }
 
     pub fn is_fully_materialized(&self) -> bool {

@@ -161,15 +161,12 @@ impl<'a> Visitor for MemoSeed<'a>{
             }
        };
 
-    println!("MARK 1.1");
        let parents: MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
            }
        };
-
-        println!("MARK 1.2");
 
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
 

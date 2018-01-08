@@ -23,7 +23,7 @@ fn index_construction() {
     let record = SubjectHandle::new_kv(&context_a, "record number", &format!("{}",i)).unwrap();
     index.insert_subject_handle(i, &record);
 
-    assert_eq!( index.get_subject_handle(&context_a,1234).unwrap().get_value("record number").unwrap(), "1234");
+    assert_eq!( index.get_subject_handle(&context_a,1234).unwrap().unwrap().get_value("record number").unwrap(), "1234");
 
 
     // Ok, now lets torture it a little
@@ -33,7 +33,7 @@ fn index_construction() {
     }
 
     for i in 0..10 {
-        assert_eq!( index.get_subject_handle(&context_a,i).unwrap().get_value("record number").unwrap(), i.to_string() );
+        assert_eq!( index.get_subject_handle(&context_a,i).unwrap().unwrap().get_value("record number").unwrap(), i.to_string() );
     }
 
     //assert_eq!( context_a.is_fully_materialized(), false );

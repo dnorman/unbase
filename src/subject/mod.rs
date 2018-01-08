@@ -9,6 +9,9 @@ use memorefhead::*;
 use context::Context;
 use error::*;
 
+use futures::{Stream};
+use futures::sync::mpsc::channel;
+
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
@@ -74,7 +77,7 @@ impl Subject {
 
         let subject = Subject{ id, head: RwLock::new(head.clone()) };
 
-        slab.subscribe_subject( &subject );
+        //slab.subscribe_subject( &subject );
 
         subject.update_referents( context );
 
@@ -102,7 +105,7 @@ impl Subject {
                 head: RwLock::new(head)
             };
 
-            context.slab.subscribe_subject( &subject );
+            //context.slab.subscribe_subject( &subject );
 
             Ok(subject)
 
@@ -113,10 +116,12 @@ impl Subject {
     pub fn get_value ( &self, context: &Context, key: &str ) -> Result<Option<String>, RetrieveError> {
         println!("# Subject({}).get_value({})",self.id,key);
 
+        // TODO3: Consider updating index node ingress to mark relevant subjects as potentially dirty
+        //        Use the lack of potential dirtyness to skip index traversal inside get_relevant_subject_head
         let chead = context.get_relevant_subject_head(self.id)?;
         println!("\t\tGOT: {:?}", chead.memo_ids() );
         self.head.write().unwrap().apply( &chead, &context.slab );
-        Ok(self.head.read().unwrap().project_value(context, key)?)
+        Ok(self.head.read().unwrap().project_value(&context.slab, key)?)
     }
     pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
@@ -232,6 +237,13 @@ impl Subject {
     //     unimplemented!();
     //     //self.shared.lock().unwrap().head.fully_materialize(slab)
     // }
+
+    pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRef, Error = ()>> {
+        let (mut tx, rx) = channel(1);
+
+        slab.observe_subject( self.id, tx );
+        Box::new(rx)
+    }
 }
 
 impl Clone for Subject {

@@ -1,9 +1,11 @@
 use subject::{Subject, SubjectId, SubjectType};
+use memorefhead::MemoRefHead;
 use context::Context;
 use slab::*;
 use error::*;
 use std::fmt;
 use std::collections::HashMap;
+use futures::{Stream};
 
 #[derive(Clone)]
 pub struct SubjectHandle {
@@ -58,6 +60,9 @@ impl SubjectHandle{
     }
     pub fn get_all_memo_ids ( &self ) -> Vec<MemoId> {
         self.subject.get_all_memo_ids(&self.context.slab)
+    }
+    pub fn observe (&self) -> Box<Stream<Item = MemoRef, Error = ()>> {
+        self.subject.observe(&self.context.slab)
     }
 }
 

@@ -1,6 +1,11 @@
+#![feature(proc_macro, conservative_impl_trait, generators)]
+
 extern crate unbase;
+extern crate futures_await as futures;
+
+use std::thread;
 use unbase::SubjectHandle;
-use unbase::error::*;
+use futures::stream::Stream;
 
 #[test]
 fn basic_eventual() {
@@ -82,8 +87,6 @@ fn basic_eventual() {
     println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
-    simulator.wait_idle();
-
     let rec_b1 = context_b.get_subject_by_id( record_id ).unwrap();
     let rec_c1 = context_c.get_subject_by_id( record_id ).unwrap();
 
@@ -93,6 +96,14 @@ fn basic_eventual() {
 
     let rec_b1 = rec_b1.unwrap();
     let rec_c1 = rec_c1.unwrap();
+
+    let rec_c1_clone = rec_c1.clone();
+    thread::spawn(move || {
+        for mr in rec_c1_clone.observe().wait() {
+            println!("rec_c1 changed {:?}", mr);
+        }
+    });
+
 
     assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab B should be internally consistent");
     assert!(rec_c1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab C should be internally consistent");
@@ -109,18 +120,16 @@ fn basic_eventual() {
     rec_b1.set_value("animal_type","Kanine");
     assert_eq!(rec_b1.get_value("animal_sound").unwrap(), "Woof");
     assert_eq!(rec_b1.get_value("animal_type").unwrap(),  "Kanine");
-   
-    simulator.wait_ticks(5);
 
     // Should not yet have propagated to slab A
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
     assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
 
+    //simulator.wait_ticks(5);
     println!("Manually exchanging context from Context B to Context A - Count of MemoRefs: {}", context_b.hack_send_context(&context_a) );
 
-    simulator.wait_ticks(5);
-
     // Nowwww it should have propagated
+    println!("  {:?} vs\n  {:?}", context_a.concise_contents(),context_b.concise_contents() );
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Woof");
     assert_eq!(rec_a1.get_value("animal_type").unwrap(),    "Kanine");
 /*

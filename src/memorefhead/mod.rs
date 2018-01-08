@@ -1,9 +1,8 @@
 pub mod serde;
 mod projection;
 
-use slab::*;
+use slab::{Slab,SlabRef,Memo,MemoId,MemoBody,MemoRef,EdgeLink,RelationSlotId};
 use subject::*;
-use context::*;
 use error::*;
 
 use std::mem;

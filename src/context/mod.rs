@@ -12,7 +12,7 @@ use index::IndexFixed;
 use slab::*;
 use self::stash::Stash;
 
-use std::sync::{Arc,Mutex,RwLock};
+use std::sync::{Arc,Weak,Mutex,RwLock};
 use std::ops::Deref;
 
 #[derive(Clone)]
@@ -23,6 +23,11 @@ pub struct ContextInner {
     pub root_index: RwLock<Option<IndexFixed>>,
     stash: Stash,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
+}
+
+#[derive(Clone)]
+pub struct WeakContext{
+    inner: Weak<ContextInner>
 }
 
 impl Deref for Context {
@@ -48,13 +53,27 @@ impl Context{
         let seed = slab.get_root_index_seed();//.expect("Uninitialized slab");
         let index = IndexFixed::new_from_memorefhead(&new_self, 5, seed);
 
+        
         *new_self.root_index.write().unwrap() = Some(index);
         new_self
     }
+    pub fn weak (&self) -> WeakContext {
+        WeakContext {
+            inner: Arc::downgrade(&self.0)
+        }
+    }
 }
 
+impl WeakContext {
+    pub fn upgrade (&self) -> Option<Context> {
+        match self.inner.upgrade() {
+            Some(i) => Some( Context(i) ),
+            None    => None
+        }
+    }
+}
 
-// TODO1 - rethink testing strategy
+// TODO2 - rethink testing strategy
 #[cfg(test)]
 mod test {
     use {Network, Slab};

@@ -31,7 +31,7 @@ fn main() {
     // spawn thread 1
     let t1 = thread::spawn(move || {
         // use the original copy of the subject, or look it up by sub
-        let rec_a1 = context_a.get_subject_by_id( rec_id ).unwrap();
+        let rec_a1 = context_a.get_subject_by_id( rec_id ).unwrap().unwrap();
 
         for _ in 1..5 {
             // Hacky-polling approach for now, push notification coming sooooon!
@@ -57,7 +57,7 @@ fn main() {
         thread::sleep(ten_ms);
 
         // Get a new copy of the same subject from context_b (requires communication)
-        let rec_b1 = context_b.get_subject_by_id( rec_id ).unwrap();
+        let rec_b1 = context_b.get_subject_by_id( rec_id ).unwrap().unwrap();
 
         for _ in 1..5 {
             // Hacky-polling approach for now, push notification coming sooooon!

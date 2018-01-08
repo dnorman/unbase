@@ -67,7 +67,6 @@ impl IndexFixed {
 
                     let new_node = Subject::new( context, SubjectType::IndexNode, values );
 
-                    //println!("MARK2 {:?}", new_node);
                     node.set_edge(context, y, &new_node);
 
                     self.recurse_set(context, tier+1, key, &new_node, subject);

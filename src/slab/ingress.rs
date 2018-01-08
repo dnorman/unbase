@@ -1,21 +1,42 @@
 use super::*;
+use subject::SubjectType;
+use futures::{Future, Sink, Stream};
+
 
 impl Slab {
     // NOTE: this is run inside a dedicated thread, as fetches from other slabs may be required for
     // apply_head ( which calls descends, which calls get_memo, which blocks )
     // QUESTION: could this be managed with a marker?
     pub fn dispatch_memoref (&self, memoref : MemoRef){
-        //println!("# \t\\ Slab({}).dispatch_memoref({})", self.id, &memoref.id );
+        println!("# \t\\ Slab({}).dispatch_memoref({}, {:?})", self.id, &memoref.id, &memoref.subject_id );
 
         if let Some(subject_id) = memoref.subject_id {
             // TODO2 - switch network modules over to use tokio, ingress to use tokio mpsc stream
             // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
             // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
-            if let Some(ref senders) = self.subject_subscriptions.lock().unwrap().get( &subject_id ) {
-                for sender in senders.iter(){
-                    //TODO2 - what to do here when sending fails?
-                    sender.send(Some(memoref.clone())).unwrap();
+
+            if let SubjectType::IndexNode = subject_id.stype {
+                // TODO3 - update this to consider popularity of this node, and/or common points of reference with a given context
+                // let contexts = self.contexts.lock().unwrap();
+                // for context in *contexts {
+                //     context.add_memoref(&memoref);
+                // }
+
+            }
+
+            if let Some(ref mut senders) = self.subject_subscriptions.lock().unwrap().get_mut( &subject_id ) {
+                let len = senders.len();
+                println!("SENDERS {}", len );
+                for i in len..0 {
+                    match senders[i].clone().send(memoref.clone()).wait() {
+                        Ok(..) => {
+                            println!("SENT 2 {}", memoref.id );
+                        }
+                        Err(e) => {
+                            senders.swap_remove(i);
+                        }
+                    }
                 }
             }
         }
@@ -114,6 +135,13 @@ impl Slab {
                     }
                 }
             }
+            // _ => {
+            //     if let Some(SubjectId{stype: SubjectType::IndexNode,..}) = memo.subject_id {
+            //         for slab in self.contexts {
+
+            //         }
+            //     }
+            // }
             _ => {}
         }
     }

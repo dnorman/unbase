@@ -70,8 +70,7 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
             (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
         };
-
-                println!("MARK 2.2 {:?}", &foo);
+        
         foo
     }
 }

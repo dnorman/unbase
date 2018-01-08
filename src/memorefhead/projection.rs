@@ -24,7 +24,7 @@ impl MemoRefHead {
     //       this problem applies to causal_memo_iter itself really, insofar as it should return sets of concurrent memos to be merged rather than individual memos
     // This in turn raises questions about how relations should be merged
 
-    /// Project all edge links based only on the causal history of this head – No consideration of a query context.
+    /// Project all edge links based only on the causal history of this head.
     /// The name is pretty gnarly, and this is very ripe for refactoring, but at least it says what it does.
     pub fn project_all_edge_links_including_empties (&self, slab: &Slab) -> Vec<EdgeLink> {
 
@@ -127,10 +127,10 @@ impl MemoRefHead {
     // pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
     //     unimplemented!()
     // }
-    pub fn project_value ( &self, context: &Context, key: &str ) -> Result<Option<String>,RetrieveError> {
+    pub fn project_value ( &self, slab: &Slab, key: &str ) -> Result<Option<String>,RetrieveError> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses
-        for memo in self.causal_memo_iter(&context.slab) {
+        for memo in self.causal_memo_iter(&slab) {
             //println!("# \t\\ Considering Memo {}", memo.id );
             if let Some((values, materialized)) = memo?.get_values() {
                 if let Some(v) = values.get(key) {
@@ -144,16 +144,12 @@ impl MemoRefHead {
         Err(RetrieveError::MemoLineageError)
     }
     pub fn project_relation ( &self, slab: &Slab, key: RelationSlotId ) -> Result<Option<SubjectId>, RetrieveError> {
-        // TODO: Make error handling more robust
 
         for memo in self.causal_memo_iter( &slab ) {
 
             if let Some((relations,materialized)) = memo?.get_relations(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
                 if let Some(maybe_subject_id) = relations.get(&key) {
-                    // BUG: the parent->child was formed prior to the revision of the child.
-                    // TODO: Should be adding the new head memo to the query context
-                    //       and superseding the referenced head due to its inclusion in the context
                     return match *maybe_subject_id {
                         Some(subject_id) => Ok(Some(subject_id)),
                         None                 => Ok(None)
@@ -169,19 +165,11 @@ impl MemoRefHead {
         Err(RetrieveError::MemoLineageError)
     }    
     pub fn project_edge ( &self, slab: &Slab, key: RelationSlotId ) -> Result<Option<Self>, RetrieveError> {
-        // TODO: Make error handling more robust
-
-        // TODO1: This is wrong - could be considering the context in the projection
-        // We must always consider the context in any projection, except in rare cases where we EXPRESSLY wish to avoid it
         for memo in self.causal_memo_iter( &slab ) {
 
             if let Some((edges,materialized)) = memo?.get_edges(){
                 //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
                 if let Some(head) = edges.get(&key) {
-                    // BUG: the parent->child was formed prior to the revision of the child.
-                    // TODO: Should be adding the new head memo to the query context
-                    //       and superseding the referenced head due to its inclusion in the context
-
                     return Ok(Some(head.clone()));
                 }else if materialized {
                     //println!("\n# \t\\ Not Found (materialized)" );

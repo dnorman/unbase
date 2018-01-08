@@ -51,6 +51,9 @@ impl Slab {
         if let Some(ref memo) = memoref.get_memo_if_resident() {
 
             self.check_memo_waiters(memo);
+            //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
+            // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
+            // otherwise 
             self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
             self.do_peering(&memoref, &origin_slabref);
 
