@@ -81,10 +81,11 @@ fn basic_eventual() {
     // context_a.compact();
 
 
+    simulator.wait_ticks(5);
 
     // Temporary way to magically, instantly send context
-    println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
-    println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
+    // println!("Manually exchanging context from Context A to Context B - Count of MemoRefs: {}", context_a.hack_send_context(&context_b) );
+    // println!("Manually exchanging context from Context A to Context C - Count of MemoRefs: {}", context_a.hack_send_context(&context_c) );
     println!("Root Index = {:?}", context_b.get_resident_subject_head_memo_ids(root_index_subject.id)  );
 
     let rec_b1 = context_b.get_subject_by_id( record_id ).unwrap();
@@ -98,12 +99,12 @@ fn basic_eventual() {
     let rec_c1 = rec_c1.unwrap();
 
     let rec_c1_clone = rec_c1.clone();
+
     thread::spawn(move || {
         for mr in rec_c1_clone.observe().wait() {
-            println!("rec_c1 changed {:?}", mr);
+            println!("rec_c1 changed. animal_sound is {}", rec_c1_clone.get_value("animal_sound").unwrap() );
         }
     });
-
 
     assert!(rec_b1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab B should be internally consistent");
     assert!(rec_c1.get_value("animal_sound").unwrap() == "Moo", "Subject read from Slab C should be internally consistent");
@@ -125,8 +126,8 @@ fn basic_eventual() {
     assert_eq!(rec_a1.get_value("animal_sound").unwrap(),   "Moo");
     assert!(rec_a1.get_value("animal_type").is_none(), "Should not yet have a value on Slab A for animal_type");
 
-    //simulator.wait_ticks(5);
-    println!("Manually exchanging context from Context B to Context A - Count of MemoRefs: {}", context_b.hack_send_context(&context_a) );
+    simulator.wait_ticks(5);
+    //println!("Manually exchanging context from Context B to Context A - Count of MemoRefs: {}", context_b.hack_send_context(&context_a) );
 
     // Nowwww it should have propagated
     println!("  {:?} vs\n  {:?}", context_a.concise_contents(),context_b.concise_contents() );

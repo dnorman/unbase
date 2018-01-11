@@ -18,27 +18,30 @@ impl Slab {
 
             if let SubjectType::IndexNode = subject_id.stype {
                 // TODO3 - update this to consider popularity of this node, and/or common points of reference with a given context
-                // let contexts = self.contexts.lock().unwrap();
-                // for context in *contexts {
-                //     context.add_memoref(&memoref);
-                // }
+                let mut senders = self.index_subscriptions.lock().unwrap();
+                let len = senders.len();
+                for i in (0..len).rev() {
+                    if let Err(_) = senders[i].clone().send(memoref.clone()).wait(){
+                        // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
+                        senders.swap_remove(i);
+                    }
+                }
 
             }
 
             if let Some(ref mut senders) = self.subject_subscriptions.lock().unwrap().get_mut( &subject_id ) {
                 let len = senders.len();
-                println!("SENDERS {}", len );
-                for i in len..0 {
+                for i in (0..len).rev() {
                     match senders[i].clone().send(memoref.clone()).wait() {
-                        Ok(..) => {
-                            println!("SENT 2 {}", memoref.id );
-                        }
+                        Ok(..) => {}
                         Err(e) => {
+                            // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
                             senders.swap_remove(i);
                         }
                     }
                 }
             }
+
         }
     }
 

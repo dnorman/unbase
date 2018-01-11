@@ -7,6 +7,9 @@ use memorefhead::*;
 use error::*;
 
 use std::collections::HashMap;
+use futures::sync::mpsc::channel;
+use futures::Stream;
+use std::thread;
 
 use index::IndexFixed;
 use slab::*;
@@ -55,6 +58,29 @@ impl Context{
 
         
         *new_self.root_index.write().unwrap() = Some(index);
+
+        let (mut tx, rx) = channel(1);
+        slab.observe_index( tx );
+
+
+        use futures::Stream;
+        let rx = Box::new(rx);
+        // TODO3 - should we be storing the join handle?
+        let new_self2 = new_self.clone();
+        thread::spawn(move || {
+            for mr in rx.wait() {
+                match mr {
+                    Ok(mr) => {
+                        new_self2.apply_head(&mr.to_head()); // TODO2 Add action to apply memoref directly
+                    },
+                    Err(_) => {
+                        break;
+                    }
+                }
+            }
+        });
+
+
         new_self
     }
     pub fn weak (&self) -> WeakContext {

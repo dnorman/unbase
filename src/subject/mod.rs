@@ -241,6 +241,7 @@ impl Subject {
     pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRef, Error = ()>> {
         let (mut tx, rx) = channel(1);
 
+        // TODO1: deduplicate channels, apply memorefs to this subject's head
         slab.observe_subject( self.id, tx );
         Box::new(rx)
     }

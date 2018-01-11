@@ -50,7 +50,7 @@ pub struct SlabInner{
     memorefs_by_id: RwLock<HashMap<MemoId,MemoRef>>,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
     subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRef>>>>,
-    //contexts: Mutex<Vec<WeakContext>>,
+    index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRef>>>,
     counters: RwLock<SlabCounters>,
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
@@ -96,6 +96,7 @@ impl Slab {
             memorefs_by_id:        RwLock::new(HashMap::new()),
             memo_wait_channels:    Mutex::new(HashMap::new()),
             subject_subscriptions: Mutex::new(HashMap::new()),
+            index_subscriptions:   Mutex::new(Vec::new()),
 
             counters: RwLock::new(SlabCounters {
                 last_memo_id: 5000,
@@ -157,6 +158,9 @@ impl Slab {
         }
 
         // sub
+    }
+    pub (crate) fn observe_index (&self, tx: futures::sync::mpsc::Sender<MemoRef> ) {
+        self.index_subscriptions.lock().unwrap().push(tx);
     }
     // pub fn unsubscribe_subject (&self){
     //     unimplemented!()
