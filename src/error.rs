@@ -17,7 +17,7 @@ pub enum ObserveError{
 }
 
 impl core::convert::From<()> for ObserveError {
-    fn from(error: ()) -> Self {
+    fn from(_error: ()) -> Self {
         ObserveError::Unknown
     }
 }

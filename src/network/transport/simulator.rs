@@ -67,17 +67,19 @@ impl fmt::Debug for SimEvent{
 pub struct Simulator {
     shared: Arc<Mutex<SimulatorInternal>>,
     speed_of_light: u64,
-    wait_clock: u64
+    wait_clock: u64,
+    run: Arc<Mutex<bool>>,
 }
 struct SimulatorInternal {
     clock: u64,
-    queue: Vec<SimEvent>
+    queue: Vec<SimEvent>,
 }
 
 impl Simulator {
     pub fn new() -> Self{
         Simulator {
             speed_of_light: 1, // 1 distance unit per time unit
+            run: Arc::new(Mutex::new(true)),
             shared: Arc::new(Mutex::new(
                 SimulatorInternal {
                     clock: 0,
@@ -108,9 +110,21 @@ impl Simulator {
             println!("Simulator transport - Metronome Timestep Enabled (interval {}ms).\n\n", ms );
             loop {
                 thread::sleep(time::Duration::from_millis(ms));
-                sim.advance_clock(1);
+                let run = sim.run.lock().unwrap();
+
+                if *run {
+                    sim.advance_clock(1);
+                }
             }
         })
+    }
+    pub fn pause(&self){
+        let mut run = self.run.lock().unwrap();
+        *run = false;
+    }
+    pub fn resume(&self) {
+        let mut run = self.run.lock().unwrap();
+        *run = true;
     }
     pub fn clear_wait(&mut self) {
         self.wait_clock = self.get_clock();
@@ -141,7 +155,7 @@ impl Simulator {
     }
     pub fn advance_clock (&self, ticks: u64) {
 
-        println!("# Simulator.advance_clock({})", ticks);
+        //println!("# Simulator.advance_clock({})", ticks);
 
         let t;
         let events : Vec<SimEvent>;

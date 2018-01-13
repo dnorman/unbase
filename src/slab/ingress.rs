@@ -1,6 +1,6 @@
 use super::*;
 use subject::SubjectType;
-use futures::{Future, Sink, Stream};
+use futures::{Future, Sink};
 
 
 impl Slab {
@@ -8,7 +8,7 @@ impl Slab {
     // apply_head ( which calls descends, which calls get_memo, which blocks )
     // QUESTION: could this be managed with a marker?
     pub fn dispatch_memoref (&self, memoref : MemoRef){
-        println!("# \t\\ Slab({}).dispatch_memoref({}, {:?})", self.id, &memoref.id, &memoref.subject_id );
+        //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?})", self.id, &memoref.id, &memoref.subject_id );
 
         if let Some(subject_id) = memoref.subject_id {
             // TODO2 - switch network modules over to use tokio, ingress to use tokio mpsc stream
@@ -34,7 +34,7 @@ impl Slab {
                 for i in (0..len).rev() {
                     match senders[i].clone().send(memoref.clone()).wait() {
                         Ok(..) => {}
-                        Err(e) => {
+                        Err(_) => {
                             // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
                             senders.swap_remove(i);
                         }

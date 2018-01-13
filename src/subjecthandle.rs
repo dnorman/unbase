@@ -1,5 +1,4 @@
 use subject::{Subject, SubjectId, SubjectType};
-use memorefhead::MemoRefHead;
 use context::Context;
 use slab::*;
 use error::*;

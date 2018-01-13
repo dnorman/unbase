@@ -8,7 +8,6 @@ use error::*;
 
 use std::collections::HashMap;
 use futures::sync::mpsc::channel;
-use futures::Stream;
 use std::thread;
 
 use index::IndexFixed;
@@ -59,7 +58,7 @@ impl Context{
         
         *new_self.root_index.write().unwrap() = Some(index);
 
-        let (mut tx, rx) = channel(1);
+        let (tx, rx) = channel(1);
         slab.observe_index( tx );
 
 

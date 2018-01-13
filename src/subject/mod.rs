@@ -95,7 +95,7 @@ impl Subject {
             }
         };
     }
-    pub fn reconstitute (context: &Context, head: MemoRefHead) -> Result<Subject,RetrieveError> {
+    pub fn reconstitute (_context: &Context, head: MemoRefHead) -> Result<Subject,RetrieveError> {
         //println!("Subject.reconstitute({:?})", head);
         // Arguably we shouldn't ever be reconstituting a subject
 
@@ -105,6 +105,7 @@ impl Subject {
                 head: RwLock::new(head)
             };
 
+            // TODO3 - Should a resident subject be proactively updated? Or only when it's being observed?
             //context.slab.subscribe_subject( &subject );
 
             Ok(subject)
@@ -114,12 +115,12 @@ impl Subject {
         }
     }
     pub fn get_value ( &self, context: &Context, key: &str ) -> Result<Option<String>, RetrieveError> {
-        println!("# Subject({}).get_value({})",self.id,key);
+        //println!("# Subject({}).get_value({})",self.id,key);
 
         // TODO3: Consider updating index node ingress to mark relevant subjects as potentially dirty
         //        Use the lack of potential dirtyness to skip index traversal inside get_relevant_subject_head
         let chead = context.get_relevant_subject_head(self.id)?;
-        println!("\t\tGOT: {:?}", chead.memo_ids() );
+        //println!("\t\tGOT: {:?}", chead.memo_ids() );
         self.head.write().unwrap().apply( &chead, &context.slab );
         Ok(self.head.read().unwrap().project_value(&context.slab, key)?)
     }
@@ -239,7 +240,7 @@ impl Subject {
     // }
 
     pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRef, Error = ()>> {
-        let (mut tx, rx) = channel(1);
+        let (tx, rx) = channel(1);
 
         // TODO1: deduplicate channels, apply memorefs to this subject's head
         slab.observe_subject( self.id, tx );
