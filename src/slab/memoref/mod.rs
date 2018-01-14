@@ -165,21 +165,14 @@ impl MemoRef {
         Err(RetrieveError::NotFoundByDeadline)
 
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> bool {
+    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,RetrieveError> {
         assert!(self.owning_slab_id == slab.id);
-        match self.get_memo( slab ) {
-            Ok(my_memo) => {
-                if my_memo.descends(&memoref, slab) {
-                    return true
-                }
-            }
-            Err(_) => {
-                // TODO: convert this into a Result<>
-                panic!("Unable to retrieve memo")
-            }
-        };
 
-        false
+        if self.get_memo( slab )?.descends(&memoref, slab)? {
+            Ok(true)
+        }else{
+            Ok(false)
+        }
     }
     pub fn update_peer (&self, slabref: &SlabRef, status: MemoPeeringStatus) -> bool {
 

@@ -83,12 +83,12 @@ impl MemoRefHead {
         }).collect()
     }
     /// Contextualized projection of occupied edges
-    pub fn project_occupied_edges (&self, slab: &Slab) -> Vec<EdgeLink> {
+    pub fn project_occupied_edges (&self, slab: &Slab) -> Result<Vec<EdgeLink>,RetrieveError> {
         let mut visited = [false;SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<EdgeLink> = Vec::new();
         
         'memo: for memo in self.causal_memo_iter(&slab){
-            let memo = memo.expect("Memo retrieval error. TODO: Update to use Result<..,RetrieveError>");
+            let memo = memo?;
 
             let (edgeset,last) = match memo.body {
                 MemoBody::FullyMaterialized { e : ref edgeset, .. } => {
@@ -119,7 +119,7 @@ impl MemoRefHead {
             }
         }
 
-        edge_links
+        Ok(edge_links)
     }
                         
     // Fully Materialized memo means we're done here

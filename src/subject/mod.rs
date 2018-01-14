@@ -63,7 +63,7 @@ pub(crate) struct Subject {
 }
 
 impl Subject {
-    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Self {
+    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Result<Self,WriteError> {
 
         let slab = &context.slab;
         let id = slab.generate_subject_id(stype);
@@ -79,21 +79,24 @@ impl Subject {
 
         //slab.subscribe_subject( &subject );
 
-        subject.update_referents( context );
+        subject.update_referents( context )?;
 
-        subject
+        Ok(subject)
     }
-    fn update_referents (&self, context: &Context) {
+    /// Notify whomever needs to know that a new subject has been created
+    fn update_referents (&self, context: &Context) -> Result<(),WriteError> {
         match self.id.stype {
             SubjectType::IndexNode => {
                 let head = self.head.read().unwrap();
-                context.apply_head( &head );
+                context.apply_head( &*head )?;
             },
             SubjectType::Record    => {
                 // TODO: Consider whether this should accept head instead of subject
-                context.insert_into_root_index( self.id, &self );
+                context.insert_into_root_index( self.id, &self )?;
             }
-        };
+        }
+
+        Ok(())
     }
     pub fn reconstitute (_context: &Context, head: MemoRefHead) -> Result<Subject,RetrieveError> {
         //println!("Subject.reconstitute({:?})", head);
@@ -121,12 +124,12 @@ impl Subject {
         //        Use the lack of potential dirtyness to skip index traversal inside get_relevant_subject_head
         let chead = context.get_relevant_subject_head(self.id)?;
         //println!("\t\tGOT: {:?}", chead.memo_ids() );
-        self.head.write().unwrap().apply( &chead, &context.slab );
-        Ok(self.head.read().unwrap().project_value(&context.slab, key)?)
+        self.head.write().unwrap().apply( &chead, &context.slab )?;
+        self.head.read().unwrap().project_value(&context.slab, key)
     }
     pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab );
+        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
 
         match self.head.read().unwrap().project_relation(&context.slab, key)? {
             Some(subject_id) => context.get_subject(subject_id),
@@ -145,11 +148,11 @@ impl Subject {
     }
     pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHead>, RetrieveError> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab );
+        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
         self.head.read().unwrap().project_edge(&context.slab, key)
     }
 
-    pub fn set_value (&self, context: &Context, key: &str, value: &str) -> bool {
+    pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,WriteError> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
@@ -163,13 +166,13 @@ impl Subject {
                 MemoBody::Edit(vals)
             );
 
-            head.apply_memoref(&memoref, &slab);
+            head.apply_memoref(&memoref, &slab)?;
         }
-        self.update_referents( context );
+        self.update_referents( context )?;
 
-        true
+        Ok(true)
     }
-    pub fn set_relation (&self, context: &Context, key: RelationSlotId, relation: &Self) {
+    pub fn set_relation (&self, context: &Context, key: RelationSlotId, relation: &Self) -> Result<(),WriteError> {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
         let mut relationset = RelationSet::empty();
         relationset.insert( key, relation.id );
@@ -184,12 +187,12 @@ impl Subject {
                 MemoBody::Relation(relationset)
             );
 
-            head.apply_memoref(&memoref, &slab);
+            head.apply_memoref(&memoref, &slab)?;
         };
 
-        self.update_referents( context );
+        self.update_referents( context )
     }
-    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) {
+    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),WriteError>{
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
         let mut edgeset = EdgeSet::empty();
         edgeset.insert( key, edge.get_head() );
@@ -204,10 +207,10 @@ impl Subject {
                 MemoBody::Edge(edgeset)
             );
 
-            head.apply_memoref(&memoref, &slab);
+            head.apply_memoref(&memoref, &slab)?;
         }
         
-        self.update_referents( context );
+        self.update_referents( context )
 
     }
     // // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context

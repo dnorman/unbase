@@ -22,7 +22,7 @@ pub struct Context(Arc<ContextInner>);
 
 pub struct ContextInner {
     pub slab: Slab,
-    pub root_index: RwLock<Option<IndexFixed>>,
+    pub root_index: RwLock<Option<Arc<IndexFixed>>>,
     stash: Stash,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
 }
@@ -52,32 +52,32 @@ impl Context{
             )
         );
 
-        let seed = slab.get_root_index_seed();//.expect("Uninitialized slab");
-        let index = IndexFixed::new_from_memorefhead(&new_self, 5, seed);
-
-        
-        *new_self.root_index.write().unwrap() = Some(index);
-
         let (tx, rx) = channel(1);
         slab.observe_index( tx );
 
-
         use futures::Stream;
         let rx = Box::new(rx);
-        // TODO3 - should we be storing the join handle?
-        let new_self2 = new_self.clone();
-        thread::spawn(move || {
-            for mr in rx.wait() {
-                match mr {
-                    Ok(mr) => {
-                        new_self2.apply_head(&mr.to_head()); // TODO2 Add action to apply memoref directly
-                    },
-                    Err(_) => {
-                        break;
+
+        {
+            let new_self = new_self.clone();
+
+            // TODO3 - should we be storing the join handle?
+            thread::spawn(move || {
+                for mr in rx.wait() {
+                    match mr {
+                        Ok(mr) => {
+                            if let Err(e) = new_self.apply_head(&mr.to_head()){ // TODO2 Add action to apply memoref directly
+                                //TODO: Update this to use logger
+                                println!("Failed to apply head to context {:?}", e);
+                            }
+                        },
+                        Err(_) => {
+                            break;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
 
         new_self

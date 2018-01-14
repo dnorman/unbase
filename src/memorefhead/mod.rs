@@ -56,7 +56,7 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> bool {
+    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> Result<bool,WriteError> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
@@ -72,7 +72,7 @@ impl MemoRefHead {
                     *self = MemoRefHead::Anonymous{ head: vec![new.clone()] };
                 }
 
-                return true;
+                return Ok(true);
             },
             MemoRefHead::Anonymous{ ref mut head } => {
                 head
@@ -98,9 +98,9 @@ impl MemoRefHead {
             {
                 let ref mut existing = head[i];
                 if existing == new {
-                    return false; // we already had this
+                    return Ok(false); // we already had this
 
-                } else if existing.descends(&new,&slab) {
+                } else if existing.descends(&new,&slab)? {
                     new_is_descended = true;
 
                     // IMPORTANT: for the purposes of the boolean return,
@@ -110,7 +110,7 @@ impl MemoRefHead {
                     // then it doesn't get applied at all punt the whole thing
                     break 'existing;
 
-                } else if new.descends(&existing, &slab) {
+                } else if new.descends(&existing, &slab)? {
                     new_descends = true;
                     applied = true; // descends
 
@@ -148,52 +148,53 @@ impl MemoRefHead {
             //println!("# \t\\ NOT applied - {:?}", self.memo_ids());
         }
 
-        applied
+       Ok(applied)
     }
-    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &Slab) {
+    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &Slab) -> Result<(),WriteError> {
         for new in new_memorefs.iter(){
-            self.apply_memoref(new, slab);
+            self.apply_memoref(new, slab)?;
         }
+        Ok(())
     }
-    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> bool {
+    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> Result<bool,WriteError> {
         let mut applied = false;
 
         for new in other.iter(){
-            if self.apply_memoref( new, slab ) {
+            if self.apply_memoref( new, slab )? {
                 applied = true;
             }
         }
 
-        applied
+        Ok(applied)
     }
 
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
-    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> bool{
+    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> Result<bool,RetrieveError> {
 
         // there's probably a more efficient way to do this than iterating over the cartesian product
         // we can get away with it for now though I think
         // TODO: revisit when beacons are implemented
         match *self {
-            MemoRefHead::Null             => false,
+            MemoRefHead::Null             => Ok(false),
             MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => {
                 match *other {
-                    MemoRefHead::Null             => false,
+                    MemoRefHead::Null             => Ok(false),
                     MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
                         if head.len() == 0 || other_head.len() == 0 {
-                            return false // searching for positive descendency, not merely non-ascendency
+                            return Ok(false) // searching for positive descendency, not merely non-ascendency
                         }
                         for memoref in head.iter(){
                             'other: for other_memoref in other_head.iter(){
                                 if memoref == other_memoref {
                                     //
-                                } else if !memoref.descends(other_memoref, slab) {
-                                    return false;
+                                } else if !memoref.descends(other_memoref, slab)? {
+                                    return Ok(false);
                                 }
                             }
                         }
 
-                        true
+                        Ok(true)
                     }
                 }
             }

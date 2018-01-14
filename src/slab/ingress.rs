@@ -4,9 +4,7 @@ use futures::{Future, Sink};
 
 
 impl Slab {
-    // NOTE: this is run inside a dedicated thread, as fetches from other slabs may be required for
-    // apply_head ( which calls descends, which calls get_memo, which blocks )
-    // QUESTION: could this be managed with a marker?
+    /// Notify interested parties about a newly arrived memoref on this slab
     pub fn dispatch_memoref (&self, memoref : MemoRef){
         //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?})", self.id, &memoref.id, &memoref.subject_id );
 
@@ -46,13 +44,10 @@ impl Slab {
     }
 
     //NOTE: nothing that calls get_memo, directly or indirectly is presently allowed here (but get_memo_if_resident is ok)
+    //      why? Presumably due to deadlocks, but this seems sloppy
+    /// Perform necessary tasks given a newly arrived memo on this slab
     pub fn handle_memo_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
         //println!("Slab({}).handle_memo_from_other_slab({})", self.id, memo.id );
-
-        // TODO1 - how do we handle FullyMaterialized, Edge and other memobodies for items which are:
-        // 1. Index Nodes?
-        // 2. In one or more of our contexts?
-        // And why isn't the hack_send_context method working for subject 9003/memo 5003? ( index branch )
 
         match memo.body {
             // This Memo is a peering status update for another memo

@@ -6,6 +6,7 @@ pub mod serde;
 use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
+use error::*;
 
 use subject::{SubjectId,SubjectType};
 use slab::MemoRef;
@@ -123,7 +124,7 @@ impl Memo {
             }
         }
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> bool {
+    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,RetrieveError> {
         //TODO: parallelize this
         //TODO: Use sparse-vector/beacon to avoid having to trace out the whole lineage
         //      Should be able to stop traversal once happens-before=true. Cannot descend a thing that happens after
@@ -131,17 +132,17 @@ impl Memo {
         // breadth-first
         for parent in self.parents.iter() {
             if parent == memoref {
-                return true
+                return Ok(true)
             };
         }
 
         // Ok now depth
         for parent in self.parents.iter() {
-            if parent.descends(&memoref,slab) {
-                return true
+            if parent.descends(&memoref,slab)? {
+                return Ok(true)
             }
         }
-        return false;
+        return Ok(false);
     }
     pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, peerlist: &MemoPeerList) -> Memo {
         assert!(from_slabref.owning_slab_id == to_slab.id, "Memo clone_for_slab owning slab should be identical");

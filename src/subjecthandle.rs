@@ -14,9 +14,9 @@ pub struct SubjectHandle {
 }
 
 impl SubjectHandle{
-    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,String> {
+    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,WriteError> {
 
-        let subject = Subject::new(&context, SubjectType::Record, vals );
+        let subject = Subject::new(&context, SubjectType::Record, vals )?;
 
         let handle = SubjectHandle{
             id: subject.id,
@@ -26,10 +26,10 @@ impl SubjectHandle{
 
         Ok(handle)
     }
-    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,String> {
+    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,WriteError> {
         Self::new( context, HashMap::new() )
     }
-    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,String> {
+    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,WriteError> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
@@ -51,10 +51,10 @@ impl SubjectHandle{
             None => Ok(None)
         }
     }
-    pub fn set_value (&self, key: &str, value: &str) -> bool {
+    pub fn set_value (&self, key: &str, value: &str) -> Result<bool,WriteError> {
         self.subject.set_value(&self.context, key, value)
     }
-    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) {
+    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) -> Result<(),WriteError> {
         self.subject.set_relation(&self.context, key, &relation.subject)
     }
     pub fn get_all_memo_ids ( &self ) -> Vec<MemoId> {
