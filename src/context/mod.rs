@@ -138,7 +138,7 @@ mod test {
         {
             // manually defeat compaction
             let head = slab.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
-            context.apply_head(&head);
+            context.apply_head(&head).unwrap();
         }
 
         // additional stuff on I2 should prevent it from being pruned by the I3 edge
@@ -151,7 +151,7 @@ mod test {
             // manually perform compaction
             let updated_head2 = context.stash.get_head( head2.subject_id().unwrap() );
             let head = slab.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edge(EdgeSet::single(0, updated_head2))).to_head();
-            context.apply_head(&head);
+            context.apply_head(&head).unwrap();
         }
 
         assert_eq!(context.stash.concise_contents(),["I3>I2", "I4>I3"], "Valid contents");
@@ -160,7 +160,7 @@ mod test {
             // manually perform compaction
             let updated_head3 = context.stash.get_head( head3.subject_id().unwrap() );
             let head = slab.new_memo_basic(head4.subject_id(), head4, MemoBody::Edge(EdgeSet::single(0, updated_head3))).to_head();
-            context.apply_head(&head);
+            context.apply_head(&head).unwrap();
         }
 
         assert_eq!(context.stash.concise_contents(),["I4>I3"], "Valid contents");
@@ -179,7 +179,7 @@ mod test {
         {
             // manually defeat compaction
             let head = slab.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
-            context.apply_head(&head);
+            context.apply_head(&head).unwrap();
         }
 
         // additional stuff on I2 should prevent it from being pruned by the I3 edge
@@ -187,7 +187,7 @@ mod test {
         {
             // manually defeat compaction
             let head = slab.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edit(HashMap::new())).to_head();
-            context.apply_head(&head);
+            context.apply_head(&head).unwrap();
         }
 
         // additional stuff on I3 should prevent it from being pruned by the I4 edge
@@ -195,7 +195,7 @@ mod test {
 
         assert_eq!(context.stash.concise_contents(),["I2>I1","I3>I2","I4>I3"], "Valid contents");
 
-        context.compact();
+        context.compact().unwrap();
 
         assert_eq!(context.stash.concise_contents(),["I4>I3"], "Valid contents");
     }

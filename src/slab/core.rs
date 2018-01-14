@@ -1,4 +1,5 @@
 use super::*;
+use error::*;
 
 
 impl Slab {
@@ -104,7 +105,7 @@ impl Slab {
             false
         }
     }
-    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),String> {
+    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),StorageOpDeclined> {
         assert!(memoref.owning_slab_id == self.id);
 
         //println!("# Slab({}).MemoRef({}).remotize()", self.id, memoref.id );
@@ -118,7 +119,7 @@ impl Slab {
                 let peerlist = memoref.peerlist.read().unwrap();
 
                 if peerlist.len() == 0 {
-                    return Err("Cannot remotize a zero-peer memo".to_string());
+                    return Err(StorageOpDeclined::InsufficientPeering);
                 }
                 send_peers = peerlist.clone();
                 *ptr = MemoRefPtr::Remote;
@@ -150,7 +151,7 @@ impl Slab {
         Ok(())
     }
     pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
-        println!("Slab({}).request_memo({})", self.id, memoref.id );
+        //println!("Slab({}).request_memo({})", self.id, memoref.id );
 
         let request_memo = self.new_memo_basic(
             None,
@@ -163,7 +164,7 @@ impl Slab {
 
         let mut sent = 0u8;
         for peer in memoref.peerlist.read().unwrap().iter().take(5) {
-            println!("Slab({}).request_memo({}) from {}", self.id, memoref.id, peer.slabref.slab_id );
+            //println!("Slab({}).request_memo({}) from {}", self.id, memoref.id, peer.slabref.slab_id );
             peer.slabref.send( &self.my_ref, &request_memo.clone() );
             sent += 1;
         }

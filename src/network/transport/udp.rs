@@ -208,7 +208,7 @@ impl Transport for TransportUDP {
 
                     //TODO: create a protocol encode/decode module and abstract away the serde stuff
                     //ouch, my brain - I Think I finally understand ser::de::DeserializeSeed
-                    println!("DESERIALIZE          {}", String::from_utf8(buf.to_vec()).unwrap());
+                    // println!("DESERIALIZE          {}", String::from_utf8(buf.to_vec()).unwrap());
                     let mut deserializer = serde_json::Deserializer::from_slice(&buf[0..amt]);
 
                     let packet_seed : PacketSeed = PacketSeed{

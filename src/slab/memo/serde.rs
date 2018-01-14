@@ -167,7 +167,7 @@ impl<'a> Visitor for MemoSeed<'a>{
                return Err(DeError::invalid_length(3, &self));
            }
        };
-        println!("SERDE calling reconstitute_memo");
+        //println!("SERDE calling reconstitute_memo");
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
 
         Ok(())

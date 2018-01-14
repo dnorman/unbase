@@ -10,7 +10,6 @@ impl StatefulSerialize for MemoRefHead {
     {
         match *self {
             MemoRefHead::Null => {
-                // TODO1 - Serde json deserialize can't seem to handle empty struct variants?
                 let mut sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
                 sv.end()
             },
@@ -158,17 +157,15 @@ impl<'a> Visitor for MRHSubjectSeed<'a> {
     {
         let mut head : Option<Vec<MemoRef>> = None;
         let mut subject_id : Option<SubjectId> = None;
-        let mut stype : Option<SubjectType> = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 's' => subject_id = Some(visitor.visit_value()?),
-                't' => stype      = Some(visitor.visit_value()?),
                 'h' => head        = Some(visitor.visit_value_seed(VecSeed(MemoRefSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }))?),
                 _   => {}
             }
         }
 
-        if head.is_some() && subject_id.is_some() && stype.is_some(){
+        if head.is_some() && subject_id.is_some(){
             Ok(MemoRefHead::Subject{
                 head: head.unwrap(),
                 subject_id: subject_id.unwrap(),

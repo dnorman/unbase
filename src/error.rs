@@ -37,3 +37,8 @@ impl core::convert::From<WriteError> for RetrieveError {
         RetrieveError::WriteError(Box::new(error))
     }
 }
+
+#[derive(PartialEq, Debug)]
+pub enum StorageOpDeclined{
+    InsufficientPeering
+}

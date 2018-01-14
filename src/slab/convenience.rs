@@ -1,4 +1,5 @@
 use super::*;
+use error::*;
 
 impl Slab {
     pub fn new_memo_basic (&self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
@@ -7,7 +8,7 @@ impl Slab {
     pub fn new_memo_basic_noparent (&self, subject_id: Option<SubjectId>, body: MemoBody) -> MemoRef {
         self.new_memo(subject_id, MemoRefHead::Null, body)
     }
-    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),String>{
+    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),StorageOpDeclined>{
         //println!("# Slab({}).remotize_memo_ids({:?})", self.id, memo_ids);
 
         let mut memorefs : Vec<MemoRef> = Vec::with_capacity(memo_ids.len());
