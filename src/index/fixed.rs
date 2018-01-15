@@ -132,10 +132,93 @@ impl IndexFixed {
         panic!("Sanity error");
 
     }
+    pub fn scan_kv( &self, context: &Context, key: &str, value: &str ) -> Result<Option<SubjectHandle>, RetrieveError> {
+        self.scan(&context, |r| {
+            if let Some(v) = r.get_value(key) {
+                Ok(v == value)
+            }else{
+                Ok(false)
+            }
+        })
+    }
+    pub (crate) fn scan<F> ( &self, context: &Context, f: F ) -> Result<Option<SubjectHandle>, RetrieveError> 
+        where F: Fn( &SubjectHandle ) -> Result<bool,RetrieveError> {
+            //println!("SCAN" );
+
+        let node = self.root.clone();
+
+        self.scan_recurse( context, &node, 0, &f )
+    }
+
+    fn scan_recurse <F> ( &self, context: &Context, node: &Subject, tier: usize, f: &F ) -> Result<Option<SubjectHandle>, RetrieveError> 
+        where F: Fn( &SubjectHandle ) -> Result<bool,RetrieveError> {
+
+            // for _ in 0..tier+1 {
+            //     print!("\t");
+            // }
+
+            if tier as u8 == self.depth - 1 {
+                //println!("LAST Non-leaf node   {}, {}, {}", node.id, tier, self.depth );
+                for slot_id in 0..SUBJECT_MAX_RELATIONS {
+                    if let Some(mrh) = node.get_edge_head( context, slot_id as RelationSlotId )? {
+                        let sh = context.get_subject_handle_with_head(mrh)?;
+                        if f(&sh)? {
+                            return Ok(Some(sh))
+                        }
+                    }
+                }
+            }else{
+                //println!("RECURSE {}, {}, {}", node.id, tier, self.depth );
+                for slot_id in 0..SUBJECT_MAX_RELATIONS {
+                    if let Some(child) = node.get_edge(context,slot_id as RelationSlotId)? {
+                        if let Some(mrh) = self.scan_recurse(context, &child, tier + 1, f)? {
+                            return Ok(Some(mrh))
+                        }
+                    }
+                }
+            }
+        
+            Ok(None)
+    }
 }
 
-/*
-    let idx_node = Subject::new_kv(&context_b, "dummy","value").unwrap();
-    idx_node.set_relation( 0, rec_b1 );
-    rec_b2.set_relation( 1, rec_b1 );
-*/
+#[cfg(test)]
+mod test {
+    use {Network, Slab, SubjectHandle};
+    use super::IndexFixed;
+
+    #[test]
+    fn index_construction() {
+
+        let net = Network::create_new_system();
+
+        let context_a = Slab::new(&net).create_context();
+
+        let index = IndexFixed::new(&context_a, 5).unwrap();
+
+        // First lets do a single index test
+        let i = 12345;
+        let record = SubjectHandle::new_kv(&context_a, "record number", &format!("{}",i)).unwrap();
+        index.insert_subject_handle(i, &record).unwrap();
+
+        assert_eq!( index.get_subject_handle(&context_a,12345).unwrap().unwrap().get_value("record number").unwrap(), "12345");
+
+        //Ok, now lets torture it a little
+        for i in 0..500 {
+            let record = SubjectHandle::new_kv(&context_a, "record number", &format!("{}",i)).unwrap();
+            index.insert_subject_handle(i, &record).unwrap();
+        }
+
+        for i in 0..500 {
+            assert_eq!( index.get_subject_handle(&context_a,i).unwrap().unwrap().get_value("record number").unwrap(), i.to_string() );
+        }
+
+        let maybe_rec = index.scan_kv(&context_a, "record number","12345").unwrap();
+        assert!( maybe_rec.is_some(), "Index scan for record 12345" );
+        assert_eq!( maybe_rec.unwrap().get_value("record number").unwrap(), "12345", "Is correct record");
+
+        let maybe_rec = index.scan_kv(&context_a, "record number","275").unwrap();
+        assert!( maybe_rec.is_some(), "Index scan for record 275" );
+        assert_eq!( maybe_rec.unwrap().get_value("record number").unwrap(), "275", "Is correct record");
+    }
+}

@@ -3,6 +3,7 @@ pub mod stash;
 mod interface;
 
 use subject::{Subject,SubjectId,SubjectType};
+use subjecthandle::SubjectHandle;
 use memorefhead::*;
 use error::*;
 
@@ -66,7 +67,7 @@ impl Context{
                 for mr in rx.wait() {
                     match mr {
                         Ok(mr) => {
-                            if let Err(e) = new_self.apply_head(&mr.to_head()){ // TODO2 Add action to apply memoref directly
+                            if let Err(e) = new_self.apply_head(&mr){ // TODO2 Add action to apply memoref directly
                                 //TODO: Update this to use logger
                                 println!("Failed to apply head to context {:?}", e);
                             }
@@ -87,6 +88,32 @@ impl Context{
             inner: Arc::downgrade(&self.0)
         }
     }
+    pub fn fetch_kv (&self, key: &str, val: &str) -> Result<Option<SubjectHandle>,RetrieveError> {
+        // TODO implement field-specific indexes
+            //if I have an index for that field {
+            //    use it
+            //} else if I am allowed to scan this index...
+        self.root_index()?.scan_kv(self, key, val)
+        //}
+    }
+    pub fn fetch_kv_wait (&self, key: &str, val: &str, wait: u64 ) -> Result<SubjectHandle, RetrieveError>{
+        use std::time::{Instant,Duration};
+        let start = Instant::now();
+        let wait = Duration::from_millis(wait);
+        use std::thread;
+
+        loop {
+            if start.elapsed() > wait{
+                return Err(RetrieveError::NotFoundByDeadline)
+            }
+
+            if let Some(rec) = self.fetch_kv(key,val)? {
+                return Ok(rec)
+            }
+
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
 }
 
 impl WeakContext {
@@ -98,7 +125,6 @@ impl WeakContext {
     }
 }
 
-// TODO2 - rethink testing strategy
 #[cfg(test)]
 mod test {
     use {Network, Slab};

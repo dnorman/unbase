@@ -198,10 +198,12 @@ impl Network {
         root_index_seed.take();
     }
     pub fn get_root_index_seed(&self, slab: &Slab) -> MemoRefHead {
+        
         let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
 
         match *root_index_seed {
             Some((ref seed, ref from_slabref)) => {
+        
                 if from_slabref.owning_slab_id == slab.id {
                     // seed is resident on the requesting slab
                     seed.clone()
@@ -258,7 +260,7 @@ impl Network {
                 //                 it is imperative that all memorefs in the root_index_seed reside on the same local slabref
                 //                 so, it is important to undertake the necessary dilligence to clone them to that slab
 
-                return true; // be lenient for now. TODO3 Not ok for Alpha
+                return false;
             }
         }
 

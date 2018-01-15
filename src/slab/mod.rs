@@ -49,8 +49,8 @@ pub struct SlabInner{
     pub id: SlabId,
     memorefs_by_id: RwLock<HashMap<MemoId,MemoRef>>,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
-    subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRef>>>>,
-    index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRef>>>,
+    subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRefHead>>>>,
+    index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRefHead>>>,
     counters: RwLock<SlabCounters>,
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
@@ -144,7 +144,7 @@ impl Slab {
     pub fn create_context (&self) -> Context {
         Context::new(self)
     }
-    pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: futures::sync::mpsc::Sender<MemoRef> ) {
+    pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: futures::sync::mpsc::Sender<MemoRefHead> ) {
 
         // let (tx,sub) = SubjectSubscription::new( subject_id, self.weak() );
 
@@ -159,7 +159,7 @@ impl Slab {
 
         // sub
     }
-    pub (crate) fn observe_index (&self, tx: futures::sync::mpsc::Sender<MemoRef> ) {
+    pub (crate) fn observe_index (&self, tx: futures::sync::mpsc::Sender<MemoRefHead> ) {
         self.index_subscriptions.lock().unwrap().push(tx);
     }
     // pub fn unsubscribe_subject (&self){

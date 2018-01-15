@@ -1,86 +1,92 @@
-extern crate unbase;
-use unbase::SubjectHandle;
-use std::{thread, time};
+#![feature(proc_macro, conservative_impl_trait, generators)]
+extern crate futures_await as futures;
+use futures::stream::Stream;
 
+
+extern crate unbase;
+use unbase::{Network,SubjectHandle};
+use std::{thread,time};
+
+/// This example is a rudimentary interaction between two remote nodes
+/// As of the time of this writing, the desired convergence properties of the system are not really implemented.
+/// For now we are relying on the size of the cluster being smaller than the memo peering target,
+/// rather than gossip (once the record has been made resident) or index convergence (prior to the record being located). 
 fn main() {
 
-    let simulator = unbase::network::transport::Simulator::new();
-    let net = unbase::Network::new();
-    net.add_transport( Box::new(simulator.clone()) );
-
-    let slab_a = unbase::Slab::new(&net);
-    let slab_b = unbase::Slab::new(&net);
-
-    let context_a = slab_a.create_context();
-    let context_b = slab_b.create_context();
-
-    let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Meow").unwrap();
-    let rec_id = rec_a1.id; // useful for cross-context retrieval
-
-    // ************************************************************************
-    // Create one record, then spawn two threads,
-    // each of which makes an edit whenever it sees an edit
-
-    // NOTE: have to use polling for now to detect when the subject has changed
-    // because push notification (though planned) isn't implemented yet :)
-    // ************************************************************************
-
-    let half_sec = time::Duration::from_millis(500);
-    let ten_ms = time::Duration::from_millis(10);
-
-    // spawn thread 1
     let t1 = thread::spawn(move || {
-        // use the original copy of the subject, or look it up by sub
-        let rec_a1 = context_a.get_subject_by_id( rec_id ).unwrap().unwrap();
 
-        for _ in 1..5 {
-            // Hacky-polling approach for now, push notification coming sooooon!
-            loop {
-                if "Meow".to_string() == rec_a1.get_value("animal_sound").unwrap() {
-                    // set a value when a change is detected
+        let net1 = Network::create_new_system();
+        let udp1 = unbase::network::transport::TransportUDP::new( "127.0.0.1:12001".to_string() );
+        net1.add_transport( Box::new(udp1) );
+        let context_a = unbase::Slab::new(&net1).create_context();
 
-                    println!("[[[ Woof ]]]");
-                    rec_a1.set_value("animal_sound","Woof");
-                    break;
+        // HACK - need to wait until peering of the root index node is established
+        // because we are aren't updating the net's root seed, which is what is being sent when peering is established
+        // TODO: establish some kind of positive pressure to push out index nodes
+        thread::sleep( time::Duration::from_millis(700) );
+
+        println!("A - Sending Initial Ping");
+        let rec_a1 = SubjectHandle::new_kv(&context_a, "action", "Ping").unwrap();
+
+        let mut pings = 0;
+        for _ in rec_a1.observe().wait() {
+            // HACK - Presently we are relying on the newly issued index leaf for record consistency, which is applied immediately after this event is sent
+            thread::sleep( time::Duration::from_millis(10) );
+
+            if "Pong" == rec_a1.get_value("action").unwrap() {
+                println!("A - [ Ping ->       ]");
+                rec_a1.set_value("action","Ping").unwrap();
+                pings += 1;
+
+                if pings >= 10 {
+                    break
                 }
-                thread::sleep(ten_ms);
             }
         }
+
     });
 
+    // Ensure slab_a is listening
+    thread::sleep( time::Duration::from_millis(50) );
 
-    //
-
-    // spawn thread 2
     let t2 = thread::spawn(move || {
-        // cheater cheater! ( not yet a blocking version of get_subject )
-        thread::sleep(ten_ms);
 
-        // Get a new copy of the same subject from context_b (requires communication)
-        let rec_b1 = context_b.get_subject_by_id( rec_id ).unwrap().unwrap();
+        let net2 = unbase::Network::new();
+        net2.hack_set_next_slab_id(200);
 
-        for _ in 1..5 {
-            // Hacky-polling approach for now, push notification coming sooooon!
-            loop {
-                if "Woof".to_string() == rec_b1.get_value("animal_sound").unwrap() {
-                    // set a value when a change is detected
-                    println!("[[[ Meow ]]]");
-                    rec_b1.set_value("animal_sound","Meow");
-                    break;
+        let udp2 = unbase::network::transport::TransportUDP::new("127.0.0.1:12002".to_string());
+        net2.add_transport( Box::new(udp2.clone()) );
+
+        let context_b = unbase::Slab::new(&net2).create_context();
+
+        udp2.seed_address_from_string( "127.0.0.1:12001".to_string() );
+
+        println!("B - Waiting for root index seed...");
+        context_b.root_index_wait( 1000 ).unwrap();
+
+        println!("B - Searching for Ping record...");
+        let rec_b1 = context_b.fetch_kv_wait( "action", "Ping", 1000 ).unwrap(); 
+        println!("B - Found Ping record.");
+
+        let mut pongs = 0;
+        for _ in rec_b1.observe().wait() {
+            // HACK - Presently we are relying on the newly issued index leaf for record consistency, which is applied immediately after this event is sent
+            thread::sleep( time::Duration::from_millis(10) );
+
+            if "Ping" == rec_b1.get_value("action").unwrap() {
+                println!("B - [       <- Pong ]");
+                rec_b1.set_value("action","Pong").unwrap();
+                pongs += 1;
+
+                if pongs >= 10 {
+                    break
                 }
-                thread::sleep(ten_ms);
             }
+
         }
+
     });
-
-    for _ in 1..12 {
-        simulator.advance_clock(1);
-        thread::sleep(half_sec);
-    }
-
-    // Remember, we're simulating the universe here, so we have to tell the universe to continuously move forward
-
-    t1.join().unwrap();
-    t2.join().unwrap();
-
+    
+    t2.join().expect("thread 2"); // Thread 2 is more likely to panic
+    t1.join().expect("thread 1");
 }

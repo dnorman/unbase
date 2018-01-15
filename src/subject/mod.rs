@@ -9,7 +9,7 @@ use memorefhead::*;
 use context::Context;
 use error::*;
 
-use futures::{Stream};
+use futures::{Stream,Sink,Future};
 use futures::sync::mpsc::channel;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
@@ -193,7 +193,7 @@ impl Subject {
         self.update_referents( context )
     }
     pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),WriteError>{
-        //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
+        //println!("# Subject({}).set_edge({}, {})", &self.id, key, relation.id);
         let mut edgeset = EdgeSet::empty();
         edgeset.insert( key, edge.get_head() );
 
@@ -242,10 +242,12 @@ impl Subject {
     //     //self.shared.lock().unwrap().head.fully_materialize(slab)
     // }
 
-    pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRef, Error = ()>> {
+    pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRefHead, Error = ()>> {
         let (tx, rx) = channel(1);
 
+        tx.clone().send( self.head.read().unwrap().clone() ).wait().unwrap();
         // TODO1: deduplicate channels, apply memorefs to this subject's head
+        // BUG HERE - not applying MRH to our head here, but double check as to what we were expecting from indexes
         slab.observe_subject( self.id, tx );
         Box::new(rx)
     }

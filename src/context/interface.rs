@@ -81,6 +81,24 @@ impl Context {
         }
 
     }
+    pub fn root_index_wait (&self, wait: u64) -> Result<(), RetrieveError> {
+        use std::time::{Instant,Duration};
+        let start = Instant::now();
+        let wait = Duration::from_millis(wait);
+        use std::thread;
+
+        loop {
+            if start.elapsed() > wait{
+                return Err(RetrieveError::NotFoundByDeadline)
+            }
+
+            if let Ok(_) = self.root_index() {
+                return Ok(())
+            };
+
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
     pub fn get_resident_subject_head(&self, subject_id: SubjectId) -> MemoRefHead {
         self.stash.get_head(subject_id).clone()
     }
