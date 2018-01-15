@@ -248,6 +248,7 @@ impl Subject {
         tx.clone().send( self.head.read().unwrap().clone() ).wait().unwrap();
         // TODO1: deduplicate channels, apply memorefs to this subject's head
         // BUG HERE - not applying MRH to our head here, but double check as to what we were expecting from indexes
+        // NOTE: remember to use a weak reference 
         slab.observe_subject( self.id, tx );
         Box::new(rx)
     }

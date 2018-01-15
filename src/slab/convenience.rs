@@ -28,6 +28,29 @@ impl Slab {
 
         Ok(())
     }
+    pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),StorageOpDeclined> {
+        use std::time::{Instant,Duration};
+        let start = Instant::now();
+        let wait = Duration::from_millis(ms);
+        use std::thread;
+
+        loop {
+            if start.elapsed() > wait{
+                return Err(StorageOpDeclined::InsufficientPeering)
+            }
+
+            #[allow(unreachable_patterns)]
+            match self.remotize_memo_ids( memo_ids ) {
+                Ok(_) => {
+                    return Ok(())
+                },
+                Err(StorageOpDeclined::InsufficientPeering) => {}
+                Err(e)                                      => return Err(e)
+            }
+
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
     // should this be a function of the slabref rather than the owning slab?
     pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {
         // Get the address that the remote slab would recogize

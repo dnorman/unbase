@@ -25,14 +25,15 @@
 //! record. Rather than storing state, state is projected as needed to satisfy user queries.
 //!
 //! ```
-//! let net     = unbase::Network::create_new_system(); // typically use new here instead
+//! let net     = unbase::Network::create_new_system(); // use new, except for the very first time
 //! let slab    = unbase::Slab::new(&net);
 //! let context = slab.create_context();
 //!
-//! let record  = unbase::Subject::new_kv(&context, "animal_type","Cat").unwrap();
-//! let record2 = context.get_subject_by_id(record.id).unwrap();
+//! let record  = unbase::SubjectHandle::new_kv(&context, "beast","Tiger").unwrap();
+//! let record2 = context.fetch_kv("beast","Tiger").expect("it worked").expect("it was found");
+//! record.set_value("sound","Rawwr");
 //!
-//! assert_eq!(record.get_value("animal_type"), record2.get_value("animal_type"));
+//! assert_eq!(record2.get_value("sound").unwrap(), "Rawwr");
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 

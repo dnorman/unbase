@@ -13,7 +13,7 @@ fn init_blackhole() {
     }
 
     // Slabs should have been dropped by now
-    assert!( net.get_all_local_slabs().len() == 0 );
+    assert_eq!( net.get_all_local_slabs().len(), 0 );
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn init_local_single() {
     }
 
     // Slabs should have been dropped by now
-    assert!( net.get_all_local_slabs().len() == 0 );
+    assert_eq!( net.get_all_local_slabs().len(), 0 );
 }
 
 #[test]

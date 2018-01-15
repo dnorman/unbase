@@ -53,33 +53,8 @@ impl Context{
             )
         );
 
-        let (tx, rx) = channel(1);
-        slab.observe_index( tx );
 
-        use futures::Stream;
-        let rx = Box::new(rx);
-
-        {
-            let new_self = new_self.clone();
-
-            // TODO3 - should we be storing the join handle?
-            thread::spawn(move || {
-                for mr in rx.wait() {
-                    match mr {
-                        Ok(mr) => {
-                            if let Err(e) = new_self.apply_head(&mr){ // TODO2 Add action to apply memoref directly
-                                //TODO: Update this to use logger
-                                println!("Failed to apply head to context {:?}", e);
-                            }
-                        },
-                        Err(_) => {
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-
+        new_self.init_index_subscription();
 
         new_self
     }
@@ -96,23 +71,55 @@ impl Context{
         self.root_index()?.scan_kv(self, key, val)
         //}
     }
-    pub fn fetch_kv_wait (&self, key: &str, val: &str, wait: u64 ) -> Result<SubjectHandle, RetrieveError>{
+    pub fn fetch_kv_wait (&self, key: &str, val: &str, ms: u64 ) -> Result<SubjectHandle, RetrieveError>{
         use std::time::{Instant,Duration};
         let start = Instant::now();
-        let wait = Duration::from_millis(wait);
+        let wait = Duration::from_millis(ms);
         use std::thread;
 
+        self.root_index_wait( ms )?;
+
         loop {
-            if start.elapsed() > wait{
+            let elapsed = start.elapsed();
+            if elapsed > wait {
                 return Err(RetrieveError::NotFoundByDeadline)
             }
 
-            if let Some(rec) = self.fetch_kv(key,val)? {
+            if let Some(rec) = self.fetch_kv(key, val)? {
                 return Ok(rec)
             }
 
             thread::sleep(Duration::from_millis(50));
         }
+    }
+    fn init_index_subscription (&self) {
+
+        let (tx, rx) = channel(1);
+        self.slab.observe_index( tx );
+
+        use futures::Stream;
+        let rx = Box::new(rx);
+        let weak_self = self.weak();
+
+        // TODO3 - should we be storing the join handle?
+        thread::spawn(move || {
+            for mr in rx.wait() {
+                match mr {
+                    Ok(mr) => {
+                        if let Some(ctx) = weak_self.upgrade(){
+                            if let Err(e) = ctx.apply_head(&mr){ // TODO2 Add action to apply memoref directly
+                                //TODO: Update this to use logger
+                                println!("Failed to apply head to context {:?}", e);
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        break;
+                    }
+                }
+            }
+        });
+
     }
 }
 
