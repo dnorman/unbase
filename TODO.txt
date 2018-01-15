@@ -1,3 +1,40 @@
+Notes / Outstanding questions:
+    Consistency Model and context compression:
+        Note: An index is a tree of Subjects. Other non-index-related Subjects may form a graph. Removing subject head X from the context
+            manager upon its descendent(or identical) reference by N known paths is sufficient to preserve the consistency invariant
+            *only* if there are N total possible paths to Subject X. If it's possible that there are N+1 total paths, we have the
+            potential for an invariant violation, as the N+1th path may not reference a sufficiently recent head. As such, we must either
+            abstain from removal of Subject head X from the query context until all possible referents can be assured to posess
+            a descendant or equal relation head (easy to determine for trees, IE: the root index), OR we must supplement the relationship
+            travesal with a root_index traversal.
+        
+        1. Does it make sense to create different classes of Subjects, such that the tree/graph differentiation is codified?
+           At the cost of increased potential for conflicts, this would improve safety by preventing illegal writes, and remove the burdon
+           of the decision from the querying party. (What if A -> B then somebody else writes X -> B? is this a real risk?)
+        2. Does the context compression scheme still make sense as designed, given that consistency model enforcement requires a root_index lookup for
+           every (multipath capable) relationship traversal?
+        3. Is it possible that the realities of incremental index compression + probablistic merging might help to improve average relationship traversal
+           efficiency of the above (specifically the root_index traversal) by way of a tendency to have root index fragments still resident in the context?
+           (root_index traversal skipping when leaves are resident?)
+
+
+
+Steps remaining prior to topic/topo-compression3 merge:
+ [ ] Consider edge / relation nomenclature
+ [ ] Think about relation concurrencies, real use cases. LWW seems like pretty weak sauce here
+ [ ] Think about edge concurrencies. Balanced-tree seems like a good exercise
+ [~] Edge/Relation bifurcation
+ [ ] The thing compiles
+ [X] Subject type differentiation and detection
+ [ ] Subject subscriptions
+ [ ] Context compaction
+ [ ] Observer interface
+ [ ] Channels for Slab -> Context -> Subject
+ [ ] Clean up Factorization diagram 
+
+
+
+
 
 Steps Believed necessary for the passage of the first self-consistency test case:
 
@@ -13,24 +50,24 @@ Steps Believed necessary for the passage of the first self-consistency test case
     [X] Dummy subject head index
     [X] All received memos get mindlessly jammed into subject head index
     [X] subject head index is actually pruned to leave only the head memos
-    [NEXT] subject head index is itself built from memos
-    [ ] bootstrap subject index which requires the subject index
-    [ ] local subscriptions should be no different from nonlocal subscriptions
+    [X] subject head index is itself built from memos
+    [X] bootstrap subject index which requires the subject index (turns out to be simple graph traversal. The index doesn't use index, duh)
+    [ ] local subscriptions should be no different from nonlocal subscriptions§
 [X] memo body
 [X] memo peering
-[NEXT] Memo -> relation memos
+[X] Memo -> relation memos
 [X] memo retrieval ( slab.localize_memo )
    [X] Return found Memo
    [X] Memo not found response (Participating/NonParticipating)
 [ ] basic memo durability scoring
 [~] Basic state projection logic
     [X] Extremely basic Causal LWW hash keys
-    [ ] Extremely basic LWW relationship-supersession
+    [X] Extremely basic LWW relationship-supersession
 [~] Peering Memos
   [X] inter-slab peering memos
   [ ] Consolidate multiple peering changes into a single peering memo
   [ ] Emit Goodbye memos for slabs that are shutting down
-  [ ] Local Peering Memos?
+  [X] Local Peering Memos?
   [ ] Determine if Subject-Peering is necessary for indexes (peering which is silently subsumed by newer memos)
 [ ] Hash-based Memo ID generation
   [ ] Lazy hash generation
@@ -41,7 +78,7 @@ Steps Believed necessary for the passage of the first self-consistency test case
       How do we prefer a keyframe memo vs the head of a chain of edit memos?
       They'll have identical checksums.
 
-      Think about: is this still a Merkel tree?
+      Think about: is this still a Merkle tree?
       (context root -> child -> child -> leaf: yes)
 
       Barring a cryptographically secure commutative

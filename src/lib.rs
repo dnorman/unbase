@@ -25,21 +25,23 @@
 //! record. Rather than storing state, state is projected as needed to satisfy user queries.
 //!
 //! ```
-//! let net     = unbase::Network::create_new_system(); // typically use new here instead
+//! let net     = unbase::Network::create_new_system(); // use new, except for the very first time
 //! let slab    = unbase::Slab::new(&net);
 //! let context = slab.create_context();
 //!
-//! let record  = unbase::Subject::new_kv(&context, "animal_type","Cat").unwrap();
-//! let record2 = context.get_subject_by_id(record.id).unwrap();
+//! let record  = unbase::SubjectHandle::new_kv(&context, "beast","Tiger").unwrap();
+//! let record2 = context.fetch_kv("beast","Tiger").expect("it worked").expect("it was found");
+//! record.set_value("sound","Rawwr");
 //!
-//! assert_eq!(record.get_value("animal_type"), record2.get_value("animal_type"));
+//! assert_eq!(record2.get_value("sound").unwrap(), "Rawwr");
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
+#![feature(proc_macro, conservative_impl_trait, generators)]
+extern crate futures_await as futures;
 extern crate core;
 extern crate linked_hash_map;
 extern crate itertools;
-extern crate petgraph;
 
 
 #[macro_use]
@@ -47,16 +49,19 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+
 //#[doc(inline)]
+mod subject;
 pub mod network;
 pub mod slab;
-pub mod subject;
 pub mod context;
 pub mod error;
 pub mod index;
 pub mod memorefhead;
 pub mod util;
+pub mod subjecthandle;
 
 pub use network::Network;
-pub use subject::Subject;
+pub use subjecthandle::SubjectHandle;
+pub use subject::SubjectId;
 pub use slab::Slab;

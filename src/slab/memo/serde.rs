@@ -10,9 +10,6 @@ use serde::*;
 use serde::ser::*;
 use serde::de::*;
 
-
-struct RelationMRHSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
-struct SubjectMRHSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
 pub struct MemoBodySeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef }
 #[derive(Clone)]
 pub struct MBMemoRequestSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
@@ -46,40 +43,50 @@ impl StatefulSerialize for MemoBody {
                 sv.serialize_field("r", &SerializeWrapper(r, helper))?;
                 sv.end()
             }
-            Relation(ref rhm) => {
+            Relation(ref rel_set) => {
                 //let mut sv = serializer.serialize_struct_variant("MemoBody", 1, "Relation", 1)?;
                 //sv.serialize_field("r", &SerializeWrapper(rhm, helper))?;
                 //sv.end()
-                serializer.serialize_newtype_variant("MemoBody", 1, "Relation", &SerializeWrapper(&rhm.0, helper) )
+                serializer.serialize_newtype_variant("MemoBody", 1, "Relation", &SerializeWrapper(&rel_set, helper) )
+            },
+            Edge(ref edge_set) => {
+                //let mut sv = serializer.serialize_struct_variant("MemoBody", 1, "Relation", 1)?;
+                //sv.serialize_field("r", &SerializeWrapper(rhm, helper))?;
+                //sv.end()
+                serializer.serialize_newtype_variant("MemoBody", 2, "Edge", &SerializeWrapper(&edge_set.0, helper) )
             },
             Edit(ref e) => {
                 //let mut sv = serializer.serialize_struct_variant("MemoBody", 2, "Edit", 1)?;
                 //sv.serialize_field("e", e )?;
                 //sv.end()
-                serializer.serialize_newtype_variant("MemoBody", 2, "Edit", &e )
+                serializer.serialize_newtype_variant("MemoBody", 3, "Edit", &e )
 
             },
-            FullyMaterialized{ ref r, ref v }  => {
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 3, "FullyMaterialized", 2)?;
-                sv.serialize_field("r", &SerializeWrapper(&r.0, helper))?;
+            FullyMaterialized{ ref v,  ref r, ref e, ref t }  => {
+                let mut sv = serializer.serialize_struct_variant("MemoBody", 4, "FullyMaterialized", 3)?;
+                sv.serialize_field("r", &SerializeWrapper(&r, helper))?;
+                sv.serialize_field("e", &SerializeWrapper(&e.0, helper))?;
                 sv.serialize_field("v", v)?;
+                sv.serialize_field("t", t)?;
                 sv.end()
             },
-            PartiallyMaterialized{ ref r, ref v }  => {
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 4, "PartiallyMaterialized", 2)?;
-                sv.serialize_field("r", &SerializeWrapper(&r.0, helper))?;
+            PartiallyMaterialized{ ref v, ref r, ref e, ref t }  => {
+                let mut sv = serializer.serialize_struct_variant("MemoBody", 5, "PartiallyMaterialized", 2)?;
+                sv.serialize_field("r", &SerializeWrapper(&r, helper))?;
+                sv.serialize_field("e", &SerializeWrapper(&e.0, helper))?;
                 sv.serialize_field("v", v)?;
+                sv.serialize_field("t", t)?;
                 sv.end()
             },
             Peering( ref memo_id, ref subject_id, ref peerlist ) =>{
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 5, "Peering", 3)?;
+                let mut sv = serializer.serialize_struct_variant("MemoBody", 6, "Peering", 3)?;
                 sv.serialize_field("i", memo_id )?;
                 sv.serialize_field("j", subject_id )?;
                 sv.serialize_field("l", &SerializeWrapper(peerlist,helper) )?;
                 sv.end()
             }
             MemoRequest( ref memo_ids, ref slabref ) =>{
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 6, "MemoRequest", 2)?;
+                let mut sv = serializer.serialize_struct_variant("MemoBody", 7, "MemoRequest", 2)?;
                 sv.serialize_field("i", memo_ids )?;
                 sv.serialize_field("s", &SerializeWrapper(slabref, helper))?;
                 sv.end()
@@ -89,6 +96,14 @@ impl StatefulSerialize for MemoBody {
     }
 }
 
+impl <'a> StatefulSerialize for &'a RelationSet {
+    fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let _ = helper;
+        serializer.serialize_newtype_struct("RelationSet",&self.0)
+    }
+}
 
 impl StatefulSerialize for (SubjectId,MemoRefHead) {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
@@ -145,22 +160,25 @@ impl<'a> Visitor for MemoSeed<'a>{
                return Err(DeError::invalid_length(2, &self));
             }
        };
+
        let parents: MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
            }
        };
-
+        //println!("SERDE calling reconstitute_memo");
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
 
         Ok(())
     }
 }
 
+#[derive(Deserialize)]
 enum MBVariant {
     SlabPresence,
     Relation,
+    Edge,
     Edit,
     FullyMaterialized,
     PartiallyMaterialized,
@@ -168,21 +186,23 @@ enum MBVariant {
     MemoRequest
 }
 
-const MEMOBODY_VARIANTS: &'static [&'static str] = &[
-    "SlabPresence",
-    "Relation",
-    "Edit",
-    "FullyMaterialized",
-    "PartiallyMaterialized",
-    "Peering",
-    "MemoRequest"
-];
-
 impl<'a> DeserializeSeed for MemoBodySeed<'a> {
     type Value = MemoBody;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where D: Deserializer
     {
+
+        const MEMOBODY_VARIANTS: &'static [&'static str] = &[
+            "SlabPresence",
+            "Relation",
+            "Edge",
+            "Edit",
+            "FullyMaterialized",
+            "PartiallyMaterialized",
+            "Peering",
+            "MemoRequest"
+        ];
+
         deserializer.deserialize_enum("MemoBody", MEMOBODY_VARIANTS, self)
     }
 }
@@ -198,7 +218,8 @@ impl<'a> Visitor for MemoBodySeed<'a> {
 
         match try!(visitor.visit_variant()) {
             (MBVariant::SlabPresence,      variant) => variant.visit_newtype_seed(MBSlabPresenceSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
-            (MBVariant::Relation,          variant) => variant.visit_newtype_seed(RelationMRHSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }).map(MemoBody::Relation),
+            (MBVariant::Relation,          variant) => variant.visit_newtype_seed(RelationSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }).map(MemoBody::Relation),
+            (MBVariant::Edge,              variant) => variant.visit_newtype_seed(EdgeSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }).map(MemoBody::Edge),
             (MBVariant::Edit,              variant) => variant.visit_newtype().map(MemoBody::Edit),
             (MBVariant::FullyMaterialized, variant) => variant.visit_newtype_seed(MBFullyMaterializedSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
         //  (MBVariant::PartiallyMaterialized, variant) => variant.visit_newtype().map(MemoBody::PartiallyMaterialized),
@@ -206,37 +227,6 @@ impl<'a> Visitor for MemoBodySeed<'a> {
             (MBVariant::MemoRequest,       variant) => variant.visit_newtype_seed(MBMemoRequestSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             _ => unimplemented!()
 
-        }
-    }
-}
-
-impl Deserialize for MBVariant {
-    fn deserialize<D>(deserializer: D) -> Result<MBVariant, D::Error>
-        where D: Deserializer
-    {
-        deserializer.deserialize(MBVariantVisitor)
-    }
-}
-struct MBVariantVisitor;
-impl Visitor for MBVariantVisitor
-{
-    type Value = MBVariant;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-       formatter.write_str("MemoBody Variant")
-    }
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: DeError
-    {
-        match value {
-            "SlabPresence"            => Ok(MBVariant::SlabPresence),
-            "Relation"                => Ok(MBVariant::Relation),
-            "Edit"                    => Ok(MBVariant::Edit),
-            "FullyMaterialized"       => Ok(MBVariant::FullyMaterialized),
-            "PartiallyMaterialized"   => Ok(MBVariant::PartiallyMaterialized),
-            "Peering"                 => Ok(MBVariant::Peering),
-            "MemoRequest"             => Ok(MBVariant::MemoRequest),
-            _ => Err(serde::DeError::unknown_field(value, MEMOBODY_VARIANTS)),
         }
     }
 }
@@ -278,8 +268,10 @@ impl<'a> Visitor for MBMemoRequestSeed<'a> {
     }
 }
 
-impl<'a> DeserializeSeed for RelationMRHSeed<'a> {
-    type Value = RelationSlotSubjectHead;
+
+struct RelationSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+impl<'a> DeserializeSeed for RelationSetSeed<'a> {
+    type Value = RelationSet;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where D: Deserializer
@@ -288,26 +280,62 @@ impl<'a> DeserializeSeed for RelationMRHSeed<'a> {
     }
 }
 
-impl<'a> Visitor for RelationMRHSeed<'a> {
-    type Value = RelationSlotSubjectHead;
+impl<'a> Visitor for RelationSetSeed<'a> {
+    type Value = RelationSet;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("MemoBody::Relation")
+        formatter.write_str("RelationSet")
     }
 
     fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
         where Visitor: MapVisitor,
     {
-        let mut values = HashMap::new();
+        let mut values : HashMap<RelationSlotId,Option<SubjectId>> = HashMap::new();
+
+        let _ = self.dest_slab;
+        let _ = self.origin_slabref;
 
         while let Some(slot) = visitor.visit_key()? {
-             let (subject_id ,mrh ) = visitor.visit_value_seed(SubjectMRHSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?;
-             values.insert(slot, (subject_id,mrh));
+             let maybe_subject_id = visitor.visit_value()?;
+             values.insert(slot, maybe_subject_id);
         }
 
-        Ok(RelationSlotSubjectHead(values))
+        Ok(RelationSet(values))
     }
 }
+
+struct EdgeSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+impl<'a> DeserializeSeed for EdgeSetSeed<'a> {
+    type Value = EdgeSet;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where D: Deserializer
+    {
+        deserializer.deserialize(self)
+    }
+}
+
+impl<'a> Visitor for EdgeSetSeed<'a> {
+    type Value = EdgeSet;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("EdgeSet")
+    }
+
+    fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
+        where Visitor: MapVisitor,
+    {
+        let mut values : HashMap<RelationSlotId,MemoRefHead> = HashMap::new();
+
+        while let Some(slot) = visitor.visit_key()? {
+             let mrh = visitor.visit_value_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?;             
+             values.insert(slot, mrh);
+        }
+
+        Ok(EdgeSet(values))
+    }
+}
+
 
 impl<'a> DeserializeSeed for MBSlabPresenceSeed<'a> {
     type Value = MemoBody;
@@ -330,11 +358,11 @@ impl<'a> Visitor for MBSlabPresenceSeed<'a> {
     {
 
         let mut presence  = None;
-        let mut root_index_seed : Option<Option<MemoRefHead>>   = None;
+        let mut root_index_seed : Option<MemoRefHead>   = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 'p' => presence        = visitor.visit_value()?,
-                'r' => root_index_seed = Some(visitor.visit_value_seed(OptionSeed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref  }))?),
+                'r' => root_index_seed = Some(visitor.visit_value_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref  })?),
                 _   => {}
             }
         }
@@ -366,58 +394,23 @@ impl<'a> Visitor for MBFullyMaterializedSeed<'a> {
     {
 
         let mut relations = None;
+        let mut edges = None;
         let mut values    = None;
+        let mut stype     = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
-                'r' => relations = Some(visitor.visit_value_seed(RelationMRHSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
+                'r' => relations = Some(visitor.visit_value_seed(RelationSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
+                'e' => edges = Some(visitor.visit_value_seed(EdgeSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })?),
                 'v' => values    = visitor.visit_value()?,
+                't' => stype     = visitor.visit_value()?,
                 _   => {}
             }
         }
-        if relations.is_some() && values.is_some() {
-            Ok(MemoBody::FullyMaterialized{ r: relations.unwrap(), v: values.unwrap() })
+        if relations.is_some() && values.is_some() && stype.is_some() {
+            Ok(MemoBody::FullyMaterialized{ v: values.unwrap(), r: relations.unwrap(), e: edges.unwrap(), t: stype.unwrap() })
         }else{
             Err(DeError::invalid_length(0, &self))
         }
-    }
-}
-
-impl<'a> DeserializeSeed for SubjectMRHSeed<'a> {
-    type Value = (SubjectId,MemoRefHead);
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
-    {
-        deserializer.deserialize(self)
-    }
-
-}
-
-impl<'a> Visitor for SubjectMRHSeed<'a> {
-    type Value = (SubjectId,MemoRefHead);
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Subject+MRH tuple")
-    }
-
-    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-    where V: SeqVisitor
-    {
-
-        let subject_id : SubjectId = match visitor.visit()? {
-            Some(value) => value,
-            None => {
-                return Err(DeError::invalid_length(0, &self));
-            }
-        };
-        let mrh : MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
-            Some(value) => value,
-            None => {
-                return Err(DeError::invalid_length(1, &self));
-            }
-        };
-
-        Ok((subject_id,mrh))
     }
 }
 

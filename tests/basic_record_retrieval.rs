@@ -1,5 +1,5 @@
 extern crate unbase;
-use unbase::subject::*;
+use unbase::SubjectHandle;
 
 #[test]
 fn basic_record_retrieval() {
@@ -10,7 +10,7 @@ fn basic_record_retrieval() {
 
     let record_id;
     {
-        let record = Subject::new_kv(&context_a, "animal_type","Cat").unwrap();
+        let record = SubjectHandle::new_kv(&context_a, "animal_type","Cat").unwrap();
 
         println!("Record {:?}", record );
         record_id = record.id;
@@ -33,7 +33,7 @@ fn basic_record_retrieval_simulator() {
 
     let record_id;
     {
-        let record = Subject::new_kv(&context_a, "animal_type","Cat").unwrap();
+        let record = SubjectHandle::new_kv(&context_a, "animal_type","Cat").unwrap();
 
         println!("Record {:?}", record );
         record_id = record.id;

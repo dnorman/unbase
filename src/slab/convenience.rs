@@ -1,13 +1,14 @@
 use super::*;
+use error::*;
 
 impl Slab {
     pub fn new_memo_basic (&self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
         self.new_memo(subject_id, parents, body)
     }
     pub fn new_memo_basic_noparent (&self, subject_id: Option<SubjectId>, body: MemoBody) -> MemoRef {
-        self.new_memo(subject_id, MemoRefHead::new(), body)
+        self.new_memo(subject_id, MemoRefHead::Null, body)
     }
-    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),String>{
+    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),StorageOpDeclined>{
         //println!("# Slab({}).remotize_memo_ids({:?})", self.id, memo_ids);
 
         let mut memorefs : Vec<MemoRef> = Vec::with_capacity(memo_ids.len());
@@ -26,6 +27,29 @@ impl Slab {
         }
 
         Ok(())
+    }
+    pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),StorageOpDeclined> {
+        use std::time::{Instant,Duration};
+        let start = Instant::now();
+        let wait = Duration::from_millis(ms);
+        use std::thread;
+
+        loop {
+            if start.elapsed() > wait{
+                return Err(StorageOpDeclined::InsufficientPeering)
+            }
+
+            #[allow(unreachable_patterns)]
+            match self.remotize_memo_ids( memo_ids ) {
+                Ok(_) => {
+                    return Ok(())
+                },
+                Err(StorageOpDeclined::InsufficientPeering) => {}
+                Err(e)                                      => return Err(e)
+            }
+
+            thread::sleep(Duration::from_millis(50));
+        }
     }
     // should this be a function of the slabref rather than the owning slab?
     pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {

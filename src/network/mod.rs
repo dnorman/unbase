@@ -78,10 +78,8 @@ impl Network {
         if transport.is_local() {
             // Can only have one is_local transport at a time. Filter out any other local transports when adding this one
             let mut transports = self.transports.write().unwrap();
-            if let Some(removed) = transports.iter()
-                .position(|t| t.is_local())
-                .map(|e| transports.remove(e)) {
-                println!("Unbinding local transport");
+            if let Some(removed) = transports.iter().position(|t| t.is_local()).map(|e| transports.remove(e)) {
+                //println!("Unbinding local transport");
                 removed.unbind_network(self);
             }
         }
@@ -199,26 +197,31 @@ impl Network {
         // No slabs left
         root_index_seed.take();
     }
-    pub fn get_root_index_seed(&self, slab: &Slab) -> Option<MemoRefHead> {
+    pub fn get_root_index_seed(&self, slab: &Slab) -> MemoRefHead {
+        
         let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
 
         match *root_index_seed {
             Some((ref seed, ref from_slabref)) => {
+        
                 if from_slabref.owning_slab_id == slab.id {
                     // seed is resident on the requesting slab
-                    Some(seed.clone())
+                    seed.clone()
                 } else {
+                    //TODO1 - determine why this is ever NOT getting called.
+                    // This does make sense for slabs which share a network, but it should be consistent, and it isn't
+
                     let owned_slabref = from_slabref.clone_for_slab(&slab);
-                    Some(seed.clone_for_slab(&owned_slabref, slab, true))
+                    seed.clone_for_slab(&owned_slabref, slab, true)
                 }
             }
-            None => None,
+            None => MemoRefHead::Null,
         }
 
     }
     pub fn conditionally_generate_root_index_seed(&self, slab: &Slab) -> bool {
         {
-            if let Some(_) = *self.root_index_seed.read().unwrap() {
+            if let Some(_) = *self.root_index_seed.read().unwrap() { 
                 return false;
             }
         }
@@ -257,7 +260,7 @@ impl Network {
                 //                 it is imperative that all memorefs in the root_index_seed reside on the same local slabref
                 //                 so, it is important to undertake the necessary dilligence to clone them to that slab
 
-                return true; // be lenient for now. Not ok for Alpha
+                return false;
             }
         }
 

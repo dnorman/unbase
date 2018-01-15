@@ -1,30 +1,42 @@
 use super::*;
+use subject::SubjectType;
+use futures::{Future, Sink};
+
 
 impl Slab {
-    // NOTE: this is run inside a dedicated thread, as fetches from other slabs may be required for
-    // apply_subject_head ( which calls descends, which calls get_memo, which blocks )
-    // QUESTION: could this be managed with a marker?
+    /// Notify interested parties about a newly arrived memoref on this slab
     pub fn dispatch_memoref (&self, memoref : MemoRef){
-        //println!("# \t\\ Slab({}).dispatch_memoref({})", self.id, &memoref.id );
+        //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?}, {:?})", self.id, &memoref.id, &memoref.subject_id, memoref.get_memo_if_resident() );
 
         if let Some(subject_id) = memoref.subject_id {
+            // TODO2 - switch network modules over to use tokio, ingress to use tokio mpsc stream
+            // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
+            // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
-            let maybe_sub : Option<Vec<WeakContext>> = {
-                // we want to make sure the lock is released before continuing
-                if let Some(ref s) = self.subject_subscriptions.read().unwrap().get( &subject_id ) {
-                    Some((*s).clone())
-                }else{
-                    None
+
+            if let SubjectType::IndexNode = subject_id.stype {
+                // TODO3 - update this to consider popularity of this node, and/or common points of reference with a given context
+                let mut senders = self.index_subscriptions.lock().unwrap();
+                let len = senders.len();
+                for i in (0..len).rev() {
+                    if let Err(_) = senders[i].clone().send(memoref.to_head()).wait(){
+                        // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
+                        senders.swap_remove(i);
+                    }
                 }
-            };
 
-            if let Some(subscribers) = maybe_sub {;
+            }
 
-                for weakcontext in subscribers {
+            if let Some(ref mut senders) = self.subject_subscriptions.lock().unwrap().get_mut( &subject_id ) { 
+                let len = senders.len();
 
-                    if let Some(context) = weakcontext.upgrade() {
-
-                        context.apply_subject_head( subject_id, &memoref.to_head(), true );
+                for i in (0..len).rev() {
+                    match senders[i].clone().send(memoref.to_head()).wait() {
+                        Ok(..) => { }
+                        Err(_) => {
+                            // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
+                            senders.swap_remove(i);
+                        }
                     }
                 }
             }
@@ -33,16 +45,17 @@ impl Slab {
     }
 
     //NOTE: nothing that calls get_memo, directly or indirectly is presently allowed here (but get_memo_if_resident is ok)
+    //      why? Presumably due to deadlocks, but this seems sloppy
+    /// Perform necessary tasks given a newly arrived memo on this slab
     pub fn handle_memo_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
-        //println!("Slab({}).handle_memo_from_other_slab({})", self.id, memo.id );
+        //println!("Slab({}).handle_memo_from_other_slab({:?})", self.id, memo );
 
         match memo.body {
             // This Memo is a peering status update for another memo
-            MemoBody::SlabPresence{ p: ref presence, r: ref opt_root_index_seed } => {
+            MemoBody::SlabPresence{ p: ref presence, r: ref root_index_seed } => {
 
-                match opt_root_index_seed {
-                    &Some(ref root_index_seed) => {
-
+                match root_index_seed {
+                    &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
                         // HACK - this should be done inside the deserialize
                         for memoref in root_index_seed.iter() {
                             memoref.update_peer(origin_slabref, MemoPeeringStatus::Resident);
@@ -50,11 +63,11 @@ impl Slab {
 
                         self.net.apply_root_index_seed( &presence, root_index_seed, &self.my_ref );
                     }
-                    &None => {}
+                    &MemoRefHead::Null => {}
                 }
 
                 let mut reply = false;
-                if let &None = opt_root_index_seed {
+                if let &MemoRefHead::Null = root_index_seed {
                     reply = true;
                 }
 
@@ -106,7 +119,7 @@ impl Slab {
                         }else{
                             let peering_memoref = self.new_memo(
                                 None,
-                                MemoRefHead::from_memoref(memoref.clone()),
+                                memoref.to_head(),
                                 MemoBody::Peering(
                                     *desired_memo_id,
                                     None,
@@ -121,6 +134,13 @@ impl Slab {
                     }
                 }
             }
+            // _ => {
+            //     if let Some(SubjectId{stype: SubjectType::IndexNode,..}) = memo.subject_id {
+            //         for slab in self.contexts {
+
+            //         }
+            //     }
+            // }
             _ => {}
         }
     }

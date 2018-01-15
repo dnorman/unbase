@@ -1,0 +1,43 @@
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                          Network                                               
+                           Arc<NetworkInner>                                    
+                            slabs -----------------------                     
+                                                          \                    
+                                                           \                   
+                                                            -> WeakSlab          
+                                                                     |            
+                                                            -> Slab  v            
+                                                          /   \--> Arc<SlabInner>   
+                                                         /              subject_subscriptions -\             
+                              -> Context                /               unsubscribe_channel     |
+                             /   \ Arc<ContextInner>   /                           ^            |
+                            /        slab ------------/                            |           / 
+   SubjectHandle           /         root_index -                                (mpsc)       / 
+    context --------------/          stash *      \                                 |-?Weak?-/ 
+    subject -----                                  \                                |      (mpsc)  
+                 \                                  ---> IndexFixed                 |      /
+                  \                                        root --------------.     |     /
+                   \                                                           \    |    /
+                    \                                                           \   |   /
+                     \                                                           v  v  v
+                      ---------------------------------------------------------> Subject
+
+
+* Context stash not covered in this diagram
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

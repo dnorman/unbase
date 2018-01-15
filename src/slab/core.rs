@@ -1,5 +1,6 @@
-
 use super::*;
+use error::*;
+
 
 impl Slab {
     pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
@@ -51,6 +52,9 @@ impl Slab {
         if let Some(ref memo) = memoref.get_memo_if_resident() {
 
             self.check_memo_waiters(memo);
+            //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
+            // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
+            // otherwise 
             self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
             self.do_peering(&memoref, &origin_slabref);
 
@@ -79,7 +83,7 @@ impl Slab {
 
             let peering_memoref = self.new_memo(
                 None,
-                MemoRefHead::from_memoref(memoref.clone()),
+                memoref.to_head(),
                 MemoBody::Peering(
                     memoref.id,
                     memoref.subject_id,
@@ -101,7 +105,7 @@ impl Slab {
             false
         }
     }
-    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),String> {
+    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),StorageOpDeclined> {
         assert!(memoref.owning_slab_id == self.id);
 
         //println!("# Slab({}).MemoRef({}).remotize()", self.id, memoref.id );
@@ -115,7 +119,7 @@ impl Slab {
                 let peerlist = memoref.peerlist.read().unwrap();
 
                 if peerlist.len() == 0 {
-                    return Err("Cannot remotize a zero-peer memo".to_string());
+                    return Err(StorageOpDeclined::InsufficientPeering);
                 }
                 send_peers = peerlist.clone();
                 *ptr = MemoRefPtr::Remote;
@@ -127,7 +131,7 @@ impl Slab {
 
         let peering_memoref = self.new_memo_basic(
             None,
-            MemoRefHead::from_memoref(memoref.clone()),
+            memoref.to_head(),
             MemoBody::Peering(
                 memoref.id,
                 memoref.subject_id,
@@ -151,7 +155,7 @@ impl Slab {
 
         let request_memo = self.new_memo_basic(
             None,
-            MemoRefHead::new(), // TODO: how should this be parented?
+            MemoRefHead::Null,
             MemoBody::MemoRequest(
                 vec![memoref.id],
                 self.my_ref.clone()

@@ -6,8 +6,9 @@ pub mod serde;
 use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
+use error::*;
 
-use subject::{SubjectId};
+use subject::{SubjectId,SubjectType};
 use slab::MemoRef;
 use network::{SlabRef,SlabPresence};
 use super::*;
@@ -37,11 +38,12 @@ pub struct MemoInner {
 
 #[derive(Clone, Debug)]
 pub enum MemoBody{
-    SlabPresence{ p: SlabPresence, r: Option<MemoRefHead> }, // TODO: split out root_index_seed conveyance to another memobody type
-    Relation(RelationSlotSubjectHead),
+    SlabPresence{ p: SlabPresence, r: MemoRefHead }, // TODO: split out root_index_seed conveyance to another memobody type
+    Relation(RelationSet),
+    Edge(EdgeSet),
     Edit(HashMap<String, String>),
-    FullyMaterialized     { v: HashMap<String, String>, r: RelationSlotSubjectHead },
-    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSlotSubjectHead },
+    FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
+    PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
     MemoRequest(Vec<MemoId>,SlabRef)
 }
@@ -81,18 +83,28 @@ impl Memo {
         match self.body {
             MemoBody::Edit(ref v)
                 => Some((v.clone(),false)),
-            MemoBody::FullyMaterialized { ref v, r: _ }
+            MemoBody::FullyMaterialized { ref v, .. }
                 => Some((v.clone(),true)),
             _   => None
         }
     }
-    pub fn get_relations (&self) -> Option<(RelationSlotSubjectHead,bool)> {
+    pub fn get_relations (&self) -> Option<(RelationSet,bool)> {
 
         match self.body {
             MemoBody::Relation(ref r)
                 => Some((r.clone(),false)),
-            MemoBody::FullyMaterialized { v: _, ref r }
+            MemoBody::FullyMaterialized { ref r, .. }
                 => Some((r.clone(),true)),
+            _   => None
+        }
+    }
+    pub fn get_edges (&self) -> Option<(EdgeSet,bool)> {
+
+        match self.body {
+            MemoBody::Edge(ref e)
+                => Some((e.clone(),false)),
+            MemoBody::FullyMaterialized { ref e, .. }
+                => Some((e.clone(),true)),
             _   => None
         }
     }
@@ -112,26 +124,25 @@ impl Memo {
             }
         }
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> bool {
+    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,RetrieveError> {
         //TODO: parallelize this
         //TODO: Use sparse-vector/beacon to avoid having to trace out the whole lineage
         //      Should be able to stop traversal once happens-before=true. Cannot descend a thing that happens after
 
-
         // breadth-first
         for parent in self.parents.iter() {
             if parent == memoref {
-                return true
+                return Ok(true)
             };
         }
 
         // Ok now depth
         for parent in self.parents.iter() {
-            if parent.descends(&memoref,slab) {
-                return true
+            if parent.descends(&memoref,slab)? {
+                return Ok(true)
             }
         }
-        return false;
+        return Ok(false);
     }
     pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, peerlist: &MemoPeerList) -> Memo {
         assert!(from_slabref.owning_slab_id == to_slab.id, "Memo clone_for_slab owning slab should be identical");
@@ -156,25 +167,30 @@ impl MemoBody {
             &MemoBody::SlabPresence{ ref p, ref r } => {
                 MemoBody::SlabPresence{
                     p: p.clone(),
-                    r: match r {
-                        &Some(ref root_mrh) => {
-                            Some(root_mrh.clone_for_slab(from_slabref, to_slab, true))
-                        }
-                        &None => None
-                    }
+                    r: r.clone_for_slab(from_slabref, to_slab, true),
+
+                    // match r {
+                    //     &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
+                    //         r.clone_for_slab(from_slabref, to_slab, true)
+                    //     }
+                    //     &MemoRefHead::Null => MemoRefHead::Null
+                    // }
                 }
-            },
-            &MemoBody::Relation(ref rssh) => {
-                MemoBody::Relation(rssh.clone_for_slab(from_slabref, to_slab))
+            }
+            &MemoBody::Relation(ref relationset) => {
+                MemoBody::Relation(relationset.clone_for_slab(from_slabref, to_slab))
+            }
+            &MemoBody::Edge(ref edgeset) => {
+                MemoBody::Edge(edgeset.clone_for_slab(from_slabref, to_slab))
             }
             &MemoBody::Edit(ref hm) => {
                 MemoBody::Edit(hm.clone())
             }
-            &MemoBody::FullyMaterialized{ ref v, ref r } => {
-                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab)}
+            &MemoBody::FullyMaterialized{ ref v, ref r, ref t, ref e } => {
+                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
             }
-            &MemoBody::PartiallyMaterialized{ ref v, ref r } => {
-                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab)}
+            &MemoBody::PartiallyMaterialized{ ref v, ref r,ref e, ref t } => {
+                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
             }
             &MemoBody::Peering(memo_id, subject_id, ref peerlist) => {
                 MemoBody::Peering(memo_id,subject_id,peerlist.clone_for_slab(to_slab))

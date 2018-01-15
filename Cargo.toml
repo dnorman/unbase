@@ -25,7 +25,7 @@ itertools = "0.5.9"
 serde = "0.9.11"
 serde_derive = "0.9.11"
 serde_json = "0.9.9"
-petgraph = "0.4.4"
+futures-await = "0.1"
 
 [features]
 

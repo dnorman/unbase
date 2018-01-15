@@ -72,12 +72,15 @@ impl Transport for LocalDirect {
 
 impl Drop for Internal {
     fn drop (&mut self) {
+        // NOTE: it's kind of pointless to join our threads on drop
+        //       Shut them down, sure, but not point to waiting for that to happen while we're dropping.
+        //       Also this seems to have triggered a bug of some kind 
+        
         //println!("# LocalDirectInternal.drop");
-        for thread in self.tx_threads.drain(..) {
-
+        //for thread in self.tx_threads.drain(..) {
             //println!("# LocalDirectInternal.drop Thread pre join");
-            thread.join().expect("local_direct thread join");
+            //thread.join().expect("local_direct thread join");
             //println!("# LocalDirectInternal.drop Thread post join");
-        }
+        //}
     }
 }
