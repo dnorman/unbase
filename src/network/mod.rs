@@ -208,9 +208,6 @@ impl Network {
                     // seed is resident on the requesting slab
                     seed.clone()
                 } else {
-                    //TODO1 - determine why this is ever NOT getting called.
-                    // This does make sense for slabs which share a network, but it should be consistent, and it isn't
-
                     let owned_slabref = from_slabref.clone_for_slab(&slab);
                     seed.clone_for_slab(&owned_slabref, slab, true)
                 }
