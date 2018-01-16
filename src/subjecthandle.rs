@@ -58,6 +58,9 @@ impl SubjectHandle{
     pub fn set_relation (&self, key: RelationSlotId, relation: &Self) -> Result<(),WriteError> {
         self.subject.set_relation(&self.context, key, &relation.subject)
     }
+    pub fn head_memo_ids (&self) -> Vec<MemoId> {
+        self.subject.get_head().memo_ids()
+    }
     pub fn get_all_memo_ids ( &self ) -> Vec<MemoId> {
         self.subject.get_all_memo_ids(&self.context.slab)
     }

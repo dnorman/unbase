@@ -3,7 +3,7 @@ use slab::*;
 use core;
 use std::fmt;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc,RwLock};
 
 use memorefhead::*;
 use context::Context;
@@ -59,7 +59,8 @@ impl fmt::Display for SubjectId {
 
 pub(crate) struct Subject {
     pub id:     SubjectId,
-    pub (crate) head: RwLock<MemoRefHead>
+    pub (crate) head: Arc<RwLock<MemoRefHead>>, // Not sure how I feel about this being an Arc. Kind of a HACK.
+    //pub (crate) rx: RwLock<Option<Box<Stream<Item=MemoRefHead, Error = ()>>>>
 }
 
 impl Subject {
@@ -75,7 +76,7 @@ impl Subject {
             );
         let head = memoref.to_head();
 
-        let subject = Subject{ id, head: RwLock::new(head.clone()) };
+        let subject = Subject{ id, head: Arc::new(RwLock::new(head.clone())) };
 
         //slab.subscribe_subject( &subject );
 
@@ -105,7 +106,7 @@ impl Subject {
         if let Some(subject_id) = head.subject_id(){
             let subject = Subject{
                 id:   subject_id,
-                head: RwLock::new(head)
+                head: Arc::new(RwLock::new(head))
             };
 
             // TODO3 - Should a resident subject be proactively updated? Or only when it's being observed?
@@ -243,14 +244,26 @@ impl Subject {
     // }
 
     pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRefHead, Error = ()>> {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel::<MemoRefHead>(1);
 
+        // TODO - figure out how to subscribe only once, such that one may create multiple observers for a single subject
+        //        without duplication of effort
+        let head = self.head.clone();
+        let slab_clone = slab.clone();
+        let rx2 = rx.map(move |mrh| {
+            // TODO - make this more elegant, such that the initial MRH isn't redundantly applied to itself
+            if let Err(_) =  head.write().unwrap().apply(&mrh,&slab_clone) {
+                // TODO - Handle this somehow. (propagating the error to the observer seems odd)
+            }
+
+            mrh
+        });
+
+        // Send the initial MRH such that an observers gets the starting state
         tx.clone().send( self.head.read().unwrap().clone() ).wait().unwrap();
-        // TODO1: deduplicate channels, apply memorefs to this subject's head
-        // BUG HERE - not applying MRH to our head here, but double check as to what we were expecting from indexes
-        // NOTE: remember to use a weak reference 
+        
         slab.observe_subject( self.id, tx );
-        Box::new(rx)
+        Box::new(rx2)
     }
 }
 
@@ -258,7 +271,7 @@ impl Clone for Subject {
     fn clone (&self) -> Subject {
         Self{
             id: self.id,
-            head: RwLock::new(self.head.read().unwrap().clone())
+            head: self.head.clone()
         }
     }
 }

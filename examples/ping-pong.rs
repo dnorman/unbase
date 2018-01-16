@@ -30,8 +30,7 @@ fn main() {
 
         let mut pings = 0;
         for _ in rec_a1.observe().wait() {
-            // HACK - Presently we are relying on the newly issued index leaf for record consistency, which is applied immediately after this event is sent
-            thread::sleep( time::Duration::from_millis(10) );
+            println!("A - VAL {:?}, {}", rec_a1.head_memo_ids(), rec_a1.get_value("action").unwrap());
 
             if "Pong" == rec_a1.get_value("action").unwrap() {
                 println!("A - [ Ping ->       ]");
@@ -70,8 +69,6 @@ fn main() {
 
         let mut pongs = 0;
         for _ in rec_b1.observe().wait() {
-            // HACK - Presently we are relying on the newly issued index leaf for record consistency, which is applied immediately after this event is sent
-            thread::sleep( time::Duration::from_millis(10) );
 
             if "Ping" == rec_b1.get_value("action").unwrap() {
                 println!("B - [       <- Pong ]");
