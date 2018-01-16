@@ -102,6 +102,11 @@ impl Slab {
                 for peer in peerlist.iter().filter(|p| p.slabref.0.slab_id != self.id ) {
                     peered_memoref.update_peer( &peer.slabref, peer.status.clone());
                 }
+
+                if 0 == peered_memoref.want_peer_count() {
+                    let mut q = self.peering_remediation_queue.lock().unwrap();
+                    q.retain(|mr| mr != &peered_memoref )
+                }
             },
             MemoBody::MemoRequest(ref desired_memo_ids, ref requesting_slabref ) => {
 

@@ -75,9 +75,6 @@ fn remote_traversal_nondeterministic_udp() {
         // no reason to wait to create the context here
         let context_a = unbase::Slab::new(&net1).create_context();
 
-        // HACK - wait for slab_b to be on the peer list, and to be hooked in to our root_index_seed
-        thread::sleep( time::Duration::from_millis(150) );
-
         // Do some stuff
         let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo").unwrap();
         rec_a1.set_value("animal_sound","Woof").unwrap();

@@ -16,7 +16,7 @@ pub const SUBJECT_MAX_RELATIONS : usize = 256;
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
     IndexNode,
-    Record
+    Record,
 }
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub struct SubjectId {

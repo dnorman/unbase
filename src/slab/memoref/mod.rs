@@ -112,6 +112,26 @@ impl MemoRef {
 
         status
     }
+    /*    pub fn memo_durability_score( &self, _memo: &Memo ) -> u8 {
+        // TODO: devise durability_score algo
+        //       Should this number be inflated for memos we don't care about?
+        //       Or should that be a separate signal?
+
+        // Proposed factors:
+        // Estimated number of copies in the network (my count = count of first order peers + their counts weighted by: uptime?)
+        // Present diasporosity ( my diasporosity score = mean peer diasporosity scores weighted by what? )
+        0
+    }
+    */
+    pub fn want_peer_count (&self) -> u32 {
+        // TODO: test each memo for durability_score and emit accordingly
+
+        match self.subject_id {
+            None    => 0,
+            // TODO - make this number dynamic on the basis of estimated durability
+            Some(_) => (2 as u32).saturating_sub( self.peerlist.read().unwrap().len() as u32 )
+        }
+    }
     pub fn get_memo (&self, slab: &Slab) -> Result<Memo,RetrieveError> {
 //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");

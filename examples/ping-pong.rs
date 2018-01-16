@@ -20,11 +20,6 @@ fn main() {
         net1.add_transport( Box::new(udp1) );
         let context_a = unbase::Slab::new(&net1).create_context();
 
-        // HACK - need to wait until peering of the root index node is established
-        // because we are aren't updating the net's root seed, which is what is being sent when peering is established
-        // TODO: establish some kind of positive pressure to push out index nodes
-        thread::sleep( time::Duration::from_millis(700) );
-
         println!("A - Sending Initial Ping");
         let rec_a1 = SubjectHandle::new_kv(&context_a, "action", "Ping").unwrap();
 
@@ -64,7 +59,7 @@ fn main() {
         context_b.root_index_wait( 1000 ).unwrap();
 
         println!("B - Searching for Ping record...");
-        let rec_b1 = context_b.fetch_kv_wait( "action", "Ping", 1000 ).unwrap(); 
+        let rec_b1 = context_b.fetch_kv_wait( "action", "Ping", 10000 ).unwrap(); 
         println!("B - Found Ping record.");
 
         let mut pongs = 0;

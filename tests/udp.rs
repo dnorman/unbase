@@ -12,7 +12,7 @@ fn test_udp() {
         net1.add_transport( Box::new(udp1.clone()) );
         let _slab_a = unbase::Slab::new(&net1);
 
-    //    thread::sleep( time::Duration::from_secs(5) );
+        thread::sleep( time::Duration::from_millis(200) );
     });
 
     thread::sleep( time::Duration::from_millis(50) );
@@ -27,7 +27,7 @@ fn test_udp() {
         let _slab_b = unbase::Slab::new(&net2);
 
         udp2.seed_address_from_string( "127.0.0.1:12345".to_string() );
-        thread::sleep( time::Duration::from_millis(500) );
+        thread::sleep( time::Duration::from_millis(200) );
     });
 
     t1.join().expect("thread1.join");
@@ -47,12 +47,10 @@ fn test_udp2() {
         net1.add_transport( Box::new(udp1) );
         let context_a = Slab::new(&net1).create_context();
     
-        // HACK - wait for slab_b to be on the peer list, and to be hooked in to our root_index_seed
-        thread::sleep( time::Duration::from_millis(150) );
         let beast_a = SubjectHandle::new_kv(&context_a, "beast", "Lion").expect("write successful");
         beast_a.set_value("sound","Grraaawrrr").expect("write successful");
 
-        // Hang out so we can help thread 2
+        // Hold off on dealloc-ing slab A so we can help thread 2 (worker threads only have a weak ref)
         thread::sleep(time::Duration::from_millis(500));
     });
     

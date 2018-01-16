@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fmt;
 use std::thread;
+use std::time;
 
 // NOTE: All slab code is broken down into functional areas:
 mod ingress;
@@ -55,6 +56,9 @@ pub struct SlabInner{
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
     memoref_dispatch_thread: RwLock<Option<thread::JoinHandle<()>>>,
+
+    peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
+    peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
     pub my_ref: SlabRef,
     peer_refs: RwLock<Vec<SlabRef>>,
@@ -107,6 +111,8 @@ impl Slab {
 
             memoref_dispatch_tx_channel: Some(Mutex::new(memoref_dispatch_tx_channel)),
             memoref_dispatch_thread: RwLock::new(None),
+            peering_remediation_thread: RwLock::new(None),
+            peering_remediation_queue: Mutex::new(Vec::new()),
 
             my_ref: my_ref,
             peer_refs: RwLock::new(Vec::new()),
@@ -124,6 +130,24 @@ impl Slab {
             while let Ok(memoref) = memoref_dispatch_rx_channel.recv() {
                 if let Some(slab) = weak_self.upgrade(){
                     slab.dispatch_memoref(memoref);
+                }
+            }
+        }));
+
+        let weak_self = me.weak();
+
+        // TODO: this should really be a thread pool, or get_memo should be changed to be nonblocking somhow
+        *me.peering_remediation_thread.write().unwrap() = Some(thread::spawn(move || {
+            loop {
+                thread::sleep( time::Duration::from_millis(50) );
+                //println!("PEERING REMEDIATION");
+                if let Some(slab) = weak_self.upgrade(){
+                    // TODO - Get rid of this clone. did it as a cheap way to avoid the deadlock below
+                    let q = { slab.peering_remediation_queue.lock().unwrap().clone() }; 
+                    for memoref in q {
+                        // Kind of dumb that it's checking 
+                         slab.consider_emit_memo(&memoref);
+                    }
                 }
             }
         }));
@@ -186,28 +210,6 @@ impl Slab {
         let id = (self.id as u64).rotate_left(32) | counters.last_subject_id as u64;
         SubjectId{ id, stype }
     }
-    fn check_peering_target( &self, memo: &Memo ) -> u8 {
-        if memo.does_peering() {
-            5
-        }else{
-            // This is necessary to prevent memo routing loops for now, as
-            // memoref.is_peered_with_slabref() obviously doesn't work for non-peered memos
-            // something here should change when we switch to gossip/plumtree, but
-            // I'm not sufficiently clear on that at the time of this writing
-            0
-        }
-    }
-/*    pub fn memo_durability_score( &self, _memo: &Memo ) -> u8 {
-        // TODO: devise durability_score algo
-        //       Should this number be inflated for memos we don't care about?
-        //       Or should that be a separate signal?
-
-        // Proposed factors:
-        // Estimated number of copies in the network (my count = count of first order peers + their counts weighted by: uptime?)
-        // Present diasporosity ( my diasporosity score = mean peer diasporosity scores weighted by what? )
-        0
-    }
-*/
     pub fn check_memo_waiters ( &self, memo: &Memo) {
         match self.memo_wait_channels.lock().unwrap().entry(memo.id) {
             Entry::Occupied(o) => {
