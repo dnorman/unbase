@@ -40,7 +40,7 @@ impl Deref for Context {
     }
 }
 
-/// TODO: Explain what a context is here
+// TODO: Explain what a context is here
 impl Context{
     pub fn new (slab: &Slab) -> Self {
         let new_self = Context(

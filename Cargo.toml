@@ -1,8 +1,8 @@
 [package]
 name = "unbase"
-version = "0.1.1"
+version = "0.0.2"
 authors = ["Daniel Norman <daniel@gudtech.com>"]
-description = "Unbase is an open-source concept for a causal, coordination-free distributed data-persistence and application framework. It is fundamentally reactive, fault tolerant, and decentralized."
+description = "Unbase intends to be a causal, coordination-free distributed data-persistence and application framework. It is fundamentally reactive, fault tolerant, and decentralized."
 documentation = "https://docs.rs/unbase/"
 homepage = "https://unba.se"
 repository = "https://github.com/unbase/unbase"
