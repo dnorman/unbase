@@ -109,7 +109,7 @@ impl Slab {
         assert!(memoref.owning_slab_id == self.id);
 
         //println!("# Slab({}).MemoRef({}).remotize()", self.id, memoref.id );
-
+        
         // TODO: check peering minimums here, and punt if we're below threshold
 
         let send_peers;

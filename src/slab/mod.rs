@@ -33,26 +33,28 @@ mod common_structs;
 mod memo;
 mod slabref;
 mod memoref;
+mod store;
 
 pub type SlabId = u32;
 
 #[derive(Clone)]
-pub struct Slab(Arc<SlabInner>);
+pub struct Slab<S = store::Memory>(Arc<SlabInner<S>>) where S: store::SlabStore;
 
-impl Deref for Slab {
-    type Target = SlabInner;
-    fn deref(&self) -> &SlabInner {
+impl <S> Deref for Slab<S> where S: store::SlabStore {
+    type Target = SlabInner<S> ;
+    fn deref(&self) -> &SlabInner<S> where S: store::SlabStore {
         &*self.0
     }
 }
 
-pub struct SlabInner{
+pub struct SlabInner<S> 
+    where S: store::SlabStore {
     pub id: SlabId,
-    memorefs_by_id: RwLock<HashMap<MemoId,MemoRef>>,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
     subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRefHead>>>>,
     index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRefHead>>>,
     counters: RwLock<SlabCounters>,
+    store: RwLock<S>,
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
     memoref_dispatch_thread: RwLock<Option<thread::JoinHandle<()>>>,
@@ -74,13 +76,13 @@ struct SlabCounters{
 }
 
 #[derive(Clone)]
-pub struct WeakSlab{
+pub struct WeakSlab<S> where S: store::SlabStore+Sized {
     pub id: u32,
-    inner: Weak<SlabInner>
+    inner: Weak<SlabInner<S>>
 }
 
-impl Slab {
-    pub fn new(net: &Network) -> Slab {
+impl <S> Slab<S>  where S: store::SlabStore+Sized {
+    pub fn new(net: &Network) -> Slab<S> {
         let slab_id = net.generate_slab_id();
 
         let my_ref_inner = SlabRefInner {
@@ -156,7 +158,7 @@ impl Slab {
 
         me
     }
-    pub fn weak (&self) -> WeakSlab {
+    pub fn weak (&self) -> WeakSlab<S> where S: store::SlabStore {
         WeakSlab {
             id: self.id,
             inner: Arc::downgrade(&self.0)
@@ -210,7 +212,7 @@ impl Slab {
         let id = (self.id as u64).rotate_left(32) | counters.last_subject_id as u64;
         SubjectId{ id, stype }
     }
-    pub fn check_memo_waiters ( &self, memo: &Memo) {
+    pub fn check_memo_waiters ( &self, memo: &Memo) where S: store::SlabStore {
         match self.memo_wait_channels.lock().unwrap().entry(memo.id) {
             Entry::Occupied(o) => {
                 for channel in o.get() {
@@ -224,7 +226,7 @@ impl Slab {
         };
     }
 
-    pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) {
+    pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) where S: store::SlabStore {
 
         let do_send = if let Some(memo) = memoref.get_memo_if_resident(){
             // Peering memos don't get peering memos, but Edit memos do
@@ -261,8 +263,8 @@ impl Slab {
     }
 }
 
-impl Drop for SlabInner {
-    fn drop(&mut self) {
+impl <S> Drop for SlabInner<S> {
+    fn drop(&mut self) where S: store::SlabStore {
         self.dropping = true;
 
         //println!("# SlabInner({}).drop", self.id);
@@ -275,10 +277,10 @@ impl Drop for SlabInner {
     }
 }
 
-impl WeakSlab {
-    pub fn upgrade (&self) -> Option<Slab> {
+impl <S> WeakSlab<S> {
+    pub fn upgrade (&self) -> Option<Slab<S>> where S: store::SlabStore {
         match self.inner.upgrade() {
-            Some(i) => Some( Slab(i) ),
+            Some(i) => Some( Slab::<S>(i) ),
             None    => None
         }
     }
