@@ -4,7 +4,7 @@ use std::io;
 use std::thread;
 use std::time;
 use std::io::BufRead;
-
+use std::any::Any;
 use super::*;
 use std::sync::{Arc,Mutex};
 use slab::*;
@@ -28,7 +28,7 @@ struct SimEvent {
     _source_point: MinkowskiPoint,
     dest_point:    MinkowskiPoint,
     from_slabref:  SlabRef,
-    dest:          WeakSlab,
+    dest:          Box<WeakSlab<Any>>,
     memoref:       MemoRef
 }
 
@@ -220,7 +220,7 @@ pub struct SimulatorTransmitter{
     pub source_point: XYZPoint,
     pub dest_point: XYZPoint,
     pub simulator: Simulator,
-    pub dest: WeakSlab
+    pub dest: Box<WeakSlab<Any>>
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
