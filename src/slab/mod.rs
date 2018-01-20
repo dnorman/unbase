@@ -1,5 +1,5 @@
-#![feature(proc_macro, conservative_impl_trait, generators)]
-extern crate futures_await as futures;
+use futures;
+use futures::prelude::*;
 
 pub use self::common_structs::*;
 pub use self::slabref::{SlabRef,SlabRefInner};
@@ -12,6 +12,7 @@ use subject::{SubjectId,SubjectType};
 use memorefhead::*;
 use context::*;
 use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
+use error::*;
 
 use std::ops::Deref;
 use std::sync::{Arc,Weak,RwLock,Mutex};
@@ -38,23 +39,22 @@ mod store;
 pub type SlabId = u32;
 
 #[derive(Clone)]
-pub struct Slab<S = store::Memory>(Arc<SlabInner<S>>) where S: store::SlabStore;
+pub struct Slab(Arc<SlabInner>);
 
-impl <S> Deref for Slab<S> where S: store::SlabStore {
-    type Target = SlabInner<S> ;
-    fn deref(&self) -> &SlabInner<S> where S: store::SlabStore {
+impl Deref for Slab {
+    type Target = SlabInner;
+    fn deref(&self) -> &SlabInner {
         &*self.0
     }
 }
 
-pub struct SlabInner<S> 
-    where S: store::SlabStore {
+pub struct SlabInner {
     pub id: SlabId,
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
     subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRefHead>>>>,
     index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRefHead>>>,
     counters: RwLock<SlabCounters>,
-    store: RwLock<S>,
+    store: Box<store::SlabStore>,
 
     memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
     memoref_dispatch_thread: RwLock<Option<thread::JoinHandle<()>>>,
@@ -76,13 +76,13 @@ struct SlabCounters{
 }
 
 #[derive(Clone)]
-pub struct WeakSlab<S> where S: store::SlabStore+Sized {
+pub struct WeakSlab {
     pub id: u32,
-    inner: Weak<SlabInner<S>>
+    inner: Weak<SlabInner>
 }
 
-impl <S> Slab<S>  where S: store::SlabStore+Sized {
-    pub fn new(net: &Network) -> Slab<S> {
+impl Slab {
+    pub fn new(net: &Network) -> Slab {
         let slab_id = net.generate_slab_id();
 
         let my_ref_inner = SlabRefInner {
@@ -99,11 +99,10 @@ impl <S> Slab<S>  where S: store::SlabStore+Sized {
 
         let inner = SlabInner {
             id: slab_id,
-            memorefs_by_id:        RwLock::new(HashMap::new()),
             memo_wait_channels:    Mutex::new(HashMap::new()),
             subject_subscriptions: Mutex::new(HashMap::new()),
             index_subscriptions:   Mutex::new(Vec::new()),
-
+            store:                 Box::new(store::Memory::new()),
             counters: RwLock::new(SlabCounters {
                 last_memo_id: 5000,
                 last_subject_id: 9000,
@@ -158,7 +157,7 @@ impl <S> Slab<S>  where S: store::SlabStore+Sized {
 
         me
     }
-    pub fn weak (&self) -> WeakSlab<S> where S: store::SlabStore {
+    pub fn weak (&self) -> WeakSlab {
         WeakSlab {
             id: self.id,
             inner: Arc::downgrade(&self.0)
@@ -212,7 +211,7 @@ impl <S> Slab<S>  where S: store::SlabStore+Sized {
         let id = (self.id as u64).rotate_left(32) | counters.last_subject_id as u64;
         SubjectId{ id, stype }
     }
-    pub fn check_memo_waiters ( &self, memo: &Memo) where S: store::SlabStore {
+    pub fn check_memo_waiters ( &self, memo: &Memo) {
         match self.memo_wait_channels.lock().unwrap().entry(memo.id) {
             Entry::Occupied(o) => {
                 for channel in o.get() {
@@ -226,7 +225,7 @@ impl <S> Slab<S>  where S: store::SlabStore+Sized {
         };
     }
 
-    pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) where S: store::SlabStore {
+    pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) {
 
         let do_send = if let Some(memo) = memoref.get_memo_if_resident(){
             // Peering memos don't get peering memos, but Edit memos do
@@ -261,10 +260,52 @@ impl <S> Slab<S>  where S: store::SlabStore+Sized {
         }
 
     }
+    //#[async]
+    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Result<(),Error> { // Stream<Item = &MemoRef, Error = Error>{
+        //println!("# Slab({}).remotize_memo_ids({:?})", self.id, memo_ids);
+
+        for memo_id in memo_ids {
+            if let Some(memoref) = self.store.get_memoref(memo_id)?{
+                self.remotize_memoref(&memoref)?;
+            }
+        }
+        Ok(())
+
+        //let memo_id_stream = futures::stream::iter_ok::<_, ()>(memo_ids.iter());
+        //self.store.fetch_memorefs(Box::new(memo_id_stream)).for_each(|mr| { self.remotize_memoref(mr) }).wait()
+        // #[async]
+        // for &memoref in self.store.fetch_memorefs(memo_ids){
+        //     self.remotize_memoref(&memoref)?;
+        // }
+        // Ok(())
+    }
+    pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
+        use std::time::{Instant,Duration};
+        let start = Instant::now();
+        let wait = Duration::from_millis(ms);
+        use std::thread;
+
+        loop {
+            if start.elapsed() > wait{
+                return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering))
+            }
+
+            #[allow(unreachable_patterns)]
+            match self.remotize_memo_ids( memo_ids ) {
+                Ok(_) => {
+                    return Ok(())
+                },
+                Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering)) => {}
+                Err(e)                                      => return Err(e)
+            }
+
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
 }
 
-impl <S> Drop for SlabInner<S> {
-    fn drop(&mut self) where S: store::SlabStore {
+impl  Drop for SlabInner {
+    fn drop(&mut self) {
         self.dropping = true;
 
         //println!("# SlabInner({}).drop", self.id);
@@ -277,10 +318,10 @@ impl <S> Drop for SlabInner<S> {
     }
 }
 
-impl <S> WeakSlab<S> {
-    pub fn upgrade (&self) -> Option<Slab<S>> where S: store::SlabStore {
+impl WeakSlab {
+    pub fn upgrade (&self) -> Option<Slab> {
         match self.inner.upgrade() {
-            Some(i) => Some( Slab::<S>(i) ),
+            Some(i) => Some( Slab(i) ),
             None    => None
         }
     }

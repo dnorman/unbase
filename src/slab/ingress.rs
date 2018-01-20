@@ -112,10 +112,10 @@ impl Slab {
 
                 if requesting_slabref.0.slab_id != self.id {
                     for desired_memo_id in desired_memo_ids {
-                        if let Some(desired_memoref) = self.memorefs_by_id.read().unwrap().get(&desired_memo_id) {
+                        if let Ok(Some(desired_memoref)) = self.store.get_memoref(&desired_memo_id) {
 
                             if desired_memoref.is_resident() {
-                                requesting_slabref.send(&self.my_ref, desired_memoref)
+                                requesting_slabref.send(&self.my_ref, &desired_memoref)
                             } else {
                                 // Somebody asked me for a memo I don't have
                                 // It would be neighborly to tell them I don't have it

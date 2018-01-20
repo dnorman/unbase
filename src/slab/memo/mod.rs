@@ -6,7 +6,6 @@ pub mod serde;
 use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
-use error::*;
 
 use subject::{SubjectId,SubjectType};
 use slab::MemoRef;
@@ -124,7 +123,7 @@ impl Memo {
             }
         }
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,RetrieveError> {
+    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,Error> {
         //TODO: parallelize this
         //TODO: Use sparse-vector/beacon to avoid having to trace out the whole lineage
         //      Should be able to stop traversal once happens-before=true. Cannot descend a thing that happens after

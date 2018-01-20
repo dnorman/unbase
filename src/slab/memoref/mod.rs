@@ -132,7 +132,7 @@ impl MemoRef {
             Some(_) => (2 as u32).saturating_sub( self.peerlist.read().unwrap().len() as u32 )
         }
     }
-    pub fn get_memo (&self, slab: &Slab) -> Result<Memo,RetrieveError> {
+    pub fn get_memo (&self, slab: &Slab) -> Result<Memo,Error> {
 //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
 
@@ -146,7 +146,7 @@ impl MemoRef {
             if slab.request_memo(self) > 0 {
                 channel = slab.memo_wait_channel(self.id);
             }else{
-                return Err(RetrieveError::NotFound)
+                return Err(Error::RetrieveError(RetrieveError::NotFound))
             }
         }
 
@@ -169,7 +169,7 @@ impl MemoRef {
                     match rcv_error {
                         Timeout => {}
                         Disconnected => {
-                            return Err(RetrieveError::SlabError)
+                            return Err(Error::RetrieveError(RetrieveError::SlabError))
                         }
                     }
                 }
@@ -177,15 +177,15 @@ impl MemoRef {
 
             // have another go around
             if slab.request_memo( &self ) == 0 {
-                return Err(RetrieveError::NotFound)
+                return Err(Error::RetrieveError(RetrieveError::NotFound))
             }
 
         }
 
-        Err(RetrieveError::NotFoundByDeadline)
+        Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))
 
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,RetrieveError> {
+    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,Error> {
         assert!(self.owning_slab_id == slab.id);
 
         if self.get_memo( slab )?.descends(&memoref, slab)? {

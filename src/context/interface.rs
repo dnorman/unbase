@@ -5,7 +5,7 @@ use std::fmt;
 /// User interface functions - Programmer API for `Context`
 impl Context {
     /// Retrive a Subject from the root index by ID
-    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<Option<SubjectHandle>, RetrieveError> {
+    pub fn get_subject_by_id(&self, subject_id: SubjectId) -> Result<Option<SubjectHandle>, Error> {
 
         match self.root_index()?.get(&self, subject_id.id)? {
             Some(s) => {
@@ -43,7 +43,7 @@ impl Context {
 
         memoref_count
     }
-    pub fn get_relevant_subject_head(&self, subject_id: SubjectId) -> Result<MemoRefHead, RetrieveError> {
+    pub fn get_relevant_subject_head(&self, subject_id: SubjectId) -> Result<MemoRefHead, Error> {
         match subject_id {
             SubjectId{ stype: SubjectType::IndexNode,.. } => {
                 Ok(self.stash.get_head(subject_id).clone())
@@ -60,7 +60,7 @@ impl Context {
             }
         }
     }
-    pub fn root_index (&self) -> Result<Arc<IndexFixed>,RetrieveError> {
+    pub fn root_index (&self) -> Result<Arc<IndexFixed>,Error> {
 
         {
            let rg = self.root_index.read().unwrap();
@@ -77,11 +77,11 @@ impl Context {
 
             Ok(arcindex)
         }else{
-            Err(RetrieveError::IndexNotInitialized)
+            Err(Error::RetrieveError(RetrieveError::IndexNotInitialized))
         }
 
     }
-    pub fn root_index_wait (&self, wait: u64) -> Result<Arc<IndexFixed>, RetrieveError> {
+    pub fn root_index_wait (&self, wait: u64) -> Result<Arc<IndexFixed>, Error> {
         use std::time::{Instant,Duration};
         let start = Instant::now();
         let wait = Duration::from_millis(wait);
@@ -89,7 +89,7 @@ impl Context {
 
         loop {
             if start.elapsed() > wait{
-                return Err(RetrieveError::NotFoundByDeadline)
+                return Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))
             }
 
             if let Ok(ri) = self.root_index() {
@@ -133,7 +133,7 @@ impl Context {
     /// We do this by issuing Relation memos for any subject heads which reference other subject heads presently in the query context.
     /// Then we can remove the now-referenced subject heads, and repeat the process in a topological fashion, confident that these
     /// referenced subject heads will necessarily be included in subsequent projection as a result.
-    pub fn compact(&self) -> Result<(), WriteError>  {
+    pub fn compact(&self) -> Result<(), Error>  {
         let before = self.stash.concise_contents();
 
         //TODO: implement topological MRH iterator for stash

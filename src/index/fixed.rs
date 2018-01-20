@@ -5,7 +5,6 @@ use subjecthandle::SubjectHandle;
 use slab::*;
 use memorefhead::MemoRefHead;
 
-use error::RetrieveError;
 use std::collections::HashMap;
 
 
@@ -15,7 +14,7 @@ pub struct IndexFixed {
 }
 
 impl IndexFixed {
-    pub fn new (context: &Context, depth: u8) -> Result<IndexFixed,WriteError> {
+    pub fn new (context: &Context, depth: u8) -> Result<IndexFixed,Error> {
         Ok(Self {
             root: Subject::new( context, SubjectType::IndexNode, HashMap::new() )?,
             depth: depth
@@ -27,10 +26,10 @@ impl IndexFixed {
             depth: depth
         }
     }
-    pub fn insert_subject_handle (&self, key: u64, subjecthandle: &SubjectHandle) -> Result<(),WriteError> {
+    pub fn insert_subject_handle (&self, key: u64, subjecthandle: &SubjectHandle) -> Result<(),Error> {
         self.insert(&subjecthandle.context, key, &subjecthandle.subject)
     }
-    pub (crate) fn insert <'a> (&self, context: &Context, key: u64, subject: &Subject) -> Result<(),WriteError> {
+    pub (crate) fn insert <'a> (&self, context: &Context, key: u64, subject: &Subject) -> Result<(),Error> {
         //println!("IndexFixed.insert({}, {:?})", key, subject );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -44,7 +43,7 @@ impl IndexFixed {
     }
     // Temporarily managing our own bubble-up
     // TODO: finish moving the management of this to context / context::subject_graph
-    fn recurse_set(&self, context: &Context, tier: usize, key: u64, node: &Subject, subject: &Subject) -> Result<(),WriteError>{
+    fn recurse_set(&self, context: &Context, tier: usize, key: u64, node: &Subject, subject: &Subject) -> Result<(),Error>{
         // TODO: refactor this in a way that is generalizable for strings and such
         // Could just assume we're dealing with whole bytes here, but I'd rather
         // allow for SUBJECT_MAX_RELATIONS <> 256. Values like 128, 512, 1024 may not be entirely ridiculous
@@ -76,14 +75,14 @@ impl IndexFixed {
         }
 
     }
-    pub fn get_root_subject_handle(&self, context: &Context) -> Result<SubjectHandle,RetrieveError> {
+    pub fn get_root_subject_handle(&self, context: &Context) -> Result<SubjectHandle,Error> {
         Ok(SubjectHandle{
             id: self.root.id,
             subject: self.root.clone(),
             context: context.clone()
         })
     } 
-    pub fn get_subject_handle(&self, context: &Context, key: u64 ) -> Result<Option<SubjectHandle>,RetrieveError> {
+    pub fn get_subject_handle(&self, context: &Context, key: u64 ) -> Result<Option<SubjectHandle>,Error> {
         match self.get(context,key)? {
             Some(subject) => {
                 Ok(Some(SubjectHandle{
@@ -95,13 +94,13 @@ impl IndexFixed {
             None => Ok(None)
         }
     }
-    pub (crate) fn get ( &self, context: &Context, key: u64 ) -> Result<Option<Subject>, RetrieveError> {
+    pub (crate) fn get ( &self, context: &Context, key: u64 ) -> Result<Option<Subject>, Error> {
         match self.get_head( context, key )? {
             Some(mrh) => Ok(Some( context.get_subject_with_head( mrh )? )),
             None      => Ok(None)
         }
     }
-    pub (crate) fn get_head ( &self, context: &Context, key: u64 ) -> Result<Option<MemoRefHead>, RetrieveError> {
+    pub (crate) fn get_head ( &self, context: &Context, key: u64 ) -> Result<Option<MemoRefHead>, Error> {
         //println!("IndexFixed.get({})", key );
         //TODO: this is dumb, figure out how to borrow here
         //      and replace with borrows for nested subjects
@@ -132,7 +131,7 @@ impl IndexFixed {
         panic!("Sanity error");
 
     }
-    pub fn scan_kv( &self, context: &Context, key: &str, value: &str ) -> Result<Option<SubjectHandle>, RetrieveError> {
+    pub fn scan_kv( &self, context: &Context, key: &str, value: &str ) -> Result<Option<SubjectHandle>, Error> {
         self.scan(&context, |r| {
             if let Some(v) = r.get_value(key) {
                 Ok(v == value)
@@ -141,8 +140,8 @@ impl IndexFixed {
             }
         })
     }
-    pub (crate) fn scan<F> ( &self, context: &Context, f: F ) -> Result<Option<SubjectHandle>, RetrieveError> 
-        where F: Fn( &SubjectHandle ) -> Result<bool,RetrieveError> {
+    pub (crate) fn scan<F> ( &self, context: &Context, f: F ) -> Result<Option<SubjectHandle>, Error> 
+        where F: Fn( &SubjectHandle ) -> Result<bool,Error> {
             //println!("SCAN" );
 
         let node = self.root.clone();
@@ -150,8 +149,8 @@ impl IndexFixed {
         self.scan_recurse( context, &node, 0, &f )
     }
 
-    fn scan_recurse <F> ( &self, context: &Context, node: &Subject, tier: usize, f: &F ) -> Result<Option<SubjectHandle>, RetrieveError> 
-        where F: Fn( &SubjectHandle ) -> Result<bool,RetrieveError> {
+    fn scan_recurse <F> ( &self, context: &Context, node: &Subject, tier: usize, f: &F ) -> Result<Option<SubjectHandle>, Error> 
+        where F: Fn( &SubjectHandle ) -> Result<bool,Error> {
 
             // for _ in 0..tier+1 {
             //     print!("\t");

@@ -17,8 +17,6 @@ use std::fmt;
 use slab::{Slab, WeakSlab, SlabId};
 use memorefhead::MemoRefHead;
 
-use std::any::Any;
-
 #[derive(Clone)]
 pub struct Network(Arc<NetworkInner>);
 
@@ -31,7 +29,7 @@ impl Deref for Network {
 
 pub struct NetworkInner {
     next_slab_id: RwLock<u32>,
-    slabs: RwLock<Vec<Box<WeakSlab<Any>>>>,
+    slabs: RwLock<Vec<WeakSlab>>,
     transports: RwLock<Vec<Box<Transport + Send + Sync>>>,
     root_index_seed: RwLock<Option<(MemoRefHead, SlabRef)>>,
     create_new_system: bool,

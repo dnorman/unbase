@@ -63,7 +63,7 @@ impl Context{
             inner: Arc::downgrade(&self.0)
         }
     }
-    pub fn fetch_kv (&self, key: &str, val: &str) -> Result<Option<SubjectHandle>,RetrieveError> {
+    pub fn fetch_kv (&self, key: &str, val: &str) -> Result<Option<SubjectHandle>,Error> {
         // TODO implement field-specific indexes
             //if I have an index for that field {
             //    use it
@@ -71,7 +71,7 @@ impl Context{
         self.root_index()?.scan_kv(self, key, val)
         //}
     }
-    pub fn fetch_kv_wait (&self, key: &str, val: &str, ms: u64 ) -> Result<SubjectHandle, RetrieveError>{
+    pub fn fetch_kv_wait (&self, key: &str, val: &str, ms: u64 ) -> Result<SubjectHandle, Error>{
         use std::time::{Instant,Duration};
         let start = Instant::now();
         let wait = Duration::from_millis(ms);
@@ -82,7 +82,7 @@ impl Context{
         loop {
             let elapsed = start.elapsed();
             if elapsed > wait {
-                return Err(RetrieveError::NotFoundByDeadline)
+                return Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))
             }
 
             if let Some(rec) = self.fetch_kv(key, val)? {
