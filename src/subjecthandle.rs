@@ -15,7 +15,7 @@ pub struct SubjectHandle {
 }
 
 impl SubjectHandle{
-    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,WriteError> {
+    pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,Error> {
 
         let subject = Subject::new(&context, SubjectType::Record, vals )?;
 
@@ -27,19 +27,19 @@ impl SubjectHandle{
 
         Ok(handle)
     }
-    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,WriteError> {
+    pub fn new_blank ( context: &Context ) -> Result<SubjectHandle,Error> {
         Self::new( context, HashMap::new() )
     }
-    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,WriteError> {
+    pub fn new_kv ( context: &Context, key: &str, value: &str ) -> Result<SubjectHandle,Error> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
         Self::new( context, vals )
     }
     pub fn get_value ( &self, key: &str ) -> Option<String> {
-        self.subject.get_value(&self.context, key).expect("Retrieval error. TODO: Convert to Result<..,RetrieveError>")
+        self.subject.get_value(&self.context, key).expect("Retrieval error. TODO: Convert to Result<..,Error>")
     }
-    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, RetrieveError> {
+    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, Error> {
 
         match self.subject.get_relation(&self.context, key)?{
         Some(rel_sub_subject) => {
@@ -52,10 +52,10 @@ impl SubjectHandle{
             None => Ok(None)
         }
     }
-    pub fn set_value (&self, key: &str, value: &str) -> Result<bool,WriteError> {
+    pub fn set_value (&self, key: &str, value: &str) -> Result<bool,Error> {
         self.subject.set_value(&self.context, key, value)
     }
-    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) -> Result<(),WriteError> {
+    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) -> Result<(),Error> {
         self.subject.set_relation(&self.context, key, &relation.subject)
     }
     pub fn head_memo_ids (&self) -> Vec<MemoId> {

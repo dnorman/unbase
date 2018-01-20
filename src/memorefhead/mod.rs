@@ -56,7 +56,7 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> Result<bool,WriteError> {
+    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> Result<bool,Error> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
@@ -150,13 +150,13 @@ impl MemoRefHead {
 
        Ok(applied)
     }
-    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &Slab) -> Result<(),WriteError> {
+    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &Slab) -> Result<(),Error> {
         for new in new_memorefs.iter(){
             self.apply_memoref(new, slab)?;
         }
         Ok(())
     }
-    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> Result<bool,WriteError> {
+    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
         let mut applied = false;
 
         for new in other.iter(){
@@ -170,7 +170,7 @@ impl MemoRefHead {
 
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
-    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> Result<bool,RetrieveError> {
+    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
 
         // there's probably a more efficient way to do this than iterating over the cartesian product
         // we can get away with it for now though I think
@@ -350,9 +350,9 @@ impl CausalMemoIter {
     }
 }
 impl Iterator for CausalMemoIter {
-    type Item = Result<Memo,RetrieveError>;
+    type Item = Result<Memo,Error>;
 
-    fn next (&mut self) -> Option<Result<Memo,RetrieveError>> {
+    fn next (&mut self) -> Option<Result<Memo,Error>> {
         // iterate over head memos
         // Unnecessarly complex because we're not always dealing with MemoRefs
         // Arguably heads should be stored as Vec<MemoRef> instead of Vec<Memo>

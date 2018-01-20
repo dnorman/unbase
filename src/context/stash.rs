@@ -96,7 +96,7 @@ impl Stash {
     /// Assuming tree-structured data (as is the case for index nodes) the post-compaction contents of the stash are
     /// logically equivalent to the pre-compaction contents, despite being physically smaller.
     /// Note: Only MemoRefHeads of SubjectType::IndexNode may be applied. All others will panic.
-    pub fn apply_head (&self, slab: &Slab, apply_head: &MemoRefHead) -> Result<MemoRefHead,WriteError> {
+    pub fn apply_head (&self, slab: &Slab, apply_head: &MemoRefHead) -> Result<MemoRefHead,Error> {
         // IMPORTANT! no locks may be held for longer than a single statement in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
@@ -162,7 +162,7 @@ impl Stash {
     /// If it descends what we have in the stash then the contents of the stash are redundant, and can be removed.
     /// The logical contents of the stash are the same before and after the removal of the direct contents, thus allowing
     //  compaction without loss of meaning.
-    pub fn prune_head (&self, slab: &Slab, compare_head: &MemoRefHead) -> Result<bool,WriteError> {
+    pub fn prune_head (&self, slab: &Slab, compare_head: &MemoRefHead) -> Result<bool,Error> {
 
         // compare_head is the non contextualized-projection of the edge head
         if let &MemoRefHead::Subject{ subject_id, .. } = compare_head {
@@ -347,7 +347,7 @@ impl ItemEditGuard{
         self.links = Some(self.head.project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
         self.did_edit = true;
     }
-    fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> Result<bool,WriteError> {
+    fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
         // NO LOCKS IN HERE
         if !self.head.apply( apply_head, slab )? {
             return Ok(false);

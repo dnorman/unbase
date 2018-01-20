@@ -64,7 +64,7 @@ pub(crate) struct Subject {
 }
 
 impl Subject {
-    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Result<Self,WriteError> {
+    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Result<Self,Error> {
 
         let slab = &context.slab;
         let id = slab.generate_subject_id(stype);
@@ -85,7 +85,7 @@ impl Subject {
         Ok(subject)
     }
     /// Notify whomever needs to know that a new subject has been created
-    fn update_referents (&self, context: &Context) -> Result<(),WriteError> {
+    fn update_referents (&self, context: &Context) -> Result<(),Error> {
         match self.id.stype {
             SubjectType::IndexNode => {
                 let head = self.head.read().unwrap();
@@ -99,7 +99,7 @@ impl Subject {
 
         Ok(())
     }
-    pub fn reconstitute (_context: &Context, head: MemoRefHead) -> Result<Subject,RetrieveError> {
+    pub fn reconstitute (_context: &Context, head: MemoRefHead) -> Result<Subject,Error> {
         //println!("Subject.reconstitute({:?})", head);
         // Arguably we shouldn't ever be reconstituting a subject
 
@@ -115,10 +115,10 @@ impl Subject {
             Ok(subject)
 
         }else{
-            Err(RetrieveError::InvalidMemoRefHead)
+            Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead))
         }
     }
-    pub fn get_value ( &self, context: &Context, key: &str ) -> Result<Option<String>, RetrieveError> {
+    pub fn get_value ( &self, context: &Context, key: &str ) -> Result<Option<String>, Error> {
         //println!("# Subject({}).get_value({})",self.id,key);
 
         // TODO3: Consider updating index node ingress to mark relevant subjects as potentially dirty
@@ -128,7 +128,7 @@ impl Subject {
         self.head.write().unwrap().apply( &chead, &context.slab )?;
         self.head.read().unwrap().project_value(&context.slab, key)
     }
-    pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, RetrieveError> {
+    pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
 
@@ -137,7 +137,7 @@ impl Subject {
             None             => Ok(None),
         }
     }
-    pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, RetrieveError> {
+    pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
         match self.get_edge_head(context,key)? {
             Some(head) => {
                 Ok( Some( context.get_subject_with_head(head)? ) )
@@ -147,13 +147,13 @@ impl Subject {
             }
         }
     }
-    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHead>, RetrieveError> {
+    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHead>, Error> {
         //println!("# Subject({}).get_relation({})",self.id,key);
         self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
         self.head.read().unwrap().project_edge(&context.slab, key)
     }
 
-    pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,WriteError> {
+    pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,Error> {
         let mut vals = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
@@ -173,7 +173,7 @@ impl Subject {
 
         Ok(true)
     }
-    pub fn set_relation (&self, context: &Context, key: RelationSlotId, relation: &Self) -> Result<(),WriteError> {
+    pub fn set_relation (&self, context: &Context, key: RelationSlotId, relation: &Self) -> Result<(),Error> {
         //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
         let mut relationset = RelationSet::empty();
         relationset.insert( key, relation.id );
@@ -193,7 +193,7 @@ impl Subject {
 
         self.update_referents( context )
     }
-    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),WriteError>{
+    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),Error>{
         //println!("# Subject({}).set_edge({}, {})", &self.id, key, relation.id);
         let mut edgeset = EdgeSet::empty();
         edgeset.insert( key, edge.get_head() );
@@ -233,7 +233,7 @@ impl Subject {
     // }
     pub fn get_all_memo_ids ( &self, slab: &Slab ) -> Vec<MemoId> {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
-        self.get_head().causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,RetrieveError>").id ).collect()
+        self.get_head().causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,Error>").id ).collect()
     }
     // pub fn is_fully_materialized (&self, context: &Context) -> bool {
     //     self.head.read().unwrap().is_fully_materialized(&context.slab)

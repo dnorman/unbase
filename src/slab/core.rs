@@ -1,5 +1,4 @@
 use super::*;
-use error::*;
 
 
 impl Slab {
@@ -105,7 +104,7 @@ impl Slab {
             false
         }
     }
-    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),StorageOpDeclined> {
+    pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),Error> {
         assert!(memoref.owning_slab_id == self.id);
 
         //println!("# Slab({}).MemoRef({}).remotize()", self.id, memoref.id );
@@ -119,7 +118,7 @@ impl Slab {
                 let peerlist = memoref.peerlist.read().unwrap();
 
                 if peerlist.len() == 0 {
-                    return Err(StorageOpDeclined::InsufficientPeering);
+                    return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering));
                 }
                 send_peers = peerlist.clone();
                 *ptr = MemoRefPtr::Remote;
@@ -173,44 +172,45 @@ impl Slab {
     }
     pub fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, memo: Option<Memo>) -> (MemoRef, bool) {
 
-        let had_memoref;
-        let memoref = match self.memorefs_by_id.write().unwrap().entry(memo_id) {
-            Entry::Vacant(o)   => {
-                let mr = MemoRef(Arc::new(
-                    MemoRefInner {
-                        id: memo_id,
-                        owning_slab_id: self.id,
-                        subject_id: subject_id,
-                        peerlist: RwLock::new(peerlist),
-                        ptr:      RwLock::new(match memo {
-                            Some(m) => {
-                                assert!(self.id == m.owning_slab_id);
-                                MemoRefPtr::Resident(m)
-                            }
-                            None    => MemoRefPtr::Remote
-                        })
-                    }
-                ));
+        unimplemented!()
+        // let had_memoref;
+        // let memoref = match self.memorefs_by_id.write().unwrap().entry(memo_id) {
+        //     Entry::Vacant(o)   => {
+        //         let mr = MemoRef(Arc::new(
+        //             MemoRefInner {
+        //                 id: memo_id,
+        //                 owning_slab_id: self.id,
+        //                 subject_id: subject_id,
+        //                 peerlist: RwLock::new(peerlist),
+        //                 ptr:      RwLock::new(match memo {
+        //                     Some(m) => {
+        //                         assert!(self.id == m.owning_slab_id);
+        //                         MemoRefPtr::Resident(m)
+        //                     }
+        //                     None    => MemoRefPtr::Remote
+        //                 })
+        //             }
+        //         ));
 
-                had_memoref = false;
-                o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
-            }
-            Entry::Occupied(o) => {
-                let mr = o.get();
-                had_memoref = true;
-                if let Some(m) = memo {
+        //         had_memoref = false;
+        //         o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
+        //     }
+        //     Entry::Occupied(o) => {
+        //         let mr = o.get();
+        //         had_memoref = true;
+        //         if let Some(m) = memo {
 
-                    let mut ptr = mr.ptr.write().unwrap();
-                    if let MemoRefPtr::Remote = *ptr {
-                        *ptr = MemoRefPtr::Resident(m)
-                    }
-                }
-                mr.apply_peers( &peerlist );
-                mr.clone()
-            }
-        };
+        //             let mut ptr = mr.ptr.write().unwrap();
+        //             if let MemoRefPtr::Remote = *ptr {
+        //                 *ptr = MemoRefPtr::Resident(m)
+        //             }
+        //         }
+        //         mr.apply_peers( &peerlist );
+        //         mr.clone()
+        //     }
+        // };
 
-        (memoref, had_memoref)
+        // (memoref, had_memoref)
     }
     pub fn assert_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
         //println!("# Slab({}).assert_slabref({}, {:?})", self.id, slab_id, presence );
