@@ -10,9 +10,11 @@
                             slabs -----------------------                     
                                                           \                    
                                                            \                   
-                                                            -> WeakSlab          
-                                                                     |            
-                                                            -> Slab  v            
+                                                            -> SlabHandle          
+                                                                | 
+                                                                |   <-- various channels. no direct references to the Slab
+                                                                v            
+                                                            -> MemorySlab             
                                                           /   \--> Arc<SlabInner>   
                                                          /              subject_subscriptions -\             
                               -> Context                /               unsubscribe_channel     |

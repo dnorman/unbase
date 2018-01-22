@@ -1,8 +1,12 @@
 //#![allow(dead_code)]
+
+use std::sync::{Arc,Mutex};
 use std::iter;
 
-use super::*;
-use subject::{SubjectId,SUBJECT_MAX_RELATIONS};
+use memorefhead::MemoRefHead;
+use slab::prelude::*;
+use error::*;
+use subject::{SubjectId,SubjectType,SUBJECT_MAX_RELATIONS};
 use std::mem;
 
 /// Stash of Subject MemoRefHeads which must be considered for state projection
@@ -96,7 +100,7 @@ impl Stash {
     /// Assuming tree-structured data (as is the case for index nodes) the post-compaction contents of the stash are
     /// logically equivalent to the pre-compaction contents, despite being physically smaller.
     /// Note: Only MemoRefHeads of SubjectType::IndexNode may be applied. All others will panic.
-    pub fn apply_head (&self, slab: &Slab, apply_head: &MemoRefHead) -> Result<MemoRefHead,Error> {
+    pub fn apply_head (&self, slab: &SlabHandle, apply_head: &MemoRefHead) -> Result<MemoRefHead,Error> {
         // IMPORTANT! no locks may be held for longer than a single statement in this scope.
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
@@ -162,7 +166,7 @@ impl Stash {
     /// If it descends what we have in the stash then the contents of the stash are redundant, and can be removed.
     /// The logical contents of the stash are the same before and after the removal of the direct contents, thus allowing
     //  compaction without loss of meaning.
-    pub fn prune_head (&self, slab: &Slab, compare_head: &MemoRefHead) -> Result<bool,Error> {
+    pub fn prune_head (&self, slab: &SlabHandle, compare_head: &MemoRefHead) -> Result<bool,Error> {
 
         // compare_head is the non contextualized-projection of the edge head
         if let &MemoRefHead::Subject{ subject_id, .. } = compare_head {
@@ -340,14 +344,14 @@ impl ItemEditGuard{
     fn get_head (&self) -> &MemoRefHead {
         &self.head
     }
-    fn set_head (&mut self, set_head: MemoRefHead, slab: &Slab ) {
+    fn set_head (&mut self, set_head: MemoRefHead, slab: &SlabHandle ) {
         self.head = set_head;
         // It is inappropriate here to do a contextualized projection (one which considers the current context stash)
         // and the head vs stash descends check would always return true, which is not useful for pruning.
         self.links = Some(self.head.project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
         self.did_edit = true;
     }
-    fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
+    fn apply_head (&mut self, apply_head: &MemoRefHead, slab: &SlabHandle) -> Result<bool,Error> {
         // NO LOCKS IN HERE
         if !self.head.apply( apply_head, slab )? {
             return Ok(false);

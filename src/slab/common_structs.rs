@@ -1,4 +1,11 @@
-use super::*;
+use std::fmt;
+use core::ops::Deref;
+use std::collections::HashMap;
+
+use error::*;
+use slab::prelude::*;
+use subject::SubjectId;
+use memorefhead::MemoRefHead;
 use network::TransportAddress;
 
 /// SlabPresence represents the expected reachability of a given Slab
@@ -44,7 +51,7 @@ impl MemoPeerList {
     pub fn clone(&self) -> Self {
         MemoPeerList(self.0.clone())
     }
-    pub fn clone_for_slab(&self, to_slab: &Slab) -> Self {
+    pub fn clone_for_slab(&self, to_slab: &SlabHandle) -> Self {
         MemoPeerList(self.0
             .iter()
             .map(|p| {
@@ -107,7 +114,7 @@ pub type RelationSlotId = u8;
 pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
 
 impl RelationSet {
-    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &Slab) -> Self {
+    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &SlabHandle) -> Self {
 
         self.clone()
         // let new = self.0
@@ -157,7 +164,7 @@ pub enum EdgeLink{
 pub struct EdgeSet (pub HashMap<RelationSlotId, MemoRefHead>);
 
 impl EdgeSet {
-    pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &Slab) -> Self {
+    pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &SlabHandle) -> Self {
         let new = self.0
             .iter()
             .map(|(slot_id, mrh)| {
@@ -188,4 +195,12 @@ impl Deref for EdgeSet {
     fn deref(&self) -> &HashMap<RelationSlotId, MemoRefHead> {
         &self.0
     }
+}
+
+
+pub enum SlabRequest {
+    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef },
+}
+pub enum SlabResponse {
+    ReceiveMemoWithPeerList( Result<(),Error> ),
 }
