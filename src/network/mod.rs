@@ -5,7 +5,7 @@ mod transmitter;
 pub mod transport;
 pub mod packet;
 
-pub use slab::{SlabRef, SlabPresence, SlabAnticipatedLifetime};
+pub use slab::prelude::*;
 pub use self::transport::{Transport, TransportAddress};
 pub use self::packet::Packet;
 use util::system_creator::SystemCreator;
@@ -14,7 +14,7 @@ pub use self::transmitter::{Transmitter, TransmitterArgs};
 use std::ops::Deref;
 use std::sync::{Arc, Weak, Mutex, RwLock};
 use std::fmt;
-use slab::{Slab, WeakSlab, SlabId};
+use slab::{Slab, SlabHandle, SlabId};
 use memorefhead::MemoRefHead;
 
 #[derive(Clone)]
@@ -29,7 +29,7 @@ impl Deref for Network {
 
 pub struct NetworkInner {
     next_slab_id: RwLock<u32>,
-    slabs: RwLock<Vec<WeakSlab>>,
+    slabs: RwLock<Vec<SlabHandle>>,
     transports: RwLock<Vec<Box<Transport + Send + Sync>>>,
     root_index_seed: RwLock<Option<(MemoRefHead, SlabRef)>>,
     create_new_system: bool,
@@ -94,39 +94,35 @@ impl Network {
 
         id
     }
-    pub fn get_slab(&self, slab_id: SlabId) -> Option<Slab> {
-        if let Some(weak) = self.slabs.read().unwrap().iter().find(|s| s.id == slab_id) {
-            if let Some(slab) = weak.upgrade() {
-                return Some(slab);
+    pub fn get_slab_handle(&self, slab_id: SlabId) -> Option<SlabHandle> {
+        if let Some(handle) = self.slabs.read().unwrap().iter().find(|s| s.id == slab_id) {
+            return Some(handle.clone());
+        }
+        return None;
+    }
+    fn get_representative_slab(&self) -> Option<SlabHandle> {
+        for handle in self.slabs.read().unwrap().iter() {
+            if handle.is_live() {
+                return Some(handle);
             }
         }
         return None;
     }
-    fn get_representative_slab(&self) -> Option<Slab> {
-        for weak in self.slabs.read().unwrap().iter() {
-            if let Some(slab) = weak.upgrade() {
-                if !slab.dropping {
-                    return Some(slab);
-                }
-            }
-        }
-        return None;
-    }
-    pub fn get_all_local_slabs(&self) -> Vec<Slab> {
+    pub fn get_all_local_slab_handles(&self) -> Vec<SlabHandle> {
         // TODO: convert this into a iter generator that automatically expunges missing slabs.
-        let mut res: Vec<Slab> = Vec::new();
+        let mut res: Vec<SlabHandle> = Vec::new();
         // let mut missing : Vec<usize> = Vec::new();
 
-        for slab in self.slabs.read().unwrap().iter() {
-            match slab.upgrade() {
-                Some(s) => {
-                    res.push(s);
-                }
-                None => {
-                    // TODO: expunge freed slabs
-                }
-            }
-
+        for handle in self.slabs.read().unwrap().iter() {
+            res.push( handle.clone() );
+            // match slab.upgrade() {
+            //     Some(s) => {
+            //         res.push(s);
+            //     }
+            //     None => {
+            //         // TODO: expunge freed slabs
+            //     }
+            // }
         }
 
         res
@@ -151,10 +147,10 @@ impl Network {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
-            self.slabs.write().unwrap().insert(0, new_slab.weak());
+            self.slabs.write().unwrap().insert(0, new_slab.handle());
         }
 
-        for prev_slab in self.get_all_local_slabs() {
+        for prev_slab in self.get_all_local_slab_handles() {
             prev_slab.slabref_from_local_slab(new_slab);
             new_slab.slabref_from_local_slab(&prev_slab);
         }
@@ -215,7 +211,7 @@ impl Network {
         }
 
     }
-    pub fn conditionally_generate_root_index_seed(&self, slab: &Slab) -> bool {
+    pub fn conditionally_generate_root_index_seed(&self, slab: &SlabHandle) -> bool {
         {
             if let Some(_) = *self.root_index_seed.read().unwrap() { 
                 return false;

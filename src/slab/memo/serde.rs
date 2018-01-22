@@ -1,6 +1,6 @@
 use super::*;
 use memorefhead::serde::*;
-use super::memoref::serde::MemoPeerSeed;
+use slab::prelude::memoref_serde::MemoPeerSeed;
 
 use slab::slabref::serde::SlabRefSeed;
 use util::serde::*;
@@ -10,13 +10,13 @@ use serde::*;
 use serde::ser::*;
 use serde::de::*;
 
-pub struct MemoBodySeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef }
+pub struct MemoBodySeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef }
 #[derive(Clone)]
-pub struct MBMemoRequestSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
-struct MBSlabPresenceSeed <'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
-struct MBFullyMaterializedSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+pub struct MBMemoRequestSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
+struct MBSlabPresenceSeed <'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
+struct MBFullyMaterializedSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
 // TODO convert this to a non-seed deserializer
-struct MBPeeringSeed<'a> { dest_slab: &'a Slab }
+struct MBPeeringSeed<'a> { dest_slab: &'a SlabHandle }
 
 impl StatefulSerialize for Memo {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
@@ -117,7 +117,7 @@ impl StatefulSerialize for (SubjectId,MemoRefHead) {
 }
 
 pub struct MemoSeed<'a> {
-    pub dest_slab: &'a Slab,
+    pub dest_slab: &'a SlabHandle,
     pub origin_slabref: &'a SlabRef,
     pub from_presence: SlabPresence,
     pub peerlist: MemoPeerList
@@ -269,7 +269,7 @@ impl<'a> Visitor for MBMemoRequestSeed<'a> {
 }
 
 
-struct RelationSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+struct RelationSetSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
 impl<'a> DeserializeSeed for RelationSetSeed<'a> {
     type Value = RelationSet;
 
@@ -304,7 +304,7 @@ impl<'a> Visitor for RelationSetSeed<'a> {
     }
 }
 
-struct EdgeSetSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
+struct EdgeSetSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
 impl<'a> DeserializeSeed for EdgeSetSeed<'a> {
     type Value = EdgeSet;
 

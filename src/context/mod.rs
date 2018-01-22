@@ -12,7 +12,7 @@ use futures::sync::mpsc::channel;
 use std::thread;
 
 use index::IndexFixed;
-use slab::*;
+use slab::prelude::*;
 use self::stash::Stash;
 
 use std::sync::{Arc,Weak,Mutex,RwLock};
@@ -22,7 +22,7 @@ use std::ops::Deref;
 pub struct Context(Arc<ContextInner>);
 
 pub struct ContextInner {
-    pub slab: Slab,
+    pub slab: SlabHandle,
     pub root_index: RwLock<Option<Arc<IndexFixed>>>,
     stash: Stash,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
@@ -42,7 +42,7 @@ impl Deref for Context {
 
 // TODO: Explain what a context is here
 impl Context{
-    pub fn new (slab: &Slab) -> Self {
+    pub fn new (slab: &SlabHandle) -> Self {
         let new_self = Context(
             Arc::new(
                 ContextInner{

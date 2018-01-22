@@ -1,10 +1,12 @@
 pub mod serde;
-use super::*;
+
+use slab::prelude::*;
 use memorefhead::MemoRefHead;
 use error::RetrieveError;
 
 use std::sync::{Arc,RwLock};
 use std::fmt;
+use core::ops::Deref;
 
 
 #[derive(Clone)]

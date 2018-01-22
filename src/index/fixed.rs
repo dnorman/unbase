@@ -2,7 +2,7 @@ use context::*;
 use error::*;
 use subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
 use subjecthandle::SubjectHandle;
-use slab::*;
+use slab::prelude::*;
 use memorefhead::MemoRefHead;
 
 use std::collections::HashMap;

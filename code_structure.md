@@ -3,25 +3,22 @@ Patterns:
     Arc deref pattern:
         Unbase wishes to have as few opinions as possible about the thread model with which you are using it. As such, we presently assume that a Slab and its surrogates could be accessed from multiple different threads. Because of this, we employ a design pattern where essentially all data are wrapped in Arcs. We wish to make this ergonomic and reasonably future proof however. As such, we utilize a pattern of: FooStruct(Arc<FooStructInner>), where the outer FooStruct is essentially just an Arc newtype with a deref impl yeilding the FooStructInner. Essentially all unbase business logic is implemented against the FooStruct, with the Arc derefs happening automatically. The downside of this is that we're doing rather of a lot of Arc derefs internal to their respective business logic. The hope is that this can be replaced later with a non-refcounted approach using generational GC.
 
-Structs:
+Structs ( and traits ):
 
-Slab - A storage place for Memos and MemoRefs
-
-   Slab {
-      eventlooop thread
-      memo retrieval channel
-      memo deposit channel
-      ??
-   }
-
-   SlabHandle{   Clonable, weak referencing of the slab, able to talk to the slab, replaces WeakSlab
-   }
+trait Slab - A storage place for Memos and MemoRefs
 
   Slabs do not perform any projections. They ONLY store Memos, MemoRefs, and notify interested parties
 
   In theory, any and all mutability in the system should be exclusive to the Slab.
   This is not quite the case at present, as MemoRefs and SlabRefs are (non-topologically) mutable. They could be viewed as surrogates of the owning Slab however, thus permitting their mutation.
   This is kind of murky at present. MemoRefs and SlabRefs should be projections of their relevant peering/presence memos as received by the Slab
+
+  impls of Slab trait:
+      MemorySlab
+      NIHDBSlab      * Planned 
+      WebStorageSlab * Planned
+  
+SlabHandle - client for communicating with a local slab
 
 SlabRef - Reference to a Slab, regardless of whether it is local or remote
   * SlabRef is presently serialized as a single SlabPresence. It should probably hold several SlabPresences for a given slab, as there may be multiple ways to reach it.

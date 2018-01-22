@@ -1,7 +1,7 @@
 pub mod serde;
 mod projection;
 
-use slab::{Slab,SlabRef,Memo,MemoId,MemoBody,MemoRef,EdgeLink,RelationSlotId};
+use slab::prelude::*;
 use subject::*;
 use error::*;
 
@@ -56,7 +56,7 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &Slab ) -> Result<bool,Error> {
+    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &SlabHandle ) -> Result<bool,Error> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
@@ -150,13 +150,13 @@ impl MemoRefHead {
 
        Ok(applied)
     }
-    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &Slab) -> Result<(),Error> {
+    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &SlabHandle) -> Result<(),Error> {
         for new in new_memorefs.iter(){
             self.apply_memoref(new, slab)?;
         }
         Ok(())
     }
-    pub fn apply (&mut self, other: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
+    pub fn apply (&mut self, other: &MemoRefHead, slab: &SlabHandle) -> Result<bool,Error> {
         let mut applied = false;
 
         for new in other.iter(){
@@ -170,7 +170,7 @@ impl MemoRefHead {
 
     /// Test to see if this MemoRefHead fully descends another
     /// If there is any hint of causal concurrency, then this will return false
-    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &Slab) -> Result<bool,Error> {
+    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &SlabHandle) -> Result<bool,Error> {
 
         // there's probably a more efficient way to do this than iterating over the cartesian product
         // we can get away with it for now though I think
@@ -250,10 +250,10 @@ impl MemoRefHead {
             MemoRefHead::Subject{ ref head, .. } => head.iter()
         }
     }
-    pub fn causal_memo_iter(&self, slab: &Slab ) -> CausalMemoIter {
+    pub fn causal_memo_iter(&self, slab: &SlabHandle ) -> CausalMemoIter {
         CausalMemoIter::from_head( &self, slab )
     }
-    pub fn is_fully_materialized(&self, slab: &Slab ) -> bool {
+    pub fn is_fully_materialized(&self, slab: &SlabHandle ) -> bool {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
         //       as part of the list management. That way we won't have to incur the below computational effort.
 
@@ -277,7 +277,7 @@ impl MemoRefHead {
 
         true
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, include_memos: bool ) -> Self {
+    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &SlabHandle, include_memos: bool ) -> Self {
         assert!(from_slabref.slab_id != to_slab.id, "slab id should differ");
         match *self {
             MemoRefHead::Null                    => MemoRefHead::Null,
@@ -317,7 +317,7 @@ impl fmt::Debug for MemoRefHead{
 
 pub struct CausalMemoIter {
     queue: VecDeque<MemoRef>,
-    slab:  Slab
+    slab:  SlabHandle
 }
 
 /*
@@ -331,7 +331,7 @@ head ^    \- F -> D -/
      Going with the iterator for now in the interest of simplicity
 */
 impl CausalMemoIter {
-    pub fn from_head ( head: &MemoRefHead, slab: &Slab) -> Self {
+    pub fn from_head ( head: &MemoRefHead, slab: &SlabHandle) -> Self {
         //println!("# -- SubjectMemoIter.from_head({:?})", head.memo_ids() );
 
         CausalMemoIter {
@@ -339,7 +339,7 @@ impl CausalMemoIter {
             slab:  slab.clone()
         }
     }
-    pub fn from_memoref (memoref: &MemoRef, slab: &Slab ) -> Self {
+    pub fn from_memoref (memoref: &MemoRef, slab: &SlabHandle ) -> Self {
         let mut q = VecDeque::new();
         q.push_front(memoref.clone());
 

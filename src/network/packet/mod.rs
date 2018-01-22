@@ -1,5 +1,5 @@
 pub mod serde;
-use slab::*;
+use slab::prelude::*;
 use std::fmt;
 
 #[derive(Clone)]
