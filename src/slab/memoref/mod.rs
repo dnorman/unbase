@@ -26,7 +26,11 @@ pub struct MemoRefInner {
 }
 
 pub enum MemoRefPtr {
+    /// Memo is in memory now, right here in fact
     Resident(Memo),
+    /// Memo Is stored on the local slab which owns this memoref, you'll need to look it up
+    Local,
+    /// Is stored on a remote slab
     Remote
 }
 
@@ -51,6 +55,11 @@ impl MemoRef {
                     head: vec![self.clone()]
                 }
         }
+    }
+    pub fn exceeds_min_durability_threshold (&self) -> bool {
+        let peerlist = self.peerlist.read().unwrap();
+        // TODO - implement proper durability estimation logic
+        return peerlist.len() > 0
     }
     pub fn apply_peers ( &self, apply_peerlist: &MemoPeerList ) -> bool {
 

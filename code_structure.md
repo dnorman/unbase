@@ -6,6 +6,17 @@ Patterns:
 Structs:
 
 Slab - A storage place for Memos and MemoRefs
+
+   Slab {
+      eventlooop thread
+      memo retrieval channel
+      memo deposit channel
+      ??
+   }
+
+   SlabHandle{   Clonable, weak referencing of the slab, able to talk to the slab, replaces WeakSlab
+   }
+
   Slabs do not perform any projections. They ONLY store Memos, MemoRefs, and notify interested parties
 
   In theory, any and all mutability in the system should be exclusive to the Slab.
