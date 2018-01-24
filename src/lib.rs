@@ -39,6 +39,7 @@
 
 #![feature(proc_macro, conservative_impl_trait, generators, integer_atomics)]
 extern crate futures_await as futures;
+extern crate tokio_core;
 extern crate core;
 extern crate linked_hash_map;
 extern crate itertools;

@@ -21,8 +21,8 @@ impl Transport for Blackhole {
     fn bind_network(&self, _net: &Network) {}
     fn unbind_network(&self, _net: &Network) {}
 
-    fn get_return_address  ( &self, _address: &TransportAddress ) -> Option<TransportAddress> {
-        None
+    fn get_return_address  ( &self, _address: &TransportAddress ) -> TransportAddress {
+        TransportAddress::Blackhole
     }
 }
 

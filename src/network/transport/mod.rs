@@ -17,6 +17,7 @@ use network::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransportAddress{
+    Null,
     Blackhole,
     Simulator,
     Local,
@@ -33,7 +34,7 @@ pub trait Transport {
     fn is_local        (  &self ) -> bool;
     fn bind_network    (  &self, &Network );
     fn unbind_network  (  &self, &Network );
-    fn get_return_address  ( &self, &TransportAddress ) -> Option<TransportAddress>;
+    fn get_return_address  ( &self, &TransportAddress ) -> TransportAddress;
 }
 
 impl TransportAddress {

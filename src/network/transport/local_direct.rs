@@ -61,11 +61,11 @@ impl Transport for LocalDirect {
     fn bind_network(&self, _net: &Network) {}
     fn unbind_network(&self, _net: &Network) {}
 
-    fn get_return_address  ( &self, address: &TransportAddress ) -> Option<TransportAddress> {
+    fn get_return_address  ( &self, address: &TransportAddress ) -> TransportAddress {
         if let TransportAddress::Local = *address {
-            Some(TransportAddress::Local)
+            TransportAddress::Local
         }else{
-            None
+            TransportAddress::Blackhole
         }
     }
 }
