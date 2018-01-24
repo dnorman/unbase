@@ -207,3 +207,14 @@ pub enum SlabResponse {
     RemotizeMemoIds( Result<(),Error> ),
     AssertSlabRef( Result<SlabRef,Error> )
 }
+
+pub struct MemoRefFromSlab(SlabRef,MemoRef);
+
+pub struct DeserializedMemo { 
+    id:             MemoId,
+    subject_id:     SubjectId,
+    parents:        MemoRefHead,
+    body:           MemoBody,
+    origin_slabref: SlabRef,
+    peerlist:       MemoPeerList
+}

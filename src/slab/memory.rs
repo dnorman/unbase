@@ -508,73 +508,13 @@ impl MemorySlab {
         //println!("# Slab({}).put_slabref({}, {:?})", self.id, slab_id, presence );
 
         if slab_id == self.id {
-            return self.my_ref.clone();
-            // don't even look it up if it's me.
-            // We must not allow any third party to edit the peering.
+            // Don't even look it up if it's me. We must not allow any third party to edit the peering.
             // Also, my ref won't appear in the list of peer_refs, because it's not a peer
+            return self.my_ref.clone();
         }
 
-        let maybe_slabref = {
-            // Instead of having to scope our read lock, and getting a write lock later
-            // should we be using a single write lock for the full function scope?
-            if let Some(slabref) = self.peer_refs.read().expect("peer_refs.read()").iter().find(|r| r.0.slab_id == slab_id ){
-                Some(slabref.clone())
-            }else{
-                None
-            }
-        };
-
-        let slabref : SlabRef;
-        if let Some(s) = maybe_slabref {
-            slabref = s;
-        }else{
-            let inner = SlabRefInner {
-                slab_id:        slab_id,
-                owning_slab_id: self.id, // for assertions only?
-                presence:       RwLock::new(Vec::new()),
-                tx:             Mutex::new(Transmitter::new_blackhole(slab_id)),
-                return_address: RwLock::new(TransportAddress::Blackhole),
-            };
-
-            slabref = SlabRef(Arc::new(inner));
-            slabref = SlabRef::new( slab_id, self.id, Transmitter::new_blackhole(slab_id), TransportAddress::Blackhole);
-            self.peer_refs.write().expect("peer_refs.write()").push(slabref.clone());
-        }
-
-        if slab_id == slabref.owning_slab_id {
-            return slabref; // no funny business. You don't get to tell me how to reach me
-        }
-
-        for p in presence.iter(){
-            assert!(slab_id == p.slab_id, "presence slab_id does not match the provided slab_id");
-
-            let mut _maybe_slab = None;
-            let args = if p.address.is_local() {
-                // playing silly games with borrow lifetimes.
-                // TODO: make this less ugly
-                _maybe_slab = self.net.get_slab(p.slab_id);
-
-                if let Some(ref slab) = _maybe_slab {
-                    TransmitterArgs::Local(slab)
-                }else{
-                    continue;
-                }
-            }else{
-                TransmitterArgs::Remote( &p.slab_id, &p.address )
-            };
-             // Returns true if this presence is new to the slabref
-             // False if we've seen this presence already
-
-            if slabref.apply_presence(p) {
-
-                let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
-                let return_address = self.net.get_return_address( &p.address ).expect("return address not found");
-
-                *slabref.0.tx.lock().expect("tx.lock()") = new_trans;
-                *slabref.0.return_address.write().expect("return_address write lock") = return_address;
-            }
-        }
-
+        let slabref = self.peer_refs.read().expect("peer_refs.read()").entry(slab_id).or_insert_with(|| SlabRef::new( slab_id, self.id ));
+        slabref.apply_presence(presence);
         return slabref;
     }
         /// Notify interested parties about a newly arrived memoref on this slab

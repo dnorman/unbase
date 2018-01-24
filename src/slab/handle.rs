@@ -2,6 +2,7 @@ use std::sync::Arc;
 use core::ops::Deref;
 use futures::*;
 use futures::sync::{mpsc,oneshot};
+use std::fmt;
 
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
@@ -54,7 +55,7 @@ impl SlabHandleInner {
     pub fn receive_memo_with_peerlist(&self, memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef ) {
         self.call(SlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
-    pub fn assert_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
+    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
         self.call(SlabRequest::AssertSlabRef{ slab_id, presence } ).wait()?
     }
     pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
@@ -83,3 +84,10 @@ impl SlabHandleInner {
 }
 
 
+impl fmt::Debug for SlabHandle {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SlabHandle")
+            .field("slab_id", &self.id)
+            .finish()
+    }
+}

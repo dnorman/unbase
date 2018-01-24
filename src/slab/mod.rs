@@ -1,3 +1,5 @@
+use futures::mpsc;
+
 mod common_structs;
 mod memo;
 mod slabref;
@@ -11,7 +13,7 @@ pub mod prelude {
     pub use slab::SlabId; // Intentionally omitting trait Slab and MemorySlab from here
     pub use slab::handle::SlabHandle;
     pub use slab::common_structs::*;
-    pub use slab::slabref::{SlabRef,SlabRefInner};
+    pub use slab::slabref::SlabRef;
     pub use slab::memoref::{MemoRef,MemoRefInner,MemoRefPtr};
     pub use slab::memo::{MemoId,Memo,MemoInner,MemoBody};
     pub use slab::memoref::serde as memoref_serde;
@@ -20,6 +22,7 @@ pub mod prelude {
 
 pub trait Slab {
     fn handle (&self) -> self::handle::SlabHandle;
+    fn add_receiver (&self, mpsc::UnboundedReceiver<(SlabRequest,oneshot::Sender<SlabResponse>)>);
     fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef;
     fn receive_memo_with_peerlist(&self, memo: self::memo::Memo, peerlist: self::common_structs::MemoPeerList, from_slabref: self::slabref::SlabRef ){
 

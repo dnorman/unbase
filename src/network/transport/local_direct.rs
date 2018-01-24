@@ -31,8 +31,13 @@ impl Transport for LocalDirect {
     }
     fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
         if let &TransmitterArgs::Local(rcv_slab) = args {
-            let slab = rcv_slab.weak();
-            let (tx_channel, rx_channel) = mpsc::channel::<(SlabRef,MemoRef)>();
+            let (tx_channel, receiver) = mpsc::channel::<MemoRefFromSlab>();
+
+
+            // TODO1 - LEFT off here
+            // reconcile this code with memo::serde calling slab.reconstitute_memo
+            // reconstitute_memo needs to be abstracted so it can function for network deserialization and/or disk
+            rcv_slab.add_receiver(rx_channel).wait();
 
             let tx_thread : thread::JoinHandle<()> = thread::spawn(move || {
                 //let mut buf = [0; 65536];

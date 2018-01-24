@@ -167,6 +167,9 @@ impl<'a> Visitor for MemoSeed<'a>{
                return Err(DeError::invalid_length(3, &self));
            }
        };
+
+       // TODO1 
+       self.memosender.send( DeserializedMemo { id, subject_id, parents, body, self.origin_slabref, &self.peerlist } ).wait();
         //println!("SERDE calling reconstitute_memo");
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
 

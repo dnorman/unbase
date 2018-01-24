@@ -12,7 +12,7 @@
 
 pub mod serde;
 
-use network::{TransportAddress,Transmitter};
+use network::{TransportAddress,Transmitter,TransmitterArgs};
 use slab::prelude::*;
 
 use std::ops::Deref;
@@ -39,17 +39,18 @@ struct SlabRefInner {
 }
 
 impl SlabRef{
-    pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ){
+    pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
         let return_address = transmitter.return_address();
         
-        let inner = SlabRef::new(
+        let inner = SlabRef{
             slab_id: slab_id,
             owning_slab_id: owning_slab_id,
-            presence: RwLock::new(vec![]),
+            presence: RwLock::new(Vec::new()),
             tx: Mutex::new(transmitter),
             return_address: RwLock::new( return_address ),
-        );
-        SlabRef(Arc::new(my_ref_inner));
+        };
+
+        SlabRef(Arc::new(inner))
     }
 }
 
@@ -65,19 +66,53 @@ impl SlabRefInner {
     pub fn get_return_address(&self) -> TransportAddress {
         self.return_address.read().unwrap().clone()
     }
-    pub fn apply_presence ( &self, presence: &SlabPresence ) -> bool {
+    /// Apply a list of SlabPresence to this slabref
+    pub fn apply_presence ( &self, new_presence_list: &[SlabPresence] ) -> bool {
         if self.slab_id == self.owning_slab_id{
             return false; // the slab manages presence for its self-ref separately
         }
-        let mut list = self.presence.write().unwrap();
-        for p in list.iter_mut(){
-            if p == presence {
-                mem::replace(p,presence.clone()); // Update anticipated liftime
-                return false; // no real change here
+
+        let mut presence_list = self.presence.write().unwrap();
+        for new_presence in new_presence_list.iter(){
+            assert!(self.slab_id == new_presence.slab_id, "presence slab_id does not match the provided slab_id");
+
+            let mut maybe_slab = None;
+            let args = if new_presence.address.is_local() {
+                // playing silly games with borrow lifetimes.
+                // TODO: make this less ugly
+                maybe_slab = self.net.get_slab(new_presence.slab_id);
+
+                if let Some(ref slab) = maybe_slab {
+                    TransmitterArgs::Local(slab)
+                }else{
+                    continue;
+                }
+            }else{
+                TransmitterArgs::Remote( &new_presence.slab_id, &new_presence.address )
+            };
+             // Returns true if this presence is new to the slabref
+             // False if we've seen this presence already
+
+            let mut found = false;
+
+            for presence in presence_list.iter_mut(){
+                if presence == new_presence {
+                    mem::replace( new_presence, presence.clone()); // Update anticipated liftime
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                presence_list.push( new_presence.clone() );
+
+                let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
+                let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
+
+                *self.tx.lock().expect("tx.lock()") = new_trans;
+                *self.return_address.write().expect("return_address write lock") = return_address;
             }
         }
-        list.push(presence.clone());
-        return true // We did a thing
     }
     pub fn get_presence_for_remote(&self, return_address: &TransportAddress) -> Vec<SlabPresence> {
 
