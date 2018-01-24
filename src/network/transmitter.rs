@@ -1,7 +1,8 @@
 
-use std::sync::mpsc;
-use super::*;
-use slab::*;
+use std::sync::{mpsc,Mutex};
+
+use slab::prelude::*;
+use network::transport::TransportAddress;
 
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
@@ -17,7 +18,7 @@ enum TransmitterInternal {
 
 #[derive(Debug)]
 pub enum TransmitterArgs<'a>{
-    Local(&'a Slab),
+    Local(&'a SlabHandle),
     Remote(&'a SlabId, &'a TransportAddress)
 }
 impl<'a> TransmitterArgs<'a>{

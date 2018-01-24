@@ -14,7 +14,7 @@ pub use self::transmitter::{Transmitter, TransmitterArgs};
 use std::ops::Deref;
 use std::sync::{Arc, Weak, Mutex, RwLock};
 use std::fmt;
-use slab::{Slab, SlabHandle, SlabId};
+use slab::prelude::*;
 use memorefhead::MemoRefHead;
 
 #[derive(Clone)]
@@ -143,11 +143,11 @@ impl Network {
         }
         None
     }
-    pub fn register_local_slab(&self, new_slab: &Slab) {
+    pub fn register_local_slab(&self, new_slab: &SlabHandle) {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
-            self.slabs.write().unwrap().insert(0, new_slab.handle());
+            self.slabs.write().unwrap().insert(0, new_slab);
         }
 
         for prev_slab in self.get_all_local_slab_handles() {
@@ -192,7 +192,7 @@ impl Network {
         // No slabs left
         root_index_seed.take();
     }
-    pub fn get_root_index_seed(&self, slab: &Slab) -> MemoRefHead {
+    pub fn get_root_index_seed(&self, slab: &SlabHandle) -> MemoRefHead {
         
         let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
 
