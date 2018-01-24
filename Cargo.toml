@@ -26,7 +26,8 @@ serde = "0.9.11"
 serde_derive = "0.9.11"
 serde_json = "0.9.9"
 futures-await = "0.1"
-nihdb = { git = "https://github.com/dnorman/nihdb" }
+nihdb = "0.3.0"
+tokio-core = "0.1.12"
 
 [features]
 

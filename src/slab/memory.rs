@@ -33,6 +33,8 @@ pub struct MemorySlabInner {
     counters: SlabCounter,
     storage: HashMap<MemoId,MemoRef>,
 
+    handle: SlabHandle,
+
     memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
     subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRefHead>>>>,
     index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRefHead>>>,
@@ -51,10 +53,7 @@ pub struct MemorySlabInner {
 impl Slab for MemorySlab {
     
     fn handle (&self) -> SlabHandle {
-        SlabHandle {
-            id: self.id,
-            inner: Arc::downgrade(&self.0)
-        }
+        self.handle.clone()
     }
 
     /// remove the memo itself from storage, but not the reference to it. Returns Ok(true) if the memo was removed from the store, Ok(false) if it was not present, or Err(_) if there was a problem with removing it
@@ -200,26 +199,27 @@ impl MemorySlab {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
 
-        let my_ref_inner = SlabRefInner {
+        let my_ref = SlabRef::new(
             slab_id: slab_id,
-            owning_slab_id: slab_id, // I own my own ref to me, obviously
+            owning_slab_id: slab_id,       // I own my own ref to me, obviously
             presence: RwLock::new(vec![]), // this bit is just for show
             tx: Mutex::new(Transmitter::new_blackhole(slab_id)),
             return_address: RwLock::new(TransportAddress::Local),
-        };
+        );
 
-        let my_ref = SlabRef(Arc::new(my_ref_inner));
+        let (handle,handlestream) = SlabHandle::initialize( slab_id, my_ref );
+
         // TODO: figure out how to reconcile this with the simulator
         let (memoref_dispatch_tx_channel, memoref_dispatch_rx_channel) = mpsc::channel::<MemoRef>();
 
         let inner = MemorySlabInner {
             id: slab_id,
             counters: SlabCounter::new(),
+            handle: handle,
 
             memo_wait_channels:    Mutex::new(HashMap::new()),
             subject_subscriptions: Mutex::new(HashMap::new()),
             index_subscriptions:   Mutex::new(Vec::new()),
-
 
             memoref_dispatch_tx_channel: Some(Mutex::new(memoref_dispatch_tx_channel)),
             memoref_dispatch_thread: RwLock::new(None),
@@ -233,8 +233,18 @@ impl MemorySlab {
         };
 
         let me = Slab(Arc::new(inner));
-        net.register_local_slab(&me);
+        
+        let mut core = tokio_core::reactor::Core::new().unwrap();
+        let server = handlestream.for_each(|(request, resp_channel)| {
+            inner.dispatch_request(request,resp_channel);
 
+            Ok(()) // keep accepting requests
+        });
+
+        core.run(server).unwrap();
+
+
+        net.register_local_slab(&me);
         let weak_self = me.weak();
 
         // TODO: this should really be a thread pool, or get_memo should be changed to be nonblocking somhow
@@ -246,6 +256,8 @@ impl MemorySlab {
             }
         }));
 
+
+        
         let weak_self = me.weak();
 
         // TODO: this should really be a thread pool, or get_memo should be changed to be nonblocking somhow
@@ -384,29 +396,6 @@ impl MemorySlab {
         // }
         // Ok(())
     }
-    pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
-        use std::time::{Instant,Duration};
-        let start = Instant::now();
-        let wait = Duration::from_millis(ms);
-        use std::thread;
-
-        loop {
-            if start.elapsed() > wait{
-                return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering))
-            }
-
-            #[allow(unreachable_patterns)]
-            match self.remotize_memo_ids( memo_ids ) {
-                Ok(_) => {
-                    return Ok(())
-                },
-                Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering)) => {}
-                Err(e)                                      => return Err(e)
-            }
-
-            thread::sleep(Duration::from_millis(50));
-        }
-    }
     pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
         let memo_id = (self.id as u64).rotate_left(32) | self.counters.last_memo_id() as u64;
 
@@ -515,22 +504,14 @@ impl MemorySlab {
 
         sent
     }
-    pub fn put_memo (&self, memo: &Memo) -> Result<(MemoRef,bool), Error> {
-        self.store.put_memo(&memo)
-    }
-    pub fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool) {
-
-        self.store.assert_memoref( memo_id, subject_id, peerlist, maybe_memo )
-
-    }
-    pub fn assert_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
-        //println!("# Slab({}).assert_slabref({}, {:?})", self.id, slab_id, presence );
+    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
+        //println!("# Slab({}).put_slabref({}, {:?})", self.id, slab_id, presence );
 
         if slab_id == self.id {
             return self.my_ref.clone();
             // don't even look it up if it's me.
             // We must not allow any third party to edit the peering.
-            // Also, my ref won't appeara in the list of peer_refs, because it's not a peer
+            // Also, my ref won't appear in the list of peer_refs, because it's not a peer
         }
 
         let maybe_slabref = {
@@ -556,6 +537,7 @@ impl MemorySlab {
             };
 
             slabref = SlabRef(Arc::new(inner));
+            slabref = SlabRef::new( slab_id, self.id, Transmitter::new_blackhole(slab_id), TransportAddress::Blackhole);
             self.peer_refs.write().expect("peer_refs.write()").push(slabref.clone());
         }
 
@@ -585,7 +567,7 @@ impl MemorySlab {
 
             if slabref.apply_presence(p) {
 
-                let new_trans = self.net.get_transmitter( &args ).expect("assert_slabref net.get_transmitter");
+                let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
                 let return_address = self.net.get_return_address( &p.address ).expect("return address not found");
 
                 *slabref.0.tx.lock().expect("tx.lock()") = new_trans;
@@ -807,7 +789,7 @@ impl MemorySlab {
             lifetime: SlabAnticipatedLifetime::Unknown
         };
 
-        self.assert_slabref(peer_slab.id, &vec![presence])
+        self.put_slabref(peer_slab.id, &vec![presence])
     }
     pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef,&str> {
             match presence.address {
@@ -823,7 +805,7 @@ impl MemorySlab {
 
         //let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
 
-        Ok(self.assert_slabref( presence.slab_id, &vec![presence.clone()] ))
+        Ok(self.put_slabref( presence.slab_id, &vec![presence.clone()] ))
     }
 }
 

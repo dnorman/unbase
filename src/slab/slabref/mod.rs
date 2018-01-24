@@ -12,34 +12,48 @@
 
 pub mod serde;
 
-use super::*;
 use network::{TransportAddress,Transmitter};
+use slab::prelude::*;
 
 use std::ops::Deref;
 use std::mem;
 use std::fmt;
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc,Mutex,RwLock};
 
-/// A reference to a Slab
-///
-/// The referenced slab may be resident locally or Remotely
+/// A reference to a Slab which may be local or remote
 #[derive(Clone)]
 pub struct SlabRef(pub Arc<SlabRefInner>);
+
 impl Deref for SlabRef {
     type Target = SlabRefInner;
     fn deref(&self) -> &SlabRefInner {
         &*self.0
     }
 }
-pub struct SlabRefInner {
-    pub slab_id: SlabId,
-    pub owning_slab_id: SlabId, // for assertions only?
-    pub presence: RwLock<Vec<SlabPresence>>,
-    pub tx: Mutex<Transmitter>,
-    pub return_address: RwLock<TransportAddress>,
+struct SlabRefInner {
+    slab_id: SlabId,
+    owning_slab_id: SlabId, // for assertions only
+    presence: RwLock<Vec<SlabPresence>>,
+    tx: Mutex<Transmitter>,
+    return_address: RwLock<TransportAddress>,
 }
 
 impl SlabRef{
+    pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ){
+        let return_address = transmitter.return_address();
+        
+        let inner = SlabRef::new(
+            slab_id: slab_id,
+            owning_slab_id: owning_slab_id,
+            presence: RwLock::new(vec![]),
+            tx: Mutex::new(transmitter),
+            return_address: RwLock::new( return_address ),
+        );
+        SlabRef(Arc::new(my_ref_inner));
+    }
+}
+
+impl SlabRefInner {
     //pub fn new (to_slab_id: SlabId, owning_slab_id: SlabId, presence: Vec<Slab) -> SlabRef {
     //}
     pub fn send (&self, from: &SlabRef, memoref: &MemoRef ) {
@@ -89,7 +103,7 @@ impl SlabRef{
         // When comparing equality, we can skip the transmitter
         self.slab_id == other.slab_id && *self.presence.read().unwrap() == *other.presence.read().unwrap()
     }
-    pub fn clone_for_slab(&self, to_slab: &Slab ) -> SlabRef {
+    pub fn clone_for_slab(&self, to_slab: &SlabHandle ) -> SlabRef {
         // For now, we don't seem to care what slabref we're being cloned from, just which one we point to
 
         //println!("Slab({}).SlabRef({}).clone_for_slab({})", self.owning_slab_id, self.slab_id, to_slab.id );
@@ -101,7 +115,7 @@ impl SlabRef{
         }else{
             //let address = &*self.return_address.read().unwrap();
             //let args = TransmitterArgs::Remote( &self.slab_id, address );
-            to_slab.assert_slabref( self.slab_id, &*self.presence.read().unwrap() )
+            to_slab.put_slabref( self.slab_id, &*self.presence.read().unwrap() )
         }
 
     }

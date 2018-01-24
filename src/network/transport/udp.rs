@@ -269,12 +269,12 @@ impl Transport for TransportUDP {
         shared.network = None;
         */
     }
-    fn get_return_address  ( &self, address: &TransportAddress ) -> Option<TransportAddress> {
+    fn get_return_address  ( &self, address: &TransportAddress ) -> TransportAddress {
         if let TransportAddress::UDP(_) = *address {
             let shared = self.shared.lock().unwrap();
             Some(TransportAddress::UDP(shared.address.clone()))
         }else{
-            None
+            TransportAddress::Blackhole
         }
     }
 }

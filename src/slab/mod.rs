@@ -2,7 +2,6 @@ mod common_structs;
 mod memo;
 mod slabref;
 mod memoref;
-mod store;
 mod counter;
 mod handle;
 
@@ -21,6 +20,7 @@ pub mod prelude {
 
 pub trait Slab {
     fn handle (&self) -> self::handle::SlabHandle;
+    fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef;
     fn receive_memo_with_peerlist(&self, memo: self::memo::Memo, peerlist: self::common_structs::MemoPeerList, from_slabref: self::slabref::SlabRef ){
 
         let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.subject_id, peerlist.clone(), Some(memo.clone()) );
