@@ -4,6 +4,7 @@ use futures::*;
 use futures::sync::{mpsc,oneshot};
 use std::fmt;
 
+use network;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 use slab::prelude::*;
@@ -49,6 +50,17 @@ impl SlabHandleInner {
         let (p, c) = oneshot::channel::<SlabResponse>();
         unimplemented!()
     }
+    pub fn register_local_slabref(&self, peer_slab: &SlabHandle) {
+
+        //let args = TransmitterArgs::Local(&peer_slab);
+        let presence = SlabPresence{
+            slab_id: peer_slab.id,
+            address: network::transport::TransportAddress::Local,
+            lifetime: SlabAnticipatedLifetime::Unknown
+        };
+
+        self.put_slabref(peer_slab.id, &vec![presence])
+    }
     pub fn is_live (&self) -> bool {
         unimplemented!()
     }
@@ -58,29 +70,32 @@ impl SlabHandleInner {
     pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
         self.call(SlabRequest::AssertSlabRef{ slab_id, presence } ).wait()?
     }
-    pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
-        use std::time::{Instant,Duration};
-        let start = Instant::now();
-        let wait = Duration::from_millis(ms);
-        use std::thread;
-
-        loop {
-            if start.elapsed() > wait{
-                return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering))
-            }
-
-            #[allow(unreachable_patterns)]
-            match self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait() {
-                Ok(_) => {
-                    return Ok(())
-                },
-                Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering)) => {}
-                Err(e)                                      => return Err(e)
-            }
-
-            thread::sleep(Duration::from_millis(50));
-        }
+    pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
+            self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait()?
     }
+    // pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
+    //     use std::time::{Instant,Duration};
+    //     let start = Instant::now();
+    //     let wait = Duration::from_millis(ms);
+    //     use std::thread;
+
+    //     loop {
+    //         if start.elapsed() > wait{
+    //             return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering))
+    //         }
+
+    //         #[allow(unreachable_patterns)]
+    //         match self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait() {
+    //             Ok(_) => {
+    //                 return Ok(())
+    //             },
+    //             Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering)) => {}
+    //             Err(e)                                      => return Err(e)
+    //         }
+
+    //         thread::sleep(Duration::from_millis(50));
+    //     }
+    // }
 }
 
 

@@ -37,6 +37,9 @@ impl Transport for LocalDirect {
             // TODO1 - LEFT off here
             // reconcile this code with memo::serde calling slab.reconstitute_memo
             // reconstitute_memo needs to be abstracted so it can function for network deserialization and/or disk
+
+            // Deserialize from network to slab (via slabhandle)
+            // Deserialize from disk/binary to... where?
             rcv_slab.add_receiver(rx_channel).wait();
 
             let tx_thread : thread::JoinHandle<()> = thread::spawn(move || {

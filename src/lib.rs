@@ -43,6 +43,7 @@ extern crate tokio_core;
 extern crate core;
 extern crate linked_hash_map;
 extern crate itertools;
+extern crate nihdb;
 
 
 #[macro_use]
