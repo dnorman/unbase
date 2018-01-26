@@ -2,6 +2,7 @@ use super::*;
 use memorefhead::serde::*;
 use slab::prelude::memoref_serde::MemoPeerSeed;
 
+use slab::prelude::*;
 use slab::slabref::serde::SlabRefSeed;
 use util::serde::*;
 
@@ -168,10 +169,12 @@ impl<'a> Visitor for MemoSeed<'a>{
            }
        };
 
-       // TODO1 
-       self.memosender.send( DeserializedMemo { id, subject_id, parents, body, self.origin_slabref, &self.peerlist } ).wait();
+        // TODO1 
+        self.memosender.send( DeserializedMemo{ id, subject_id, parents, body, origin_slabref: self.origin_slabref, peerlist: &self.peerlist } ).wait();
         //println!("SERDE calling reconstitute_memo");
+
         let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
+
 
         Ok(())
     }

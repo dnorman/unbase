@@ -1,185 +1,163 @@
-use futures;
-use futures::prelude::*;
 
-use subject::{SubjectId,SubjectType};
-use memorefhead::*;
-use context::*;
-use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
-use error::*;
+    // fn add_receiver (&self, mpsc::UnboundedReceiver<(SlabRequest,oneshot::Sender<SlabResponse>)>);
+    // fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef;
+    // fn receive_memo_with_peerlist(&self, memo: self::memo::Memo, peerlist: self::common_structs::MemoPeerList, from_slabref: self::slabref::SlabRef ){
 
-use std::ops::Deref;
-use std::sync::{Arc,Weak,RwLock,Mutex};
-use std::sync::mpsc;
-use std::sync::mpsc::channel;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::fmt;
-use std::thread;
-use std::time;
-use futures::{Future, Sink};
+    //     let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.subject_id, peerlist.clone(), Some(memo.clone()) );
 
-#[derive(Clone)]
-pub struct MemorySlab(Arc<SlabInner>);
-
-impl Deref for MemorySlab {
-    type Target = MemorySlabInner;
-    fn deref(&self) -> &MemorySlabInner {
-        &*self.0
-    }
-}
-
-pub struct MemorySlabInner {
-    pub id: SlabId,
-    counters: SlabCounter,
-    storage: HashMap<MemoId,MemoRef>,
-
-    handle: SlabHandle,
-
-    memo_wait_channels: Mutex<HashMap<MemoId,Vec<mpsc::Sender<Memo>>>>, // TODO: HERE HERE HERE - convert to per thread wait channel senders?
-    subject_subscriptions: Mutex<HashMap<SubjectId, Vec<futures::sync::mpsc::Sender<MemoRefHead>>>>,
-    index_subscriptions: Mutex<Vec<futures::sync::mpsc::Sender<MemoRefHead>>>,
-    memoref_dispatch_tx_channel: Option<Mutex<mpsc::Sender<MemoRef>>>,
-    memoref_dispatch_thread: RwLock<Option<thread::JoinHandle<()>>>,
-    peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
-    peering_remediation_queue: Mutex<Vec<MemoRef>>,
-
-    pub my_ref: SlabRef,
-    peer_refs: RwLock<Vec<SlabRef>>,
-    net: Network,
-    pub dropping: bool
-}
+    //     {
+    //         let mut counters = self.counters.write().unwrap();
+    //         counters.memos_received += 1;
+    //         if had_memoref {
+    //             counters.memos_redundantly_received += 1;
+    //         }
+    //     }
+    //     //println!("Slab({}).reconstitute_memo({}) B -> {:?}", self.id, memo_id, memoref );
 
 
-impl Slab for MemorySlab {
-    
-    fn handle (&self) -> SlabHandle {
-        self.handle.clone()
-    }
+    //     self.consider_emit_memo(&memoref);
+
+    //     if let Some(ref memo) = memoref.get_memo_if_resident() {
+
+    //         self.check_memo_waiters(memo);
+    //         //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
+    //         // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
+    //         // otherwise 
+    //         self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
+    //         self.do_peering(&memoref, &origin_slabref);
+
+    //     }
+
+    //     self.dispatch_memoref(memoref);
+
+
+    // }
+
 
     /// remove the memo itself from storage, but not the reference to it. Returns Ok(true) if the memo was removed from the store, Ok(false) if it was not present, or Err(_) if there was a problem with removing it
-    fn conditional_remove_memo (&self, memo_id) -> Result<bool,Error> {
+    // fn conditional_remove_memo (&self, memo_id) -> Result<bool,Error> {
 
-        if let Some(memoref) = self.by_id.get(memo_id) {
+    //     if let Some(memoref) = self.by_id.get(memo_id) {
 
-            use MemoRefPtr::*;
-            match memoref.ptr.write().unwrap() {
-                ptr @ Resident(_) => {
-                    if memoref.exceeds_min_durability_threshold() {
-                        *ptr = MemoRefPtr::Remote;
+    //         use MemoRefPtr::*;
+    //         match memoref.ptr.write().unwrap() {
+    //             ptr @ Resident(_) => {
+    //                 if memoref.exceeds_min_durability_threshold() {
+    //                     *ptr = MemoRefPtr::Remote;
 
-                        return Ok(true);
-                    }else{
-                        return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering));
-                    }
-                },
-                Local  => panic!("Sanity error. Memory Store does not implement MemoRefPtr::Local"),
-                Remote => return Ok(false);
-            }
+    //                     return Ok(true);
+    //                 }else{
+    //                     return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering));
+    //                 }
+    //             },
+    //             Local  => panic!("Sanity error. Memory Store does not implement MemoRefPtr::Local"),
+    //             Remote => return Ok(false);
+    //         }
 
-        }else{
-            Ok(false)
-        }
-    }
-    fn put_memo (&self, memo: Memo) -> Result<(MemoRef, bool), Error> {
+    //     }else{
+    //         Ok(false)
+    //     }
+    // }
+    // fn put_memo (&self, memo: Memo) -> Result<(MemoRef, bool), Error> {
 
-        let memo = Rc::new(Memo);
-        self.memos_by_id.insert(memo.id, memo.clone());
+    //     let memo = Rc::new(Memo);
+    //     self.memos_by_id.insert(memo.id, memo.clone());
 
-        self.memorefs_by_id.entry(memo.id) {
-            Entry::Vacant(o)   => {
-                let mr = MemoRef(Arc::new(
-                    MemoRefInner {
-                        id: memo.id,
-                        owning_slab_id: self.id,
-                        subject_id: memo.subject_id,
-                        peerlist: RwLock::new(vec![]),
-                        ptr:      RwLock::new( MemoRefPtr::Resident(memo) )
-                    }
-                ));
+    //     self.memorefs_by_id.entry(memo.id) {
+    //         Entry::Vacant(o)   => {
+    //             let mr = MemoRef(Arc::new(
+    //                 MemoRefInner {
+    //                     id: memo.id,
+    //                     owning_slab_id: self.id,
+    //                     subject_id: memo.subject_id,
+    //                     peerlist: RwLock::new(vec![]),
+    //                     ptr:      RwLock::new( MemoRefPtr::Resident(memo) )
+    //                 }
+    //             ));
 
-                had_memoref = false;
-                o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
-            }
-            Entry::Occupied(o) => {
-                let mr = o.get();
-                had_memoref = true;
+    //             had_memoref = false;
+    //             o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
+    //         }
+    //         Entry::Occupied(o) => {
+    //             let mr = o.get();
+    //             had_memoref = true;
 
-                let mut ptr = mr.ptr.write().unwrap();
-                if let MemoRefPtr::Remote = *ptr {
-                    *ptr = MemoRefPtr::Resident(m)
-                }
-                mr.clone()
-            }
-        };
+    //             let mut ptr = mr.ptr.write().unwrap();
+    //             if let MemoRefPtr::Remote = *ptr {
+    //                 *ptr = MemoRefPtr::Resident(m)
+    //             }
+    //             mr.clone()
+    //         }
+    //     };
 
-    }
-    fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
+    // }
+    // fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
 
-        match memo {
-            Some(m) => {
-                let memo = Rc::new(memo);
+    //     match memo {
+    //         Some(m) => {
+    //             let memo = Rc::new(memo);
 
-            }
-            None => {
+    //         }
+    //         None => {
                 
-            }
-        }
+    //         }
+    //     }
 
-        let had_memoref;
-        let memoref = match self.memorefs_by_id.entry(memo_id) {
-            Entry::Vacant(o)   => {
-                let mr = MemoRef(Arc::new(
-                    MemoRefInner {
-                        id: memo_id,
-                        owning_slab_id: self.id,
-                        subject_id: subject_id,
-                        peerlist: RwLock::new(peerlist),
-                        ptr:      RwLock::new(match memo {
-                            Some(m) => {
-                                assert!(self.id == m.owning_slab_id);
-                                MemoRefPtr::Resident(m)
-                            }
-                            None    => MemoRefPtr::Remote
-                        })
-                    }
-                ));
+    //     let had_memoref;
+    //     let memoref = match self.memorefs_by_id.entry(memo_id) {
+    //         Entry::Vacant(o)   => {
+    //             let mr = MemoRef(Arc::new(
+    //                 MemoRefInner {
+    //                     id: memo_id,
+    //                     owning_slab_id: self.id,
+    //                     subject_id: subject_id,
+    //                     peerlist: RwLock::new(peerlist),
+    //                     ptr:      RwLock::new(match memo {
+    //                         Some(m) => {
+    //                             assert!(self.id == m.owning_slab_id);
+    //                             MemoRefPtr::Resident(m)
+    //                         }
+    //                         None    => MemoRefPtr::Remote
+    //                     })
+    //                 }
+    //             ));
 
-                had_memoref = false;
-                o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
-            }
-            Entry::Occupied(o) => {
-                let mr = o.get();
-                had_memoref = true;
-                if let Some(m) = memo {
+    //             had_memoref = false;
+    //             o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
+    //         }
+    //         Entry::Occupied(o) => {
+    //             let mr = o.get();
+    //             had_memoref = true;
+    //             if let Some(m) = memo {
 
-                    let mut ptr = mr.ptr.write().unwrap();
-                    if let MemoRefPtr::Remote = *ptr {
-                        *ptr = MemoRefPtr::Resident(m)
-                    }
-                }
-                mr.apply_peers( &peerlist );
-                mr.clone()
-            }
-        };
+    //                 let mut ptr = mr.ptr.write().unwrap();
+    //                 if let MemoRefPtr::Remote = *ptr {
+    //                     *ptr = MemoRefPtr::Resident(m)
+    //                 }
+    //             }
+    //             mr.apply_peers( &peerlist );
+    //             mr.clone()
+    //         }
+    //     };
 
-        (memoref, had_memoref)
-    }
-    fn get_memo (&self, memo_id: &MemoId) -> Result<Option<Memo>, Error> {
-        match self.memos_by_id.get(&memo_id){
-            Some(m)  => Ok(Some(m.clone())),
-            None     => Ok(None)
-        }
-    }
-    fn get_memoref (&self, memo_id: &MemoId) -> Result<Option<MemoRef>, Error> {
-        match self.memorefs_by_id.get(&memo_id){
-            Some(mr) => Ok(Some(mr.clone())),
-            None     => Ok(None)
-        }
-    }
-    fn fetch_memoref_stream (&self, memo_ids: Box<Stream<Item = &MemoId, Error = ()>>) -> Box<Stream<Item = Option<&MemoRef>, Error = Error>> {
-        unimplemented!()
-        //memo_ids.map(|memo_id| self.memorefs_by_id.get(memo_id) )
-    }
+    //     (memoref, had_memoref)
+    // }
+    // fn get_memo (&self, memo_id: &MemoId) -> Result<Option<Memo>, Error> {
+    //     match self.memos_by_id.get(&memo_id){
+    //         Some(m)  => Ok(Some(m.clone())),
+    //         None     => Ok(None)
+    //     }
+    // }
+    // fn get_memoref (&self, memo_id: &MemoId) -> Result<Option<MemoRef>, Error> {
+    //     match self.by_id.get(&memo_id){
+    //         Some(mr) => Ok(Some(mr.clone())),
+    //         None     => Ok(None)
+    //     }
+    // }
+    // fn fetch_memoref_stream (&self, memo_ids: Box<Stream<Item = &MemoId, Error = ()>>) -> Box<Stream<Item = Option<&MemoRef>, Error = Error>> {
+    //     unimplemented!()
+    //     //memo_ids.map(|memo_id| self.memorefs_by_id.get(memo_id) )
+    // }
     // fn insert_memoref (&self, memoref: MemoRef) {
     //     unimplemented!()
     // }
@@ -192,73 +170,26 @@ impl Slab for MemorySlab {
     // fn fetch_memo     (&self, memo_id: MemoId) -> Option<Memo> {
     //     unimplemented!()
     // }
-}
 
 
-impl MemorySlab {
-    pub fn new(net: &Network) -> Self {
-        let slab_id = net.generate_slab_id();
-
-        let my_ref = SlabRef::new(
-            slab_id: slab_id,
-            owning_slab_id: slab_id,       // I own my own ref to me, obviously
-            presence: RwLock::new(vec![]), // this bit is just for show
-            tx: Mutex::new(Transmitter::new_blackhole(slab_id)),
-            return_address: RwLock::new(TransportAddress::Local),
-        );
-
-        let (handle,handlestream) = SlabHandle::initialize( slab_id, my_ref );
-
-        // TODO: figure out how to reconcile this with the simulator
-        let (memoref_dispatch_tx_channel, memoref_dispatch_rx_channel) = mpsc::channel::<MemoRef>();
-
-        let inner = MemorySlabInner {
+impl MemorySlabWorker {
+    pub fn new () -> Self {
+        MemorySlabCore {
             id: slab_id,
-            counters: SlabCounter::new(),
+            counters: counters.clone(),
             handle: handle,
 
             memo_wait_channels:    Mutex::new(HashMap::new()),
             subject_subscriptions: Mutex::new(HashMap::new()),
             index_subscriptions:   Mutex::new(Vec::new()),
-
-            memoref_dispatch_tx_channel: Some(Mutex::new(memoref_dispatch_tx_channel)),
-            memoref_dispatch_thread: RwLock::new(None),
+            
             peering_remediation_thread: RwLock::new(None),
             peering_remediation_queue: Mutex::new(Vec::new()),
 
             my_ref: my_ref,
             peer_refs: RwLock::new(Vec::new()),
-            net: net.clone(),
             dropping: false
-        };
-
-        let me = Slab(Arc::new(inner));
-        
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        let server = handlestream.for_each(|(request, resp_channel)| {
-            inner.dispatch_request(request,resp_channel);
-
-            Ok(()) // keep accepting requests
-        });
-
-        core.run(server).unwrap();
-
-
-        net.register_local_slab(&me);
-        let weak_self = me.weak();
-
-        // TODO: this should really be a thread pool, or get_memo should be changed to be nonblocking somhow
-        *me.memoref_dispatch_thread.write().unwrap() = Some(thread::spawn(move || {
-            while let Ok(memoref) = memoref_dispatch_rx_channel.recv() {
-                if let Some(slab) = weak_self.upgrade(){
-                    slab.dispatch_memoref(memoref);
-                }
-            }
-        }));
-
-
-        
-        let weak_self = me.weak();
+        }
 
         // TODO: this should really be a thread pool, or get_memo should be changed to be nonblocking somhow
         *me.peering_remediation_thread.write().unwrap() = Some(thread::spawn(move || {
@@ -276,16 +207,9 @@ impl MemorySlab {
             }
         }));
 
-        net.conditionally_generate_root_index_seed(&me);
 
-        me
     }
-    pub fn get_root_index_seed (&self) -> MemoRefHead {
-        self.net.get_root_index_seed(self)
-    }
-    pub fn create_context (&self) -> Context {
-        Context::new(self)
-    }
+
     pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: futures::sync::mpsc::Sender<MemoRefHead> ) {
 
         // let (tx,sub) = SubjectSubscription::new( subject_id, self.weak() );
@@ -522,7 +446,6 @@ impl MemorySlab {
         //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?}, {:?})", self.id, &memoref.id, &memoref.subject_id, memoref.get_memo_if_resident() );
 
         if let Some(subject_id) = memoref.subject_id {
-            // TODO2 - switch network modules over to use tokio, ingress to use tokio mpsc stream
             // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
             // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
@@ -720,17 +643,6 @@ impl MemorySlab {
             lifetime: SlabAnticipatedLifetime::Unknown
         }
     }
-    pub fn slabref_from_local_slab(&self, peer_slab: &Self) -> SlabRef {
-
-        //let args = TransmitterArgs::Local(&peer_slab);
-        let presence = SlabPresence{
-            slab_id: peer_slab.id,
-            address: TransportAddress::Local,
-            lifetime: SlabAnticipatedLifetime::Unknown
-        };
-
-        self.put_slabref(peer_slab.id, &vec![presence])
-    }
     pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef,&str> {
             match presence.address {
                 TransportAddress::Simulator  => {
@@ -749,24 +661,3 @@ impl MemorySlab {
     }
 }
 
-impl  Drop for MemorySlab {
-    fn drop(&mut self) {
-        self.dropping = true;
-
-        //println!("# SlabInner({}).drop", self.id);
-        self.memoref_dispatch_tx_channel.take();
-        if let Some(t) = self.memoref_dispatch_thread.write().unwrap().take() {
-            t.join().expect("join memoref_dispatch_thread");
-        }
-        self.net.deregister_local_slab(self.id);
-        // TODO: Drop all observers? Or perhaps observers should drop the slab (weak ref directionality)
-    }
-}
-
-impl fmt::Debug for MemorySlab {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Slab")
-            .field("slab_id", &self.id)
-            .finish()
-    }
-}

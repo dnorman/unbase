@@ -197,15 +197,20 @@ impl Deref for EdgeSet {
     }
 }
 
+
 pub enum SlabRequest {
     ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
-    AssertSlabRef { slab_id: SlabId, presence: &[SlabPresence] }
+    AssertSlabRef { slab_id: SlabId, presence: SlabPresence }
 }
 pub enum SlabResponse {
     ReceiveMemoWithPeerList( Result<(),Error> ),
     RemotizeMemoIds( Result<(),Error> ),
     AssertSlabRef( Result<SlabRef,Error> )
+}
+
+pub enum SlabSend {
+    DeserializedMemo( DeserializedMemo ),
 }
 
 pub struct MemoRefFromSlab(SlabRef,MemoRef);

@@ -69,7 +69,7 @@ impl Context {
            }
         };
         
-        let seed = self.slab.get_root_index_seed();
+        let seed = self.net.get_root_index_seed(&self.slab);
         if seed.is_some() {
             let index = IndexFixed::new_from_memorefhead(&self, 5, seed);
             let arcindex = Arc::new(index);

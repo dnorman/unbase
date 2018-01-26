@@ -143,7 +143,7 @@ impl Network {
         }
         None
     }
-    pub fn register_local_slab(&self, new_slab: &SlabHandle) {
+    pub fn register_local_slab(&self, new_slab: SlabHandle) {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
@@ -151,8 +151,8 @@ impl Network {
         }
 
         for prev_slab in self.get_all_local_slab_handles() {
-            prev_slab.slabref_from_local_slab(new_slab);
-            new_slab.slabref_from_local_slab(&prev_slab);
+            prev_slab.register_local_slabref(new_slab);
+            new_slab.register_local_slabref(&prev_slab);
         }
     }
     pub fn deregister_local_slab(&self, slab_id: SlabId) {

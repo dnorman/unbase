@@ -4,6 +4,7 @@ mod interface;
 
 use subject::{Subject,SubjectId,SubjectType};
 use subjecthandle::SubjectHandle;
+use network::Network;
 use memorefhead::*;
 use error::*;
 
@@ -12,6 +13,7 @@ use futures::sync::mpsc::channel;
 use std::thread;
 
 use index::IndexFixed;
+use slab::Slab;
 use slab::prelude::*;
 use self::stash::Stash;
 
@@ -24,6 +26,7 @@ pub struct Context(Arc<ContextInner>);
 pub struct ContextInner {
     pub slab: SlabHandle,
     pub root_index: RwLock<Option<Arc<IndexFixed>>>,
+    net: Network,
     stash: Stash,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
 }
@@ -42,17 +45,17 @@ impl Deref for Context {
 
 // TODO: Explain what a context is here
 impl Context{
-    pub fn new (slab: &SlabHandle) -> Self {
+    pub fn new <T> (slab: &T) -> Self where T: Slab {
         let new_self = Context(
             Arc::new(
                 ContextInner{
-                    slab: slab.clone(),
+                    slab: slab.get_handle(),
+                    net:  slab.get_net(),
                     root_index: RwLock::new(None),
                     stash: Stash::new()
                 }
             )
         );
-
 
         new_self.init_index_subscription();
 

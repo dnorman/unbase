@@ -87,7 +87,7 @@ impl<'a> Visitor for SlabRefSeed<'a> {
            }
        };
 
-        // TODO1 - should we round trip this? or defer it?
+        // TODO1 - should we round trip this? or defer it? ( send presence data with another call to slabworker )
        let slabref = self.dest_slab.put_slabref(slab_id, &presence); //.expect("slabref from slabrefseed presence");
        Ok( slabref )
     }
