@@ -37,67 +37,8 @@ impl SlabRef{
 }
 
 impl SlabRefInner {
-    //pub fn new (to_slab_id: SlabId, owning_slab_id: SlabId, presence: Vec<Slab) -> SlabRef {
-    //}
-    pub fn send (&self, from: &SlabRef, memoref: &MemoRef ) {
-        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
-
-        self.tx.lock().unwrap().send(from, memoref.clone());
-    }
-
-    pub fn get_return_address(&self) -> TransportAddress {
-        self.return_address.read().unwrap().clone()
-    }
     /// Apply a list of SlabPresence to this slabref
-    pub fn apply_presence ( &self, new_presence_list: &[SlabPresence] ) -> bool {
-        if self.slab_id == self.owning_slab_id{
-            return false; // the slab manages presence for its self-ref separately
-        }
 
-        let mut presence_list = self.presence.write().unwrap();
-        for new_presence in new_presence_list.iter(){
-            assert!(self.slab_id == new_presence.slab_id, "presence slab_id does not match the provided slab_id");
-
-            let mut maybe_slab = None;
-            let args = if new_presence.address.is_local() {
-                // playing silly games with borrow lifetimes.
-                // TODO: make this less ugly
-                maybe_slab = self.net.get_slab(new_presence.slab_id);
-
-                if let Some(ref slab) = maybe_slab {
-                    TransmitterArgs::Local(slab)
-                }else{
-                    continue;
-                }
-            }else{
-                TransmitterArgs::Remote( &new_presence.slab_id, &new_presence.address )
-            };
-             // Returns true if this presence is new to the slabref
-             // False if we've seen this presence already
-
-            let mut found = false;
-
-            for presence in presence_list.iter_mut(){
-                if presence == new_presence {
-                    mem::replace( new_presence, presence.clone()); // Update anticipated liftime
-                    found = true;
-                    break;
-                }
-            }
-
-            if !found {
-                presence_list.push( new_presence.clone() );
-
-                let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
-                let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
-
-                *self.tx.lock().expect("tx.lock()") = new_trans;
-                *self.return_address.write().expect("return_address write lock") = return_address;
-            }
-        }
-
-        !found
-    }
     pub fn get_presence_for_remote(&self, return_address: &TransportAddress) -> Vec<SlabPresence> {
 
         // If the slabref we are serializing is local, then construct a presence that refers to us
@@ -137,21 +78,5 @@ impl SlabRefInner {
             to_slab.put_slabref( self.slab_id, &*self.presence.read().unwrap() )
         }
 
-    }
-}
-
-impl fmt::Debug for SlabRef {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("SlabRef")
-            .field("owning_slab_id", &self.owning_slab_id)
-            .field("to_slab_id",     &self.slab_id)
-            .field("presence",       &*self.presence.read().unwrap())
-            .finish()
-    }
-}
-
-impl Drop for SlabRefInner{
-    fn drop(&mut self) {
-        //println!("# SlabRefInner({},{}).drop",self.owning_slab_id, self.slab_id);
     }
 }

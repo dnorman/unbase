@@ -32,7 +32,6 @@ pub struct Memory{
     worker_thread: thread::JoinHandle<()>,
     counters: Arc<SlabCounter>,
     my_handle: LocalSlabHandle,
-    my_ref: SlabRef,
     net: Network
 }
 
@@ -40,9 +39,9 @@ impl Slab for Memory {
     fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
-    fn get_ref (&self) -> SlabRef {
-        self.my_ref.clone()
-    }
+    // fn get_ref (&self) -> SlabRef {
+    //     self.my_ref.clone()
+    // }
     fn get_net (&self) -> Network {
         self.net.clone()
     }
@@ -55,29 +54,27 @@ impl Memory {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
 
-        let my_ref = SlabRef::new(
-            slab_id,
-            slab_id, // I own my own ref to me, obviously
-            Transmitter::new_blackhole(slab_id)
-        );
+        // let my_ref = SlabRef::new(
+        //     slab_id,
+        //     slab_id, // I own my own ref to me, obviously
+        //     Transmitter::new_blackhole(slab_id)
+        // );
 
         let counters = Arc::new(SlabCounter::new());
 
         let (req_stream,worker_thread) = MemoryWorker::spawn(
             slab_id,
-            my_ref,
             net.clone(),
             counters.clone()
         );
 
-        let my_handle = LocalSlabHandle::new( slab_id, my_ref, req_stream );
+        let my_handle = LocalSlabHandle::new( slab_id, req_stream );
 
         let me = Memory{
             slab_id,
             worker_thread,
             counters,
             my_handle,
-            my_ref,
             net: net.clone(),
         };
 

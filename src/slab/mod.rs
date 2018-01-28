@@ -1,10 +1,9 @@
 
 mod common_structs;
 mod memo;
-mod slabref;
 mod memoref;
 mod counter;
-mod handle;
+mod localhandle;
 pub mod storage;
 
 pub mod prelude {
@@ -31,23 +30,46 @@ use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::common_structs::*;
 
+/// Storable
 pub type SlabId = u32;
 
-/// Handle to a slab which is resident within our process
-#[derive(Clone)]
-pub struct LocalSlabHandle {
-    pub id: SlabId,
-    pub tx: LocalSlabSender,
-    //pub my_ref: SlabRef,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum SlabAnticipatedLifetime {
+    Ephmeral,
+    Session,
+    Long,
+    VeryLong,
+    Unknown,
 }
 
-/// SlabPresence is the latest info on how to reach a slab, and what sort of approximate behavior to expect from it
+/// SlabPresence is the latest info on how to reach a slab, and what sort of approximate behavior to expect from it.
+/// (Storable)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlabPresence {
     pub slab_id: SlabId,
     pub address: TransportAddress,
     pub lifetime: SlabAnticipatedLifetime,
 }
+
+/// Handle to a slab which is resident within our process.
+/// (Not storable)
+#[derive(Clone)]
+pub struct LocalSlabHandle {
+    pub id: SlabId,
+    pub tx: LocalSlabRequester,
+    //pub my_ref: SlabRef,
+}
+
+/// Handle for communicating with a slab that might be local OR remote
+/// (Not storable)
+struct SlabHandle {
+    pub slab_id: SlabId,
+    //presence: Vec<SlabPresence>,
+    tx:       Transmitter,
+    return_address: TransportAddress,
+}
+
+
 
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
@@ -57,29 +79,19 @@ impl PartialEq for SlabPresence {
 }
 
 impl SlabPresence {
-    pub fn get_handle(&self, net: &Network) -> SlabHandle {
+    pub fn get_transmitter (&self, net: &Network ) -> Option<Transmitter> {
 
-        
-        SlabHandle{
-            slab_id: self.slab_id,
-            tx: net.get_transmitter(address)
-        }
+        use network::TransmitterArgs;
+        let args = if self.address.is_local() {
+            if let Some(ref slab) = net.get_slab_handle(self.slab_id) {
+                TransmitterArgs::Local(slab)
+            }else{
+                return None;
+            }
+        }else{
+            TransmitterArgs::Remote( &self.slab_id, &self.address )
+        };
+
+        net.get_transmitter(&args)
     }
-}
-
-/// Handle for communicating with a slab that might be local OR remote
-struct SlabHandle {
-    pub slab_id: SlabId,
-    //presence: Vec<SlabPresence>,
-    tx:       Transmitter,
-    return_address: TransportAddress,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum SlabAnticipatedLifetime {
-    Ephmeral,
-    Session,
-    Long,
-    VeryLong,
-    Unknown,
 }

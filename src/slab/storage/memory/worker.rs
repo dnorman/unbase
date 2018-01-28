@@ -6,7 +6,7 @@ use futures::sync::{mpsc,oneshot};
 use tokio_core;
 
 use subject::SubjectId;
-use network::Network;
+use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use memorefhead::MemoRefHead;
@@ -19,33 +19,38 @@ struct MemoCarrier{
 pub struct MemoryWorker {
     pub slab_id: SlabId,
     counter: Arc<SlabCounter>,
+
     memo_storage: HashMap<MemoId,MemoCarrier>,
+    slab_presence_storage: HashMap<SlabId, Vec<SlabPresence>>,
+
 
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Memo>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
-    peer_refs: HashMap<SlabId,SlabRef>,
+    slab_transmitters: HashMap<SlabId,Transmitter>, // TODO: Make this an LRU
+
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
-    pub my_ref: SlabRef,
+    //pub my_ref: SlabRef,
     net: Network
 }
 
 
 impl MemoryWorker {
-    pub fn spawn ( slab_id: SlabId, my_ref: SlabRef, net: Network, counter: Arc<SlabCounter> ) -> (mpsc::UnboundedSender<(SlabRequest,oneshot::Sender<SlabResponse>)>, thread::JoinHandle<()>) {
+    pub fn spawn ( slab_id: SlabId, net: Network, counter: Arc<SlabCounter> ) -> (LocalSlabRequester, thread::JoinHandle<()>) {
         let me = MemoryWorker{
             slab_id,
-            my_ref,
             net,
             counter,
 
             memo_storage:          HashMap::new(),
+            slab_presence_storage: HashMap::new(),
+
             memo_wait_channels:    HashMap::new(),
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
-            peer_refs:             HashMap::new(),
+            slab_transmitters:    HashMap::new(),
         };
 
         let (tx,rx) = mpsc::unbounded();
@@ -63,20 +68,62 @@ impl MemoryWorker {
 
         (tx,worker_thread)
     }
-    fn dispatch_request(&self,request: SlabRequest, responder: oneshot::Sender<SlabResponse>) {
-        unimplemented!()
+    fn dispatch_request(&self,request: LocalSlabRequest, responder: oneshot::Sender<LocalSlabResponse>) {
+        use slab::common_structs::LocalSlabRequest::*;
+        match request {
+            SendMemo {slab_id, memoref}    => self.send_memo(slab_id, memoref),
+            PutSlabPresence { presence }   => self.put_slab_presence(presence),
+        }
     }
-    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
-        //println!("# Slab({}).put_slabref({}, {:?})", self.id, slab_id, presence );
+    pub fn put_slab_presence(&self, presence: SlabPresence ) {
 
-        if slab_id == self.slab_id {
-            // Don't even look it up if it's me. We must not allow any third party to edit the peering.
-            // Also, my ref won't appear in the list of peer_refs, because it's not a peer
-            return self.my_ref.clone();
+
+        use std::mem;
+        use std::collections::hash_map::Entry::*;
+        match self.slab_presence_storage.entry(presence.slab_id) {
+            Occupied(e) => {
+                for p in e.get().iter_mut(){
+                    if p == &presence {
+                        mem::replace( p, presence); // Update anticipated liftime
+                        break;
+                    }
+                }
+            },
+            Vacant(e) => {
+                e.insert(vec![presence])
+            }
         }
 
-        let slabref = self.peer_refs.entry(slab_id).or_insert_with(|| SlabRef::new( slab_id, self.slab_id ));
-        slabref.apply_presence(presence);
-        return slabref.clone();
+        // TODO: update transmitter?
+
+    }
+    pub fn send_memo ( &self, slab_id: SlabId, memoref: MemoRef ) {
+        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
+
+        use std::collections::hash_map::Entry::*;
+        match self.slab_transmitters.entry(slab_id) {
+            Occupied(t) => {
+                t.get().send( self.slab_id, memoref.clone() )
+            },
+            Vacant(t) => {
+                //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
+                //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
+
+                match self.slab_presence_storage.entry(slab_id){
+                    Occupied(p) => {
+                        let mut ok = false;
+                        for presence in p.get() {
+                            if let Some(transmitter) = presence.get_transmitter( &self.net ){
+                                t.insert(transmitter);
+                                
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
     }
 }
