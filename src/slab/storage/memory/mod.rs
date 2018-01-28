@@ -1,13 +1,19 @@
 mod worker;
 
-use futures;
 use futures::prelude::*;
+use std::sync::Arc;
+
+use self::worker::MemoryWorker;
+use context::*;
+use network::{Network,Transmitter};
+use slab::Slab;
+use slab::prelude::*;
+use slab::counter::SlabCounter;
+use context::Context;
+
 
 // use subject::{SubjectId,SubjectType};
 // use memorefhead::*;
-use context::*;
-use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
-use slabref::SlabRef;
 // use error::*;
 
 // use std::ops::Deref;
@@ -21,28 +27,31 @@ use std::thread;
 // use std::time;
 // use futures::{Future, Sink};
 
-pub struct MemorySlab{
-    pub id: SlabId,
+pub struct Memory{
+    pub slab_id: SlabId,
     worker_thread: thread::JoinHandle<()>,
-    counters: SlabCounter,
+    counters: Arc<SlabCounter>,
     my_handle: SlabHandle,
     my_ref: SlabRef,
     net: Network
 }
 
-impl Slab for MemorySlab {
+impl Slab for Memory {
     fn get_handle (&self) -> SlabHandle {
-        self.handle.clone()
+        self.my_handle.clone()
     }
     fn get_ref (&self) -> SlabRef {
         self.my_ref.clone()
     }
+    fn get_net (&self) -> Network {
+        self.net.clone()
+    }
     fn create_context (&self) -> Context {
-        Context::new(self,self.net.clone())
+        Context::new(self)
     }
 }
 
-impl MemorySlab {
+impl Memory {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
 
@@ -52,43 +61,34 @@ impl MemorySlab {
             Transmitter::new_blackhole(slab_id)
         );
 
-        let (handle,handlestream) = SlabHandle::initialize( slab_id, my_ref );
-
         let counters = Arc::new(SlabCounter::new());
 
-        let worker = MemorySlabWorker::new(
+        let (req_stream,worker_thread) = MemoryWorker::spawn(
             slab_id,
             my_ref,
-            net,
+            net.clone(),
             counters.clone()
         );
-        
-        let worker_thread = thread::spawn(move || {
-            let mut core = tokio_core::reactor::Core::new().unwrap();
-            let server = handlestream.for_each(|(request, resp_channel)| {
-                worker.dispatch_request(request,resp_channel);
 
-                Ok(()) // keep accepting requests
-            });
+        let my_handle = SlabHandle::new( slab_id, my_ref, req_stream );
 
-            core.run(server).unwrap();
-        });
-
-
-        let me = MemorySlab{
+        let me = Memory{
             slab_id,
             worker_thread,
-            counters
-        }
+            counters,
+            my_handle,
+            my_ref,
+            net: net.clone(),
+        };
 
-        net.register_local_slab(&me);
+        net.register_local_slab(me.get_handle());
         net.conditionally_generate_root_index_seed(&me);
 
         me
     }
 }
 
-impl  Drop for MemorySlab {
+impl  Drop for Memory {
     fn drop(&mut self) {
         self.dropping = true;
 
@@ -102,7 +102,7 @@ impl  Drop for MemorySlab {
     }
 }
 
-impl fmt::Debug for MemorySlab {
+impl fmt::Debug for Memory {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Slab")
             .field("slab_id", &self.id)

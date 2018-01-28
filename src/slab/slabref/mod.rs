@@ -31,8 +31,8 @@ impl Deref for SlabRef {
     }
 }
 struct SlabRefInner {
-    slab_id: SlabId,
-    owning_slab_id: SlabId, // for assertions only
+    pub slab_id: SlabId,
+    pub owning_slab_id: SlabId, // for assertions only
     presence: RwLock<Vec<SlabPresence>>,
     tx: Mutex<Transmitter>,
     return_address: RwLock<TransportAddress>,
@@ -40,9 +40,9 @@ struct SlabRefInner {
 
 impl SlabRef{
     pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
-        let return_address = transmitter.return_address();
+        let return_address = transmitter.get_return_address();
         
-        let inner = SlabRef{
+        let inner = SlabRefInner{
             slab_id: slab_id,
             owning_slab_id: owning_slab_id,
             presence: RwLock::new(Vec::new()),

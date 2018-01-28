@@ -5,6 +5,7 @@ use slab::prelude::*;
 use subject::*;
 use error::*;
 
+use futures::prelude::*;
 use std::mem;
 use std::fmt;
 use std::slice;
@@ -266,7 +267,7 @@ impl MemoRefHead {
         };
         
         for memoref in head.iter(){
-            let memo = memoref.get_memo(slab).unwrap();
+            let memo = memoref.get_memo(slab).wait().unwrap();
 
             if let MemoBody::FullyMaterialized { .. } = memo.body {
                 //
@@ -361,7 +362,7 @@ impl Iterator for CausalMemoIter {
         if let Some(memoref) = self.queue.pop_front() {
             // this is wrong - Will result in G, E, F, C, D, B, A
 
-            match memoref.get_memo( &self.slab ) {
+            match memoref.get_memo( &self.slab ).wait() {
                 Ok(memo) => {
                     self.queue.append(&mut memo.get_parent_head().to_vecdeque());
                     return Some(Ok(memo));

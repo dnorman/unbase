@@ -17,7 +17,7 @@ use slab::Slab;
 use slab::prelude::*;
 use self::stash::Stash;
 
-use std::sync::{Arc,Weak,Mutex,RwLock};
+use std::sync::{Arc,Weak,RwLock};
 use std::ops::Deref;
 
 #[derive(Clone)]
@@ -138,6 +138,7 @@ impl WeakContext {
 #[cfg(test)]
 mod test {
     use {Network, Slab};
+    use slab::storage::Memory;
     use subject::SubjectId;
     use super::EdgeSet;
     use super::Context;
@@ -148,7 +149,7 @@ mod test {
     #[test]
     fn context_basic() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Memory::new(&net);
         let context = Context::new(&slab);
 
         // 4 -> 3 -> 2 -> 1
@@ -164,7 +165,8 @@ mod test {
     #[test]
     fn context_manual_compaction() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Memory::new(&net);
+        let slabhandle = slab.get_handle();
         let context = Context::new(&slab);
 
         // 4 -> 3 -> 2 -> 1
@@ -173,7 +175,7 @@ mod test {
 
         {
             // manually defeat compaction
-            let head = slab.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
+            let head = slabhandle.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
             context.apply_head(&head).unwrap();
         }
 
@@ -186,7 +188,7 @@ mod test {
         {
             // manually perform compaction
             let updated_head2 = context.stash.get_head( head2.subject_id().unwrap() );
-            let head = slab.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edge(EdgeSet::single(0, updated_head2))).to_head();
+            let head = slabhandle.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edge(EdgeSet::single(0, updated_head2))).to_head();
             context.apply_head(&head).unwrap();
         }
 
@@ -195,7 +197,7 @@ mod test {
         {
             // manually perform compaction
             let updated_head3 = context.stash.get_head( head3.subject_id().unwrap() );
-            let head = slab.new_memo_basic(head4.subject_id(), head4, MemoBody::Edge(EdgeSet::single(0, updated_head3))).to_head();
+            let head = slabhandle.new_memo_basic(head4.subject_id(), head4, MemoBody::Edge(EdgeSet::single(0, updated_head3))).to_head();
             context.apply_head(&head).unwrap();
         }
 
@@ -205,7 +207,8 @@ mod test {
     #[test]
     fn context_auto_compaction() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Memory::new(&net);
+        let slabhandle = slab.get_handle();
         let context = Context::new(&slab);
 
         // 4 -> 3 -> 2 -> 1
@@ -214,7 +217,7 @@ mod test {
 
         {
             // manually defeat compaction
-            let head = slab.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
+            let head = slabhandle.new_memo_basic(head2.subject_id(), head2.clone(), MemoBody::Edit(HashMap::new())).to_head();
             context.apply_head(&head).unwrap();
         }
 
@@ -222,7 +225,7 @@ mod test {
         let head3  = context.add_test_subject(SubjectId::index_test(3), vec![head2] );
         {
             // manually defeat compaction
-            let head = slab.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edit(HashMap::new())).to_head();
+            let head = slabhandle.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edit(HashMap::new())).to_head();
             context.apply_head(&head).unwrap();
         }
 

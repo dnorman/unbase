@@ -1,12 +1,14 @@
 pub mod serde;
 
+use subject::SubjectId;
 use slab::prelude::*;
 use memorefhead::MemoRefHead;
-use error::RetrieveError;
+use error::Error;
 
 use std::sync::{Arc,RwLock};
 use std::fmt;
 use core::ops::Deref;
+use futures::prelude::*;
 use futures::future;
 
 #[derive(Clone)]
@@ -143,7 +145,7 @@ impl MemoRef {
             Some(_) => (2 as u32).saturating_sub( self.peerlist.read().unwrap().len() as u32 )
         }
     }
-    pub fn get_memo (&self, slab: &Slab) -> Box<Future<Item=Memo, Error=Error>> {
+    pub fn get_memo (&self, slab: &SlabHandle) -> Box<Future<Item=Memo, Error=Error>> {
 //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
 
@@ -157,7 +159,7 @@ impl MemoRef {
         }
 
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,Error> {
+    pub fn descends (&self, memoref: &MemoRef, slab: &SlabHandle) -> Result<bool,Error> {
         assert!(self.owning_slab_id == slab.id);
 
         if self.get_memo( slab )?.descends(&memoref, slab)? {
@@ -198,7 +200,7 @@ impl MemoRef {
 
         acted
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &Slab, include_memo: bool ) -> Self{
+    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &SlabHandle, include_memo: bool ) -> Self{
         assert!(from_slabref.owning_slab_id == to_slab.id,"MemoRef clone_for_slab owning slab should be identical");
         assert!(from_slabref.slab_id != to_slab.id,       "MemoRef clone_for_slab dest slab should not be identical");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);

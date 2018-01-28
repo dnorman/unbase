@@ -184,6 +184,7 @@ impl IndexFixed {
 #[cfg(test)]
 mod test {
     use {Network, Slab, SubjectHandle};
+    use slab::storage::Memory;
     use super::IndexFixed;
 
     #[test]
@@ -191,7 +192,7 @@ mod test {
 
         let net = Network::create_new_system();
 
-        let context_a = Slab::new(&net).create_context();
+        let context_a = Memory::new(&net).create_context();
 
         let index = IndexFixed::new(&context_a, 5).unwrap();
 

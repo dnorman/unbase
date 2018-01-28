@@ -12,9 +12,8 @@ use util::system_creator::SystemCreator;
 pub use self::transmitter::{Transmitter, TransmitterArgs};
 
 use std::ops::Deref;
-use std::sync::{Arc, Weak, Mutex, RwLock};
+use std::sync::{Arc, Weak, RwLock};
 use std::fmt;
-use slab::prelude::*;
 use memorefhead::MemoRefHead;
 
 #[derive(Clone)]
@@ -103,7 +102,7 @@ impl Network {
     fn get_representative_slab(&self) -> Option<SlabHandle> {
         for handle in self.slabs.read().unwrap().iter() {
             if handle.is_live() {
-                return Some(handle);
+                return Some(handle.clone());
             }
         }
         return None;
@@ -137,9 +136,7 @@ impl Network {
     }
     pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Option<TransportAddress> {
         for transport in self.transports.read().unwrap().iter() {
-            if let Some(return_address) = transport.get_return_address(address) {
-                return Some(return_address);
-            }
+            return Some( transport.get_return_address(address) )
         }
         None
     }
@@ -151,7 +148,7 @@ impl Network {
         }
 
         for prev_slab in self.get_all_local_slab_handles() {
-            prev_slab.register_local_slabref(new_slab);
+            prev_slab.register_local_slabref(&new_slab);
             new_slab.register_local_slabref(&prev_slab);
         }
     }
