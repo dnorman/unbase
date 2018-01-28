@@ -78,7 +78,7 @@ impl StatefulSerialize for MemoPeer {
 }
 
 #[derive(Clone)]
-pub struct MemoRefSeed<'a> { pub dest_slab: &'a SlabHandle, pub origin_slabref: &'a SlabRef }
+pub struct MemoRefSeed<'a> { pub dest_slab: &'a LocalSlabHandle, pub origin_slabref: &'a SlabRef }
 
 impl<'a> DeserializeSeed for MemoRefSeed<'a> {
     type Value = MemoRef;
@@ -139,7 +139,7 @@ impl<'a> Visitor for MemoRefSeed<'a> {
 }
 
 #[derive(Clone)]
-pub struct MemoPeerSeed<'a> { pub dest_slab: &'a SlabHandle }
+pub struct MemoPeerSeed<'a> { pub dest_slab: &'a LocalSlabHandle }
 
 impl<'a> DeserializeSeed for MemoPeerSeed<'a> {
     type Value = MemoPeer;

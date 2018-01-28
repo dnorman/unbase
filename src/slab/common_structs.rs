@@ -1,45 +1,14 @@
 use std::fmt;
 use core::ops::Deref;
 use std::collections::HashMap;
+use futures::sync::{mpsc,oneshot};
 
 use error::*;
 use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
-use network::TransportAddress;
 
-/// SlabPresence represents the expected reachability of a given Slab
-/// Including Transport address and anticipated lifetime
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SlabPresence {
-    pub slab_id: SlabId,
-    pub address: TransportAddress,
-    pub lifetime: SlabAnticipatedLifetime,
-}
-impl PartialEq for SlabPresence {
-    fn eq(&self, other: &SlabPresence) -> bool {
-        // When comparing equality, we can skip the anticipated lifetime
-        self.slab_id == other.slab_id && self.address == other.address
-    }
-}
-impl fmt::Debug for SlabPresence {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("SlabPresence")
-            .field("slab_id", &self.slab_id)
-            .field("address", &self.address.to_string())
-            .field("lifetime", &self.lifetime)
-            .finish()
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum SlabAnticipatedLifetime {
-    Ephmeral,
-    Session,
-    Long,
-    VeryLong,
-    Unknown,
-}
+pub type LocalSlabSender = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>;
 
 #[derive(Clone,Debug)]
 pub struct MemoPeerList(pub Vec<MemoPeer>);
@@ -51,7 +20,7 @@ impl MemoPeerList {
     pub fn clone(&self) -> Self {
         MemoPeerList(self.0.clone())
     }
-    pub fn clone_for_slab(&self, to_slab: &SlabHandle) -> Self {
+    pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle) -> Self {
         MemoPeerList(self.0
             .iter()
             .map(|p| {
@@ -114,7 +83,7 @@ pub type RelationSlotId = u8;
 pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
 
 impl RelationSet {
-    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &SlabHandle) -> Self {
+    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &LocalSlabHandle) -> Self {
 
         self.clone()
         // let new = self.0
@@ -164,7 +133,7 @@ pub enum EdgeLink{
 pub struct EdgeSet (pub HashMap<RelationSlotId, MemoRefHead>);
 
 impl EdgeSet {
-    pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &SlabHandle) -> Self {
+    pub fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle) -> Self {
         let new = self.0
             .iter()
             .map(|(slot_id, mrh)| {
@@ -198,16 +167,16 @@ impl Deref for EdgeSet {
 }
 
 
-pub enum SlabRequest {
-    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef },
+pub enum LocalSlabRequest {
+    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slab: SlabId },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
-    AssertSlabRef { slab_id: SlabId, presence: SlabPresence },
+    PutSlabPresence { slab_id: SlabId, presence: SlabPresence },
     GetMemo { memo_id: MemoId },
 }
-pub enum SlabResponse {
+pub enum LocalSlabResponse {
     ReceiveMemoWithPeerList( Result<(),Error> ),
     RemotizeMemoIds( Result<(),Error> ),
-    AssertSlabRef( Result<SlabRef,Error> ),
+    PutSlabPresence( Result<(),Error> ),
     GetMemo( Result<Memo,Error> )
 }
 

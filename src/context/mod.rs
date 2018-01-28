@@ -24,7 +24,7 @@ use std::ops::Deref;
 pub struct Context(Arc<ContextInner>);
 
 pub struct ContextInner {
-    pub slab: SlabHandle,
+    pub slab: LocalSlabHandle,
     pub root_index: RwLock<Option<Arc<IndexFixed>>>,
     net: Network,
     stash: Stash,

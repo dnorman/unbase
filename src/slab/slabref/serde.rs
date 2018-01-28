@@ -52,7 +52,7 @@ impl StatefulSerialize for SlabRef {
 }
 
 
-pub struct SlabRefSeed<'a> { pub dest_slab: &'a SlabHandle }
+pub struct SlabRefSeed<'a> { pub dest_slab: &'a LocalSlabHandle }
 impl<'a> DeserializeSeed for SlabRefSeed<'a> {
     type Value = SlabRef;
 

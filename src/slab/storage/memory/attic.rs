@@ -1,6 +1,5 @@
 
     // fn add_receiver (&self, mpsc::UnboundedReceiver<(SlabRequest,oneshot::Sender<SlabResponse>)>);
-    // fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef;
     // fn receive_memo_with_peerlist(&self, memo: self::memo::Memo, peerlist: self::common_structs::MemoPeerList, from_slabref: self::slabref::SlabRef ){
 
     //     let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.subject_id, peerlist.clone(), Some(memo.clone()) );
@@ -254,20 +253,6 @@ impl MemorySlabWorker {
             origin_slabref.send( &self.my_ref, &peering_memoref );
         }
 
-    }
-
-    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
-        //println!("# Slab({}).put_slabref({}, {:?})", self.id, slab_id, presence );
-
-        if slab_id == self.id {
-            // Don't even look it up if it's me. We must not allow any third party to edit the peering.
-            // Also, my ref won't appear in the list of peer_refs, because it's not a peer
-            return self.my_ref.clone();
-        }
-
-        let slabref = self.peer_refs.read().expect("peer_refs.read()").entry(slab_id).or_insert_with(|| SlabRef::new( slab_id, self.id ));
-        slabref.apply_presence(presence);
-        return slabref;
     }
 }
 

@@ -174,7 +174,7 @@ impl TransportUDP {
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = Packet{
                 to_slab_id: 0,
-                from_slab_id: from_slabref.0.slab_id,
+                from_slab_id: from_slabref.slab_id,
                 memo: memo.clone(),
                 peerlist: memoref.get_peerlist_for_peer(from_slabref, None)
             };
@@ -313,7 +313,7 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
         if let Some(memo) = memoref.get_memo_if_resident(){
             let packet = Packet {
                 to_slab_id: self.slab_id,
-                from_slab_id: from.0.slab_id,
+                from_slab_id: from.slab_id,
                 memo:      memo,
                 peerlist:  memoref.get_peerlist_for_peer(from, Some(self.slab_id)),
             };

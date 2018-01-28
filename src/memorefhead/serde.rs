@@ -30,7 +30,7 @@ impl StatefulSerialize for MemoRefHead {
 }
 
 
-pub struct MemoRefHeadSeed<'a> { pub dest_slab: &'a SlabHandle, pub origin_slabref: &'a SlabRef }
+pub struct MemoRefHeadSeed<'a> { pub dest_slab: &'a LocalSlabHandle, pub origin_slab: &'a SlabId }
 
 #[derive(Deserialize)]
 enum MRHVariant{
@@ -99,7 +99,7 @@ impl<'a> Visitor for MRHNullSeed {
     }
 }
 
-struct MRHAnonymousSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
+struct MRHAnonymousSeed<'a> { dest_slab: &'a LocalSlabHandle, origin_slabref: &'a SlabRef  }
 
 impl<'a> DeserializeSeed for MRHAnonymousSeed<'a> {
     type Value = MemoRefHead;
@@ -137,7 +137,7 @@ impl<'a> Visitor for MRHAnonymousSeed<'a> {
 }
 
 
-struct MRHSubjectSeed<'a> { dest_slab: &'a SlabHandle, origin_slabref: &'a SlabRef  }
+struct MRHSubjectSeed<'a> { dest_slab: &'a LocalSlabHandle, origin_slabref: &'a SlabRef  }
 impl<'a> DeserializeSeed for MRHSubjectSeed<'a> {
     type Value = MemoRefHead;
 

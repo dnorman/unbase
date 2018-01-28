@@ -1,13 +1,9 @@
 mod worker;
 
 use std::thread;
-use futures;
-use futures::prelude::*;
-
-use nihdb;
 
 use context::*;
-use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
+use network::{Network};
 use slab::Slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
@@ -16,13 +12,13 @@ pub struct NIHDB{
     pub id: SlabId,
     worker_thread: thread::JoinHandle<()>,
     counters: SlabCounter,
-    my_handle: SlabHandle,
+    my_handle: LocalSlabHandle,
     my_ref: SlabRef,
     net: Network
 }
 
 impl Slab for NIHDB {
-    fn get_handle (&self) -> SlabHandle {
+    fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
     fn get_ref (&self) -> SlabRef {
@@ -33,5 +29,11 @@ impl Slab for NIHDB {
     }
     fn create_context (&self) -> Context {
         Context::new(self)
+    }
+}
+
+impl NIHDB {
+    pub fn new () -> Self {
+        unimplemented!();
     }
 }

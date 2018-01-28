@@ -24,7 +24,7 @@ pub struct MemoryWorker {
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Memo>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
-    peer_refs: Vec<SlabRef>,
+    peer_refs: HashMap<SlabId,SlabRef>,
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
@@ -45,7 +45,7 @@ impl MemoryWorker {
             memo_wait_channels:    HashMap::new(),
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
-            peer_refs:             Vec::new(),
+            peer_refs:             HashMap::new(),
         };
 
         let (tx,rx) = mpsc::unbounded();
@@ -65,5 +65,18 @@ impl MemoryWorker {
     }
     fn dispatch_request(&self,request: SlabRequest, responder: oneshot::Sender<SlabResponse>) {
         unimplemented!()
+    }
+    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef {
+        //println!("# Slab({}).put_slabref({}, {:?})", self.id, slab_id, presence );
+
+        if slab_id == self.slab_id {
+            // Don't even look it up if it's me. We must not allow any third party to edit the peering.
+            // Also, my ref won't appear in the list of peer_refs, because it's not a peer
+            return self.my_ref.clone();
+        }
+
+        let slabref = self.peer_refs.entry(slab_id).or_insert_with(|| SlabRef::new( slab_id, self.slab_id ));
+        slabref.apply_presence(presence);
+        return slabref.clone();
     }
 }

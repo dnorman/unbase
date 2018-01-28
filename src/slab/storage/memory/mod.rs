@@ -31,13 +31,13 @@ pub struct Memory{
     pub slab_id: SlabId,
     worker_thread: thread::JoinHandle<()>,
     counters: Arc<SlabCounter>,
-    my_handle: SlabHandle,
+    my_handle: LocalSlabHandle,
     my_ref: SlabRef,
     net: Network
 }
 
 impl Slab for Memory {
-    fn get_handle (&self) -> SlabHandle {
+    fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
     fn get_ref (&self) -> SlabRef {
@@ -70,7 +70,7 @@ impl Memory {
             counters.clone()
         );
 
-        let my_handle = SlabHandle::new( slab_id, my_ref, req_stream );
+        let my_handle = LocalSlabHandle::new( slab_id, my_ref, req_stream );
 
         let me = Memory{
             slab_id,
@@ -82,7 +82,7 @@ impl Memory {
         };
 
         net.register_local_slab(me.get_handle());
-        net.conditionally_generate_root_index_seed(&me);
+        net.conditionally_generate_root_index_seed(&me.get_handle());
 
         me
     }
@@ -90,14 +90,13 @@ impl Memory {
 
 impl  Drop for Memory {
     fn drop(&mut self) {
-        self.dropping = true;
 
         //println!("# SlabInner({}).drop", self.id);
-        self.memoref_dispatch_tx_channel.take();
-        if let Some(t) = self.memoref_dispatch_thread.write().unwrap().take() {
-            t.join().expect("join memoref_dispatch_thread");
-        }
-        self.net.deregister_local_slab(self.id);
+        // self.memoref_dispatch_tx_channel.take();
+        // if let Some(t) = self.memoref_dispatch_thread.write().unwrap().take() {
+        //     t.join().expect("join memoref_dispatch_thread");
+        // }
+        self.net.deregister_local_slab(self.slab_id);
         // TODO: Drop all observers? Or perhaps observers should drop the slab (weak ref directionality)
     }
 }
@@ -105,7 +104,7 @@ impl  Drop for Memory {
 impl fmt::Debug for Memory {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Slab")
-            .field("slab_id", &self.id)
+            .field("slab_id", &self.slab_id)
             .finish()
     }
 }

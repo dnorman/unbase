@@ -18,7 +18,7 @@ trait Slab - A storage place for Memos and MemoRefs
       NIHDBSlab      * Planned 
       WebStorageSlab * Planned
   
-SlabHandle - client for communicating with a local slab
+LocalSlabHandle - client for communicating with a local slab
 
 SlabRef - Reference to a Slab, regardless of whether it is local or remote
   * SlabRef is presently serialized as a single SlabPresence. It should probably hold several SlabPresences for a given slab, as there may be multiple ways to reach it.

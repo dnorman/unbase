@@ -10,48 +10,22 @@ use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
 
-// handle speaks with the slab inner
-// slab inner is held in memory by the slab itself?
+impl LocalSlabHandle {
+    pub fn new (slab_id: SlabId, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>) -> LocalSlabHandle {
 
-#[derive(Clone)]
-pub struct SlabHandle(Arc<SlabHandleInner>);
-
-impl Deref for SlabHandle {
-    type Target = SlabHandleInner;
-    fn deref(&self) -> &SlabHandleInner {
-        &*self.0
-    }
-}
-
-struct SlabHandleInner {
-    pub id: SlabId,
-    pub tx: mpsc::UnboundedSender<(SlabRequest,oneshot::Sender<SlabResponse>)>,
-    pub my_ref: SlabRef,
-}
-
-impl SlabHandle {
-    pub fn new (slab_id: SlabId, my_ref: SlabRef, tx: mpsc::UnboundedSender<(SlabRequest,oneshot::Sender<SlabResponse>)>) -> SlabHandle {
-
-        let handle = SlabHandle(Arc::new(SlabHandleInner{
+        let handle = LocalSlabHandle{
             id: slab_id,
-            my_ref,
             tx,
-        }));
+        };
 
         handle
     }
-}
 
-// QUESTION - how can SlabHandle be made to forego the channel communication with the slab in cases where the whole app actually wants to run in one eventloop?
-//            Intuitively this seems like it could be done in a relatively straghtforward manner once the channel/futures conversion is done,
-//            but I've not yet thought much about it directly - It's a bit outside of my present comprehension.
-
-impl SlabHandleInner {
-    fn call (&self, request: SlabRequest ) -> Box<Future<Item=SlabResponse, Error=Error>> {
-        let (p, c) = oneshot::channel::<SlabResponse>();
+    fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
+        let (p, c) = oneshot::channel::<LocalSlabResponse>();
         unimplemented!()
     }
-    pub fn register_local_slabref(&self, peer_slab: &SlabHandle) {
+    pub fn register_local_slabref(&self, peer_slab: &LocalSlabHandle) {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
@@ -60,25 +34,27 @@ impl SlabHandleInner {
             lifetime: SlabAnticipatedLifetime::Unknown
         };
 
-        self.put_slabref(peer_slab.id, &vec![presence]);
+        self.put_slab_presence(&vec![presence]);
     }
     pub fn is_live (&self) -> bool {
         unimplemented!()
     }
     pub fn receive_memo_with_peerlist(&self, memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef ) {
         unimplemented!();
-        // self.call(SlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
+        // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
-    pub fn put_slabref(&self, slab_id: SlabId, presence: &[SlabPresence] ) -> SlabRef { 
+    pub fn put_slab_presence(&self, slab_id: SlabId, presence: &[SlabPresence] ) { 
        unimplemented!();
 
-        // self.call(SlabRequest::AssertSlabRef{ slab_id, presence } ).wait()?
+        // self.call(LocalSlabRequest::PutSlabPresence{ slab_id, presence } ).wait()?
     }
-    
+    fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
+        unimplemented!()
+    }
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
                 unimplemented!();
 
-            // self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait()?
+            // self.call(LocalSlabRequest::RemotizeMemoIds{ memo_ids } ).wait()?
     }
     pub fn get_memoref (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
         unimplemented!();
@@ -86,7 +62,7 @@ impl SlabHandleInner {
     pub fn get_memo (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
         unimplemented!();
 
-        // if let SlabResponse::GetMemo(memo) = self.call(SlabRequest::GetMemo{ memo_id } ) {
+        // if let LocalSlabResponse::GetMemo(memo) = self.call(LocalSlabRequest::GetMemo{ memo_id } ) {
 
         // }
     }
@@ -506,7 +482,7 @@ impl SlabHandleInner {
     //         }
 
     //         #[allow(unreachable_patterns)]
-    //         match self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait() {
+    //         match self.call(LocalSlabRequest::RemotizeMemoIds{ memo_ids } ).wait() {
     //             Ok(_) => {
     //                 return Ok(())
     //             },
@@ -520,9 +496,9 @@ impl SlabHandleInner {
 }
 
 
-impl fmt::Debug for SlabHandle {
+impl fmt::Debug for LocalSlabHandle {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("SlabHandle")
+        fmt.debug_struct("LocalSlabHandle")
             .field("slab_id", &self.id)
             .finish()
     }
