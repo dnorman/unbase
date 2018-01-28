@@ -8,7 +8,7 @@ use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
-pub type LocalSlabSender = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>;
+pub type LocalSlabRequester = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>;
 
 #[derive(Clone,Debug)]
 pub struct MemoPeerList(pub Vec<MemoPeer>);
@@ -170,8 +170,9 @@ impl Deref for EdgeSet {
 pub enum LocalSlabRequest {
     ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slab: SlabId },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
-    PutSlabPresence { slab_id: SlabId, presence: SlabPresence },
+    PutSlabPresence { presence: SlabPresence },
     GetMemo { memo_id: MemoId },
+    SendMemo { slab_id: SlabId, memoref: MemoRef }
 }
 pub enum LocalSlabResponse {
     ReceiveMemoWithPeerList( Result<(),Error> ),
