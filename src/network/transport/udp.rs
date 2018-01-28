@@ -146,7 +146,7 @@ impl TransportUDP {
             }
         };
 
-        for slab in net.get_all_local_slabs() {
+        for slab in net.get_all_local_slab_handles() {
 
             let presence = SlabPresence {
                 slab_id: slab.id,
@@ -272,7 +272,7 @@ impl Transport for TransportUDP {
     fn get_return_address  ( &self, address: &TransportAddress ) -> TransportAddress {
         if let TransportAddress::UDP(_) = *address {
             let shared = self.shared.lock().unwrap();
-            Some(TransportAddress::UDP(shared.address.clone()))
+            TransportAddress::UDP(shared.address.clone())
         }else{
             TransportAddress::Blackhole
         }

@@ -6,7 +6,6 @@ use std::time;
 use std::io::BufRead;
 use super::*;
 use std::sync::{Arc,Mutex};
-use slab::*;
 use itertools::partition;
 use network::*;
 
@@ -34,21 +33,19 @@ struct SimEvent {
 impl SimEvent {
     pub fn deliver (self) {
         //println!("# SimEvent.deliver" );
-        if let Some(to_slab) = self.dest.upgrade() {
 
-            // let memo = &self.memoref.get_memo_if_resident().unwrap();
-            // println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
-            //     &self.from_slabref.slab_id,
-            //     &to_slab.id,
-            //     &self.memoref.id,
-            //     &self.memoref.subject_id,
-            //     &memo.body,
-            //     &memo.parents.memo_ids(),
-            //     &self.memoref.peerlist.read().unwrap().slab_ids()
-            // );
-            let owned_slabref = &self.from_slabref.clone_for_slab(&to_slab);
-            self.memoref.clone_for_slab( &owned_slabref, &to_slab, true );
-        }
+        // let memo = &self.memoref.get_memo_if_resident().unwrap();
+        // println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
+        //     &self.from_slabref.slab_id,
+        //     &to_slab.id,
+        //     &self.memoref.id,
+        //     &self.memoref.subject_id,
+        //     &memo.body,
+        //     &memo.parents.memo_ids(),
+        //     &self.memoref.peerlist.read().unwrap().slab_ids()
+        // );
+        let owned_slabref = &self.from_slabref.clone_for_slab(&self.dest);
+        self.memoref.clone_for_slab( &owned_slabref, &self.dest, true );
         // we all have to learn to deal with loss sometime
     }
 }
@@ -192,7 +189,7 @@ impl Transport for Simulator {
                 source_point: XYZPoint{ x: 1000, y: 1000, z: 1000 }, // TODO: move this - not appropriate here
                 dest_point: XYZPoint{ x: 1000, y: 1000, z: 1000 },
                 simulator: self.clone(),
-                dest: slab.weak()
+                dest: *slab.clone(),
             };
             Some(Transmitter::new(args.get_slab_id(), Box::new(tx)))
         }else{

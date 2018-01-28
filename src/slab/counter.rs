@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU32,AtomicU64,Ordering};
 
-struct SlabCounter{
+pub struct SlabCounter{
     next_memo_id: AtomicU32,
     next_subject_id: AtomicU32,
     memos_received: AtomicU64,

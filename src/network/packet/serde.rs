@@ -68,7 +68,7 @@ impl<'a> Visitor for PacketSeed<'a> {
                return Err(DeError::custom("Unable to pick_arbitrary_slab"));
            }
        }else{
-           if let Some(slab) = self.net.get_slab( to_slab_id ) {
+           if let Some(slab) = self.net.get_slab_handle( to_slab_id ) {
                dest_slab = slab;
            }else{
                return Err(DeError::custom("Destination slab not found"));
