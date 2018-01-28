@@ -20,24 +20,6 @@ use std::mem;
 use std::fmt;
 use std::sync::{Arc,Mutex,RwLock};
 
-/// A reference to a Slab which may be local or remote
-#[derive(Clone)]
-pub struct SlabRef(pub Arc<SlabRefInner>);
-
-impl Deref for SlabRef {
-    type Target = SlabRefInner;
-    fn deref(&self) -> &SlabRefInner {
-        &*self.0
-    }
-}
-struct SlabRefInner {
-    pub slab_id: SlabId,
-    pub owning_slab_id: SlabId, // for assertions only
-    presence: RwLock<Vec<SlabPresence>>,
-    tx: Mutex<Transmitter>,
-    return_address: RwLock<TransportAddress>,
-}
-
 impl SlabRef{
     pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
         let return_address = transmitter.get_return_address();
@@ -113,6 +95,8 @@ impl SlabRefInner {
                 *self.return_address.write().expect("return_address write lock") = return_address;
             }
         }
+
+        !found
     }
     pub fn get_presence_for_remote(&self, return_address: &TransportAddress) -> Vec<SlabPresence> {
 
@@ -138,7 +122,7 @@ impl SlabRefInner {
         // When comparing equality, we can skip the transmitter
         self.slab_id == other.slab_id && *self.presence.read().unwrap() == *other.presence.read().unwrap()
     }
-    pub fn clone_for_slab(&self, to_slab: &SlabHandle ) -> SlabRef {
+    pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle ) -> SlabRef {
         // For now, we don't seem to care what slabref we're being cloned from, just which one we point to
 
         //println!("Slab({}).SlabRef({}).clone_for_slab({})", self.owning_slab_id, self.slab_id, to_slab.id );

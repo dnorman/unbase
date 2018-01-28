@@ -1,4 +1,4 @@
-use slab::*;
+use slab::prelude::*;
 
 use core;
 use std::fmt;
@@ -231,7 +231,7 @@ impl Subject {
     //     head.apply( &context.get_resident_subject_head(self.id), &context.slab );
     //     head
     // }
-    pub fn get_all_memo_ids ( &self, slab: &Slab ) -> Vec<MemoId> {
+    pub fn get_all_memo_ids ( &self, slab: &LocalSlabHandle ) -> Vec<MemoId> {
         //println!("# Subject({}).get_all_memo_ids()",self.id);
         self.get_head().causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,Error>").id ).collect()
     }
@@ -243,7 +243,7 @@ impl Subject {
     //     //self.shared.lock().unwrap().head.fully_materialize(slab)
     // }
 
-    pub fn observe (&self, slab: &Slab) -> Box<Stream<Item=MemoRefHead, Error = ()>> {
+    pub fn observe (&self, slab: &LocalSlabHandle) -> Box<Stream<Item=MemoRefHead, Error = ()>> {
         let (tx, rx) = channel::<MemoRefHead>(1);
 
         // TODO - figure out how to subscribe only once, such that one may create multiple observers for a single subject

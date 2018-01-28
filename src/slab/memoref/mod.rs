@@ -145,13 +145,13 @@ impl MemoRef {
             Some(_) => (2 as u32).saturating_sub( self.peerlist.read().unwrap().len() as u32 )
         }
     }
-    pub fn get_memo (&self, slab: &SlabHandle) -> Box<Future<Item=Memo, Error=Error>> {
+    pub fn get_memo (&self, slab: &LocalSlabHandle) -> Box<Future<Item=Memo, Error=Error>> {
 //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
 
         match *self.ptr.read().unwrap(){
             MemoRefPtr::Resident(ref memo) => {
-                future::result(Ok(memo.clone()))
+                Box::new(future::result(Ok(memo.clone())))
             }
             MemoRefPtr::Local | MemoRefPtr::Remote  => {
                 slab.get_memo( self.id )
@@ -159,14 +159,13 @@ impl MemoRef {
         }
 
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &SlabHandle) -> Result<bool,Error> {
+    pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
         assert!(self.owning_slab_id == slab.id);
 
-        if self.get_memo( slab )?.descends(&memoref, slab)? {
-            Ok(true)
-        }else{
-            Ok(false)
-        }
+        unimplemented!();
+        // Box::new(self.get_memo( slab ).and_then(|memo| {
+        //     memo.descends(memoref,slab)
+        // }))
     }
     pub fn update_peer (&self, slabref: &SlabRef, status: MemoPeeringStatus) -> bool {
 
@@ -200,7 +199,7 @@ impl MemoRef {
 
         acted
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &SlabHandle, include_memo: bool ) -> Self{
+    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle, include_memo: bool ) -> Self{
         assert!(from_slabref.owning_slab_id == to_slab.id,"MemoRef clone_for_slab owning slab should be identical");
         assert!(from_slabref.slab_id != to_slab.id,       "MemoRef clone_for_slab dest slab should not be identical");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);

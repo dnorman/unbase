@@ -10,7 +10,7 @@
                             slabs -----------------------                     
                                                           \                    
                                                            \                   
-                                                            -> SlabHandle          
+                                                            -> LocalSlabHandle          
                                                                 | 
                                                                 |   <-- various channels. no direct references to the Slab
                                                                 v            

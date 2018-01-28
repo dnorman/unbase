@@ -39,19 +39,17 @@ impl Transport for LocalDirect {
 
             // Deserialize from network to slab (via slabhandle)
             // Deserialize from disk/binary to... where?
-            rcv_slab.add_receiver(rx_channel).wait();
+            //rcv_slab.add_receiver(rx_channel).wait();
 
             let tx_thread : thread::JoinHandle<()> = thread::spawn(move || {
                 //let mut buf = [0; 65536];
                 //println!("Started TX Thread");
                 while let Ok((from_slabref, memoref)) = rx_channel.recv() {
                     //println!("LocalDirect Slab({}) RECEIVED {:?} from {}", slab.id, memoref, from_slabref.slab_id);
-                    if let Some(slab) = slab.upgrade(){
-                        // clone_for_slab adds the memo to the slab, because memos cannot exist outside of an owning slab
+                    // clone_for_slab adds the memo to the slab, because memos cannot exist outside of an owning slab
 
-                        let owned_slabref = from_slabref.clone_for_slab(&slab);
-                        memoref.clone_for_slab(&owned_slabref, &slab, true);
-                    }
+                    let owned_slabref = from_slabref.clone_for_slab(&slab);
+                    memoref.clone_for_slab(&owned_slabref, &rcv_slab, true);
                 }
             });
 

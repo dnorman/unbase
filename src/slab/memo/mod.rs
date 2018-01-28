@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
 use core::ops::Deref;
+use futures::prelude::*;
+use futures::future;
 
 use subject::{SubjectId,SubjectType};
 use slab::prelude::*;
@@ -125,7 +127,7 @@ impl Memo {
             }
         }
     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &SlabHandle) -> Result<bool,Error> {
+    pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
         //TODO: parallelize this
         //TODO: Use sparse-vector/beacon to avoid having to trace out the whole lineage
         //      Should be able to stop traversal once happens-before=true. Cannot descend a thing that happens after
@@ -133,19 +135,21 @@ impl Memo {
         // breadth-first
         for parent in self.parents.iter() {
             if parent == memoref {
-                return Ok(true)
+                return Box::new(future::result(Ok(true)))
             };
         }
 
-        // Ok now depth
+        // Ok now depth - TODO: join parent futures
         for parent in self.parents.iter() {
-            if parent.descends(&memoref,slab)? {
-                return Ok(true)
-            }
+            match parent.descends(&memoref,slab).wait() {
+                Ok(true)  => return Box::new(future::result(Ok(true))),
+                Ok(false) => continue,
+                Err(e)    => Box::new(future::result(Err(e)))
+            };
         }
-        return Ok(false);
+        return Box::new(future::result(Ok(false)));
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &SlabHandle, peerlist: &MemoPeerList) -> Memo {
+    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle, peerlist: &MemoPeerList) -> Memo {
         assert!(from_slabref.owning_slab_id == to_slab.id, "Memo clone_for_slab owning slab should be identical");
 
         let memo = Memo::new(MemoInner {
@@ -156,14 +160,14 @@ impl Memo {
             body:           self.body.clone_for_slab(from_slabref, to_slab)
         });
 
-        to_slab.receive_memo_with_peerlist( memo.clone(), peerlist, from_slabref );
+        to_slab.receive_memo_with_peerlist( memo.clone(), peerlist.clone(), from_slabref.clone() );
         
         memo
     }
 }
 
 impl MemoBody {
-    fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &SlabHandle ) -> MemoBody {
+    fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle ) -> MemoBody {
         assert!(from_slabref.owning_slab_id == to_slab.id, "MemoBody clone_for_slab owning slab should be identical");
 
         match self {

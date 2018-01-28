@@ -26,7 +26,7 @@ impl MemoRefHead {
 
     /// Project all edge links based only on the causal history of this head.
     /// The name is pretty gnarly, and this is very ripe for refactoring, but at least it says what it does.
-    pub fn project_all_edge_links_including_empties (&self, slab: &SlabHandle) -> Vec<EdgeLink> {
+    pub fn project_all_edge_links_including_empties (&self, slab: &LocalSlabHandle) -> Vec<EdgeLink> {
 
         //let mut edge_links : [Option<EdgeLink>; SUBJECT_MAX_RELATIONS];// = [None; SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<Option<EdgeLink>> = Vec::with_capacity(SUBJECT_MAX_RELATIONS);
@@ -83,7 +83,7 @@ impl MemoRefHead {
         }).collect()
     }
     /// Contextualized projection of occupied edges
-    pub fn project_occupied_edges (&self, slab: &SlabHandle) -> Result<Vec<EdgeLink>,Error> {
+    pub fn project_occupied_edges (&self, slab: &LocalSlabHandle) -> Result<Vec<EdgeLink>,Error> {
         let mut visited = [false;SUBJECT_MAX_RELATIONS];
         let mut edge_links : Vec<EdgeLink> = Vec::new();
         
@@ -127,7 +127,7 @@ impl MemoRefHead {
     // pub fn project_edge_links(&self, reference_head: Option<MemoRefHead>, head: MemoRefHead ) -> Vec<EdgeLink>{
     //     unimplemented!()
     // }
-    pub fn project_value ( &self, slab: &SlabHandle, key: &str ) -> Result<Option<String>,Error> {
+    pub fn project_value ( &self, slab: &LocalSlabHandle, key: &str ) -> Result<Option<String>,Error> {
 
         //TODO: consider creating a consolidated projection routine for most/all uses
         for memo in self.causal_memo_iter(&slab) {
@@ -143,7 +143,7 @@ impl MemoRefHead {
 
         Err(Error::RetrieveError(RetrieveError::MemoLineageError))
     }
-    pub fn project_relation ( &self, slab: &SlabHandle, key: RelationSlotId ) -> Result<Option<SubjectId>, Error> {
+    pub fn project_relation ( &self, slab: &LocalSlabHandle, key: RelationSlotId ) -> Result<Option<SubjectId>, Error> {
 
         for memo in self.causal_memo_iter( &slab ) {
 
@@ -164,7 +164,7 @@ impl MemoRefHead {
         //println!("\n# \t\\ Not Found" );
         Err(Error::RetrieveError(RetrieveError::MemoLineageError))
     }    
-    pub fn project_edge ( &self, slab: &SlabHandle, key: RelationSlotId ) -> Result<Option<Self>, Error> {
+    pub fn project_edge ( &self, slab: &LocalSlabHandle, key: RelationSlotId ) -> Result<Option<Self>, Error> {
         for memo in self.causal_memo_iter( &slab ) {
 
             if let Some((edges,materialized)) = memo?.get_edges(){
