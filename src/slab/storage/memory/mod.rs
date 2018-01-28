@@ -7,7 +7,7 @@ use futures::prelude::*;
 // use memorefhead::*;
 use context::*;
 use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
-use slabref::SlabRef;xc
+use slabref::SlabRef;
 // use error::*;
 
 // use std::ops::Deref;

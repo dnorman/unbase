@@ -7,7 +7,7 @@ use error::RetrieveError;
 use std::sync::{Arc,RwLock};
 use std::fmt;
 use core::ops::Deref;
-
+use futures::future;
 
 #[derive(Clone)]
 pub struct MemoRef(pub Arc<MemoRefInner>);
@@ -143,57 +143,18 @@ impl MemoRef {
             Some(_) => (2 as u32).saturating_sub( self.peerlist.read().unwrap().len() as u32 )
         }
     }
-    pub fn get_memo (&self, slab: &Slab) -> Result<Memo,Error> {
+    pub fn get_memo (&self, slab: &Slab) -> Box<Future<Item=Memo, Error=Error>> {
 //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
 
-        // This seems pretty crude, but using channels for now in the interest of expediency
-        let channel;
-        {
-            if let MemoRefPtr::Resident(ref memo) = *self.ptr.read().unwrap() {
-                return Ok(memo.clone());
+        match *self.ptr.read().unwrap(){
+            MemoRefPtr::Resident(ref memo) => {
+                future::result(Ok(memo.clone()))
             }
-
-            if slab.request_memo(self) > 0 {
-                channel = slab.memo_wait_channel(self.id);
-            }else{
-                return Err(Error::RetrieveError(RetrieveError::NotFound))
+            MemoRefPtr::Local | MemoRefPtr::Remote  => {
+                slab.get_memo( self.id )
             }
         }
-
-        // By sending the memo itself through the channel
-        // we guarantee that there's no funny business with request / remotize timing
-
-
-        use std::time;
-        let timeout = time::Duration::from_millis(100000);
-
-        for _ in 0..3 {
-            match channel.recv_timeout(timeout) {
-                Ok(memo)       =>{
-                    //println!("Slab({}).MemoRef({}).get_memo() received memo: {}", self.owning_slab_id, self.id, memo.id );
-                    return Ok(memo)
-                }
-                Err(rcv_error) => {
-
-                    use std::sync::mpsc::RecvTimeoutError::*;
-                    match rcv_error {
-                        Timeout => {}
-                        Disconnected => {
-                            return Err(Error::RetrieveError(RetrieveError::SlabError))
-                        }
-                    }
-                }
-            }
-
-            // have another go around
-            if slab.request_memo( &self ) == 0 {
-                return Err(Error::RetrieveError(RetrieveError::NotFound))
-            }
-
-        }
-
-        Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))
 
     }
     pub fn descends (&self, memoref: &MemoRef, slab: &Slab) -> Result<bool,Error> {

@@ -73,6 +73,56 @@ impl SlabHandleInner {
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
             self.call(SlabRequest::RemotizeMemoIds{ memo_ids } ).wait()?
     }
+    
+    pub fn get_memoref {
+        
+    }
+    pub fn get_memo (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
+        if let SlabResponse::GetMemo(memo) = self.call(SlabRequest::GetMemo{ memo_id } ) {
+
+        }
+
+        //             if slab.request_memo(self) > 0 {
+        //         channel = slab.memo_wait_channel(self.id);
+        //     }else{
+        //         return Err(Error::RetrieveError(RetrieveError::NotFound))
+        //     }
+
+        // // By sending the memo itself through the channel
+        // // we guarantee that there's no funny business with request / remotize timing
+
+
+        // use std::time;
+        // let timeout = time::Duration::from_millis(100000);
+
+        // for _ in 0..3 {
+        //     match channel.recv_timeout(timeout) {
+        //         Ok(memo)       =>{
+        //             //println!("Slab({}).MemoRef({}).get_memo() received memo: {}", self.owning_slab_id, self.id, memo.id );
+        //             return Ok(memo)
+        //         }
+        //         Err(rcv_error) => {
+
+        //             use std::sync::mpsc::RecvTimeoutError::*;
+        //             match rcv_error {
+        //                 Timeout => {}
+        //                 Disconnected => {
+        //                     return Err(Error::RetrieveError(RetrieveError::SlabError))
+        //                 }
+        //             }
+        //         }
+        //     }
+
+        //     // have another go around
+        //     if slab.request_memo( &self ) == 0 {
+        //         return Err(Error::RetrieveError(RetrieveError::NotFound))
+        //     }
+
+        // }
+
+        // Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))
+    }
+
     // pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
     //     use std::time::{Instant,Duration};
     //     let start = Instant::now();

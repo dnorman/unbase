@@ -142,18 +142,6 @@
 
     //     (memoref, had_memoref)
     // }
-    // fn get_memo (&self, memo_id: &MemoId) -> Result<Option<Memo>, Error> {
-    //     match self.memos_by_id.get(&memo_id){
-    //         Some(m)  => Ok(Some(m.clone())),
-    //         None     => Ok(None)
-    //     }
-    // }
-    // fn get_memoref (&self, memo_id: &MemoId) -> Result<Option<MemoRef>, Error> {
-    //     match self.by_id.get(&memo_id){
-    //         Some(mr) => Ok(Some(mr.clone())),
-    //         None     => Ok(None)
-    //     }
-    // }
     // fn fetch_memoref_stream (&self, memo_ids: Box<Stream<Item = &MemoId, Error = ()>>) -> Box<Stream<Item = Option<&MemoRef>, Error = Error>> {
     //     unimplemented!()
     //     //memo_ids.map(|memo_id| self.memorefs_by_id.get(memo_id) )
