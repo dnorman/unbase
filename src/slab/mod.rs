@@ -79,7 +79,7 @@ impl PartialEq for SlabPresence {
 }
 
 impl SlabPresence {
-    pub fn get_transmitter (&self, net: &Network ) -> Option<Transmitter> {
+    pub fn get_transmitter (&self, net: &Network) -> Option<Transmitter> {
 
         use network::TransmitterArgs;
         let args = if self.address.is_local() {

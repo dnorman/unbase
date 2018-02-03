@@ -3,6 +3,7 @@
 pub enum Error{
     RetrieveError(RetrieveError),
     WriteError(WriteError),
+    TransmitError(TransmitError),
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
 }
@@ -19,7 +20,14 @@ pub enum RetrieveError {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct WriteError{}
+pub enum TransmitError{
+    SlabPresenceNotFound
+}
+
+#[derive(PartialEq, Debug)]
+pub enum WriteError{
+
+}
 
 #[derive(PartialEq, Debug)]
 pub enum ObserveError{

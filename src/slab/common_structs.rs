@@ -8,7 +8,7 @@ use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
-pub type LocalSlabRequester = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>;
+pub type LocalSlabRequester = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>;
 
 #[derive(Clone,Debug)]
 pub struct MemoPeerList(pub Vec<MemoPeer>);
@@ -172,13 +172,14 @@ pub enum LocalSlabRequest {
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
     PutSlabPresence { presence: SlabPresence },
     GetMemo { memo_id: MemoId },
-    SendMemo { slab_id: SlabId, memoref: MemoRef }
+    SendMemo { slab_id: SlabId, memoref: MemoRef },
 }
 pub enum LocalSlabResponse {
-    ReceiveMemoWithPeerList( Result<(),Error> ),
-    RemotizeMemoIds( Result<(),Error> ),
-    PutSlabPresence( Result<(),Error> ),
-    GetMemo( Result<Memo,Error> )
+    ReceiveMemoWithPeerList( () ),
+    RemotizeMemoIds( () ),
+    PutSlabPresence( () ),
+    GetMemo( Option<Memo> ),
+    SendMemo ( () ),
 }
 
 pub enum SlabSend {
