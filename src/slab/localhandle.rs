@@ -34,7 +34,7 @@ impl LocalSlabHandle {
             lifetime: SlabAnticipatedLifetime::Unknown
         };
 
-        self.put_slab_presence(&vec![presence]);
+        self.put_slab_presence(presence);
     }
     pub fn is_live (&self) -> bool {
         unimplemented!()
@@ -43,10 +43,8 @@ impl LocalSlabHandle {
         unimplemented!();
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
-    pub fn put_slab_presence(&self, slab_id: SlabId, presence: &[SlabPresence] ) { 
-       unimplemented!();
-
-        // self.call(LocalSlabRequest::PutSlabPresence{ slab_id, presence } ).wait()?
+    pub fn put_slab_presence(&self, presence: SlabPresence ) { 
+        self.call(LocalSlabRequest::PutSlabPresence{ presence } ).wait();
     }
     fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
         unimplemented!()
