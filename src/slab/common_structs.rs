@@ -1,4 +1,3 @@
-use std::fmt;
 use core::ops::Deref;
 use std::collections::HashMap;
 use futures::sync::{mpsc,oneshot};
@@ -9,73 +8,6 @@ use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
 pub type LocalSlabRequester = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>;
-
-#[derive(Clone,Debug)]
-pub struct MemoPeerList(pub Vec<MemoPeer>);
-
-impl MemoPeerList {
-    pub fn new(list: Vec<MemoPeer>) -> Self {
-        MemoPeerList(list)
-    }
-    pub fn clone(&self) -> Self {
-        MemoPeerList(self.0.clone())
-    }
-    pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle) -> Self {
-        MemoPeerList(self.0
-            .iter()
-            .map(|p| {
-                MemoPeer {
-                    slabref: p.slab_id, //.clone_for_slab(to_slab),
-                    status: p.status.clone(),
-                }
-            })
-            .collect())
-    }
-    pub fn slabrefs(&self) -> Vec<SlabRef> {
-        self.0.iter().map(|p| p.slabref).collect()
-    }
-    // pub fn apply_peer(&mut self, peer: MemoPeer) -> bool {
-    //     // assert!(self.owning_slab_id == peer.slabref.owning_slab_id, "apply_peer for dissimilar owning_slab_id peer" );
-
-    //     let peerlist = &mut self.0;
-    //     {
-    //         if let Some(my_peer) = peerlist.iter_mut()
-    //             .find(|p| p.slab_id == peer.slab_id) {
-    //             if peer.status != my_peer.status {
-    //                 // same slabref, so no need to apply the peer presence
-    //                 my_peer.status = peer.status;
-    //                 return true;
-    //             } else {
-    //                 return false;
-    //             }
-    //         }
-    //     }
-
-    //     peerlist.push(peer);
-    //     true
-    // }
-}
-
-impl Deref for MemoPeerList {
-    type Target = Vec<MemoPeer>;
-    fn deref(&self) -> &Vec<MemoPeer> {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MemoPeer {
-    pub slabref: SlabRef,
-    pub status: MemoPeeringStatus,
-}
-
-#[derive(Debug,Clone,PartialEq,Serialize,Deserialize)]
-pub enum MemoPeeringStatus {
-    Resident,
-    Participating,
-    NonParticipating,
-    Unknown,
-}
 
 pub type RelationSlotId = u8;
 
@@ -168,7 +100,7 @@ impl Deref for EdgeSet {
 
 
 pub enum LocalSlabRequest {
-    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef },
+    ReceiveMemoWithPeerList{ memo: Memo, peerlist: Vec<MemoPeerState>, from_slabref: SlabRef },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
     PutSlabPresence { presence: SlabPresence },
     GetMemo { memo_id: MemoId },
@@ -194,5 +126,5 @@ pub struct DeserializedMemo {
     parents:        MemoRefHead,
     body:           MemoBody,
     origin_slabref: SlabRef,
-    peerlist:       MemoPeerList
+    peerlist:       Vec<MemoPeerState>
 }

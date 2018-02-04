@@ -11,6 +11,7 @@ use futures::prelude::*;
 use futures::future;
 
 use subject::{SubjectId,SubjectType};
+use slab;
 use slab::prelude::*;
 use memorefhead::MemoRefHead;
 use error::*;
@@ -24,7 +25,7 @@ pub type MemoId = u64;
 pub struct Memo {
     pub id: u64,
     pub subject_id: Option<SubjectId>,
-    pub owning_slab_id: SlabId,
+    pub owning_slab_id: slab::SlabId,
     pub parents: MemoRefHead,
     pub body: MemoBody
 }
@@ -37,7 +38,7 @@ pub enum MemoBody{
     Edit(HashMap<String, String>),
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
-    Peering(MemoId,Option<SubjectId>,MemoPeerList),
+    Peering(MemoId,Option<SubjectId>,Vec<MemoPeerState>),
     MemoRequest(Vec<MemoId>,SlabPresence)
 }
 

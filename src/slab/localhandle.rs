@@ -49,14 +49,14 @@ impl LocalSlabHandle {
     pub fn is_live (&self) -> bool {
         unimplemented!()
     }
-    pub fn receive_memo_with_peerlist(&self, memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef ) {
+    pub fn receive_memo_with_peerlist(&self, memo: Memo, peerlist: Vec<MemoPeerState>, from_slabref: SlabRef ) {
         unimplemented!();
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) { 
         self.call(LocalSlabRequest::PutSlabPresence{ presence } ).wait();
     }
-    fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
+    fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: Vec<MemoPeerState>, maybe_memo: Option<Memo>) -> (MemoRef, bool){
         unimplemented!()
     }
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
@@ -148,7 +148,7 @@ impl LocalSlabHandle {
                     memoref.subject_id,
                     MemoPeerList::new(vec![ MemoPeer{
                         slabref: self.my_ref.clone(),
-                        status: MemoPeeringStatus::Resident
+                        status: MemoPeerStatus::Resident
                     }])
                 )
             );
@@ -183,7 +183,7 @@ impl LocalSlabHandle {
                 memoref.subject_id,
                 MemoPeerList::new(vec![MemoPeer{
                     slabref: self.my_ref.clone(),
-                    status: MemoPeeringStatus::Participating
+                    status: MemoPeerStatus::Participating
                 }])
             )
         );
@@ -270,7 +270,7 @@ impl LocalSlabHandle {
                     &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
                         // HACK - this should be done inside the deserialize
                         for memoref in root_index_seed.iter() {
-                            memoref.update_peer(origin_slabref, MemoPeeringStatus::Resident);
+                            memoref.update_peer(origin_slabref, MemoPeerStatus::Resident);
                         }
 
                         self.net.apply_root_index_seed( &presence, root_index_seed, &self.my_ref );
@@ -341,7 +341,7 @@ impl LocalSlabHandle {
                                     None,
                                     MemoPeerList::new(vec![MemoPeer{
                                         slabref: self.my_ref.clone(),
-                                        status: MemoPeeringStatus::NonParticipating
+                                        status: MemoPeerStatus::NonParticipating
                                     }])
                                 )
                             );

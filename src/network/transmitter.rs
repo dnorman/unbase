@@ -1,6 +1,7 @@
 
 use std::sync::{mpsc,Mutex};
 
+use slab::SlabId;
 use slab::prelude::*;
 use network::transport::TransportAddress;
 

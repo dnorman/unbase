@@ -46,7 +46,7 @@ fn check_roundtrip(record: &Subject, net: &Network, slab: &Slab){
     let packet = Packet{
         to_slab_id: 1,
         from_slab_id: 0,
-        from_slab_peering_status: MemoPeeringStatus::Resident,
+        from_slab_peering_status: MemoPeerStatus::Resident,
         memo: memo.clone()
     };
 

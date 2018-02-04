@@ -65,7 +65,7 @@ impl StatefulSerialize for MemoRef {
     }
 }*/
 
-impl StatefulSerialize for MemoPeer {
+impl StatefulSerialize for MemoPeerState {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
@@ -117,19 +117,19 @@ impl<'a> Visitor for MemoRefSeed<'a> {
            }
         };
 
-        let mut peers: Vec<MemoPeer> = match visitor.visit_seed( VecSeed( MemoPeerSeed{ dest_slab: self.dest_slab } ) )? {
+        let mut peers: Vec<MemoPeerState> = match visitor.visit_seed( VecSeed( MemoPeerSeed{ dest_slab: self.dest_slab } ) )? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
            }
         };
 
-        peers.push(MemoPeer{
+        peers.push(MemoPeerState{
             slabref: self.origin_slabref.clone(),
             status: if has_memo {
-                MemoPeeringStatus::Resident
+                MemoPeerStatus::Resident
             } else {
-                MemoPeeringStatus::Participating
+                MemoPeerStatus::Participating
             }
         });
 
@@ -141,7 +141,7 @@ impl<'a> Visitor for MemoRefSeed<'a> {
 pub struct MemoPeerSeed<'a> { pub dest_slab: &'a LocalSlabHandle }
 
 impl<'a> DeserializeSeed for MemoPeerSeed<'a> {
-    type Value = MemoPeer;
+    type Value = MemoPeerState;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where D: Deserializer
     {
@@ -150,7 +150,7 @@ impl<'a> DeserializeSeed for MemoPeerSeed<'a> {
 }
 
 impl<'a> Visitor for MemoPeerSeed<'a> {
-    type Value = MemoPeer;
+    type Value = MemoPeerState;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("struct MemoPeer")
@@ -164,14 +164,14 @@ impl<'a> Visitor for MemoPeerSeed<'a> {
                 return Err(DeError::invalid_length(0, &self));
             }
         };
-        let status: MemoPeeringStatus = match visitor.visit()? {
+        let status: MemoPeerStatus = match visitor.visit()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));
            }
         };
 
-       Ok(MemoPeer{
+       Ok(MemoPeerState{
            slabref: slabref,
            status: status
        })
