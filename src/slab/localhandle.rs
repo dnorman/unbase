@@ -6,15 +6,18 @@ use std::fmt;
 
 use network;
 use slab::prelude::*;
+use slab::counter::SlabCounter;
 use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
+use network::TransportAddress;
 
 impl LocalSlabHandle {
-    pub fn new (slab_id: SlabId, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<LocalSlabResponse>)>) -> LocalSlabHandle {
+    pub fn new (slab_id: SlabId, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
 
         let handle = LocalSlabHandle{
             id: slab_id,
+            counter,
             tx,
         };
 
@@ -94,13 +97,11 @@ impl LocalSlabHandle {
     //     // }
     // }
     pub fn generate_subject_id(&self, stype: SubjectType) -> SubjectId {
-        let mut counters = self.counter.write().unwrap();
-        counters.last_subject_id += 1;
-        let id = (self.id as u64).rotate_left(32) | counters.last_subject_id as u64;
+        let id = (self.id as u64).rotate_left(32) | self.counter.next_subject_id() as u64;
         SubjectId{ id, stype }
     }
     pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
-        let memo_id = (self.id as u64).rotate_left(32) | self.counters.last_memo_id() as u64;
+        let memo_id = (self.id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
         //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.id, memo_id, subject_id, parents.memo_ids(), body );
 
@@ -145,7 +146,9 @@ impl LocalSlabHandle {
                 )
             );
 
+            let requests = Vec::new();
             for peer in memoref.peerlist.read().unwrap().iter() {
+                requests.push( self.call(LocalSlabRequest::SendMemo{ slab_id: peer.slab_id, memoref: peering_memoref.clone() } ) );
                 peer.slabref.send( &self.my_ref, &peering_memoref );
             }
 
@@ -386,13 +389,13 @@ impl LocalSlabHandle {
         //self.memorefs_by_id.read().unwrap().len() as u32
     }
     pub fn count_of_memos_received( &self ) -> u64 {
-        self.counters.read().unwrap().memos_received as u64
+        self.counter.get_memos_received() as u64
     }
     pub fn count_of_memos_reduntantly_received( &self ) -> u64 {
-        self.counters.read().unwrap().memos_redundantly_received as u64
+        self.counter.get_memos_redundantly_received() as u64
     }
     pub fn peer_slab_count (&self) -> usize {
-        self.peer_refs.read().unwrap().len() as usize
+        self.counter.get_peer_slabs() as usize
     }
     pub fn new_memo_basic (&self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
         self.new_memo(subject_id, parents, body)
@@ -409,19 +412,17 @@ impl LocalSlabHandle {
             lifetime: SlabAnticipatedLifetime::Unknown
         }
     }
-    pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef,&str> {
+    pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
             match presence.address {
-                TransportAddress::Simulator  => {
-                    return Err("Invalid - Cannot create simulator slabref from presence")
-                }
-                TransportAddress::Local      => {
-                    return Err("Invalid - Cannot create local slabref from presence")
+                TransportAddress::Simulator | TransportAddress::Local  => {
+                    return Err(Error::StorageOpDeclined(StorageOpDeclined::InvalidAddress))
                 }
                 _ => { }
             };
 
 
         //let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
+        presence.get_transmitter(&self.net)
 
         Ok(self.put_slabref( presence.slab_id, &vec![presence.clone()] ))
     }

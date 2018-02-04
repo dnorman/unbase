@@ -21,7 +21,8 @@ pub enum RetrieveError {
 
 #[derive(PartialEq, Debug)]
 pub enum TransmitError{
-    SlabPresenceNotFound
+    SlabPresenceNotFound,
+    InvalidTransmitter
 }
 
 #[derive(PartialEq, Debug)]
@@ -36,5 +37,6 @@ pub enum ObserveError{
 
 #[derive(PartialEq, Debug)]
 pub enum StorageOpDeclined{
-    InsufficientPeering
+    InsufficientPeering,
+    InvalidAddress,
 }

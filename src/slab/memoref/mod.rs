@@ -65,22 +65,22 @@ impl MemoRef {
         // TODO - implement proper durability estimation logic
         return peerlist.len() > 0
     }
-    pub fn apply_peers ( &self, apply_peerlist: &MemoPeerList ) -> bool {
+    // pub fn apply_peers ( &self, apply_peerlist: &MemoPeerList ) -> bool {
 
-        let mut peerlist = self.peerlist.write().unwrap();
-        let mut acted = false;
-        for apply_peer in apply_peerlist.0.clone() {
-            if apply_peer.slabref.slab_id == self.owning_slab_id {
-                println!("WARNING - not allowed to apply self-peer");
-                //panic!("memoref.apply_peers is not allowed to apply for self-peers");
-                continue;
-            }
-            if peerlist.apply_peer(apply_peer) {
-                acted = true;
-            }
-        }
-        acted
-    }
+    //     let mut peerlist = self.peerlist.write().unwrap();
+    //     let mut acted = false;
+    //     for apply_peer in apply_peerlist.0.clone() {
+    //         if apply_peer.slabref.slab_id == self.owning_slab_id {
+    //             println!("WARNING - not allowed to apply self-peer");
+    //             //panic!("memoref.apply_peers is not allowed to apply for self-peers");
+    //             continue;
+    //         }
+    //         if peerlist.apply_peer(apply_peer) {
+    //             acted = true;
+    //         }
+    //     }
+    //     acted
+    // }
     pub fn get_peerlist_for_peer (&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<SlabId>) -> MemoPeerList {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
         let mut list : Vec<MemoPeer> = Vec::new();

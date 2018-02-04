@@ -76,13 +76,13 @@ impl<'a> Visitor for PacketSeed<'a> {
 
        }
 
-       let from_presence =  SlabPresence{
+       let presence = SlabPresence{
            slab_id: from_slab_id,
            address: self.source_address.clone(),
            lifetime: SlabAnticipatedLifetime::Unknown
        };
 
-       let origin_slabref = dest_slab.slabref_from_presence(&from_presence).expect("slabref from presence");
+        let origin_slabref = dest_slab.slab_handle_from_presence(presence);
 
        // no need to return the memo here, as it's added to the slab
        let peers = match visitor.visit_seed(VecSeed(MemoPeerSeed{ dest_slab: &dest_slab }))? {

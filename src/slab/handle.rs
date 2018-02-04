@@ -20,6 +20,12 @@ use std::mem;
 use std::fmt;
 use std::sync::{Arc,Mutex,RwLock};
 
+// struct SlabHandle {
+//     pub slab_id: SlabId,
+//     tx:       Transmitter,
+//     return_address: TransportAddress,
+// }
+
 impl SlabRef{
     pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
         let return_address = transmitter.get_return_address();

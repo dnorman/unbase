@@ -30,7 +30,7 @@ use std::thread;
 pub struct Memory{
     pub slab_id: SlabId,
     worker_thread: thread::JoinHandle<()>,
-    counters: Arc<SlabCounter>,
+    counter: Arc<SlabCounter>,
     my_handle: LocalSlabHandle,
     net: Network
 }
@@ -54,26 +54,27 @@ impl Memory {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
 
+        // TODO: Delete this
         // let my_ref = SlabRef::new(
         //     slab_id,
         //     slab_id, // I own my own ref to me, obviously
         //     Transmitter::new_blackhole(slab_id)
         // );
 
-        let counters = Arc::new(SlabCounter::new());
+        let counter = Arc::new(SlabCounter::new());
 
         let (req_stream,worker_thread) = MemoryWorker::spawn(
             slab_id,
             net.clone(),
-            counters.clone()
+            counter.clone()
         );
 
-        let my_handle = LocalSlabHandle::new( slab_id, req_stream );
+        let my_handle = LocalSlabHandle::new( slab_id, counter.clone(), req_stream );
 
         let me = Memory{
             slab_id,
             worker_thread,
-            counters,
+            counter,
             my_handle,
             net: net.clone(),
         };

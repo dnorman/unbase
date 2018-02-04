@@ -84,6 +84,21 @@ impl MemoryWorker {
 
         Box::new(f)
     }
+    pub fn send_memo ( &self, slab_id: SlabId, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
+
+        //TODO: accept a list of slabs, and split out the serialization so we can:
+        //      1. skip it in cases when we are retrieving from an already-serialized source
+        //      2. perform it once when sending to multiple slabs
+
+        // TODO: figure out how to handle multiple transmitters to the same slab. Presumably this will require some thought of transmitter health, latency, and redundancy
+        //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
+        match self.get_transmitter( slab_id ) {
+            Ok(transmitter) => transmitter.send( self.slab_id, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
+            Err(e)          => Box::new(future::result( Err(e) ))
+        }
+
+    }
     pub fn put_slab_presence(&self, presence: SlabPresence ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
         use std::mem;
         use std::collections::hash_map::Entry::*;
@@ -104,37 +119,6 @@ impl MemoryWorker {
         // TODO: update transmitter?
         Box::new(future::result(Ok(LocalSlabResponse::PutSlabPresence(()))))
     }
-    pub fn send_memo ( &self, slab_id: SlabId, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>>  {
-        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
-
-
-        use std::collections::hash_map::Entry::*;
-        match self.slab_transmitters.entry(slab_id) {
-            Occupied(t) => {
-                let transmitter = t.get();
-                transmitter.send( self.slab_id, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(()))
-            },
-            Vacant(t) => {
-                //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
-                //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
-
-                match self.slab_presence_storage.entry(slab_id){
-                    Occupied(p) => {
-                        let presences = p.get();
-                        for presence in presences {
-                            if let Some(transmitter) = presence.get_transmitter( &self.net ){
-                                t.insert(transmitter);
-                                break;
-                            }
-                        }
-                    },
-                    Vacant(_p) => {
-                        Box::new(future::result(Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))))
-                    }
-                }
-            }
-        }
-    }
     pub fn get_memo ( &self, memo_id: MemoId ) -> Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
@@ -144,5 +128,30 @@ impl MemoryWorker {
         };
 
         Box::new(future::result(Ok(LocalSlabResponse::GetMemo(maybe_memo))))
+    }
+    fn get_transmitter(&self, slab_id: SlabId) -> Result<&Transmitter,Error> {
+        use std::collections::hash_map::Entry::*;
+        match self.slab_transmitters.entry(slab_id) {
+            Occupied(t) => {
+                Ok(t.get())
+            },
+            Vacant(t) => {
+                //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
+                //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
+
+                if let Some(presences) = self.slab_presence_storage.get(&slab_id) {
+                    for presence in presences.iter() {
+                        if let Some(transmitter) = presence.get_transmitter( &self.net ){
+                            return Ok(t.insert(transmitter));
+                        }else{
+                            return Err(Error::TransmitError(TransmitError::InvalidTransmitter))
+                        }
+                    }
+                }
+
+                Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))
+                //Box::new(future::result(Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))))
+            }
+        }
     }
 }
