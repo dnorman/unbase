@@ -44,7 +44,7 @@ impl SimEvent {
         //     &memo.parents.memo_ids(),
         //     &self.memoref.peerlist.read().unwrap().slab_ids()
         // );
-        let owned_slabref = &self.from_slabref.clone_for_slab(&self.dest);
+        let owned_slabref = self.dest.get_slabref_for_slab_id( self.from_slabref.slab_id() );
         self.memoref.clone_for_slab( &owned_slabref, &self.dest, true );
         // we all have to learn to deal with loss sometime
     }
@@ -52,7 +52,7 @@ impl SimEvent {
 impl fmt::Debug for SimEvent{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SimEvent")
-            .field("dest", &self.dest.id )
+            .field("dest", &self.dest.slabref )
             .field("memo", &self.memoref.id )
             .field("t", &self.dest_point.t )
             .finish()
@@ -191,7 +191,7 @@ impl Transport for Simulator {
                 simulator: self.clone(),
                 dest: *slab.clone(),
             };
-            Some(Transmitter::new(args.get_slab_id(), Box::new(tx)))
+            Some(Transmitter::new(args.get_slabref(), Box::new(tx)))
         }else{
             None
         }

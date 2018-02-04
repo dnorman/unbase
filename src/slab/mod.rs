@@ -1,4 +1,4 @@
-
+mod serde;
 mod common_structs;
 mod memo;
 mod memoref;
@@ -6,12 +6,15 @@ mod counter;
 mod localhandle;
 pub mod storage;
 
+
 pub mod prelude {
-    pub use slab::SlabId; // Intentionally omitting trait Slab and MemorySlab from here
+    // Intentionally omitting trait Slab and MemorySlab from here
+    // Intentionally omitting SlabId from here ( because I don't want anyone outside the slab module to use it)
+    pub use slab::SlabRef;
     pub use slab::LocalSlabHandle;
     pub use slab::common_structs::*;
     pub use slab::memoref::{MemoRef,MemoRefInner,MemoRefPtr};
-    pub use slab::memo::{MemoId,Memo,MemoInner,MemoBody};
+    pub use slab::memo::{MemoId,Memo,MemoBody};
     pub use slab::memoref::serde as memoref_serde;
     pub use slab::memo::serde as memo_serde;
     pub use slab::{SlabAnticipatedLifetime,SlabPresence};
@@ -20,7 +23,7 @@ pub mod prelude {
 /// Slab is the storage engine
 pub trait Slab {
     fn get_handle (&self)    -> LocalSlabHandle;
-    //fn get_ref (&self)       -> self::SlabRef;
+    fn get_slabref (&self)   -> self::SlabRef;
     fn get_net (&self)       -> network::Network;
     fn create_context(&self) -> context::Context;
 }
@@ -33,8 +36,18 @@ use network::{Network,Transmitter,TransportAddress};
 use self::common_structs::*;
 use self::counter::SlabCounter;
 
-/// Storable
+
+/// The actual identifier for a slab Storable
 pub type SlabId = u32;
+
+/// SlabRef is how we refer to a slab
+/// The intent is to possibly convert this to an arc, or some other pointer in the future, rather than copying the full identifier all over the place
+/// One should only be able to get a SlabRef from a Slab, because it's in charge of storing Slab IDs.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SlabRef {
+    owning_slab_id: SlabId,
+    slab_id: SlabId
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum SlabAnticipatedLifetime {
@@ -58,10 +71,10 @@ pub struct SlabPresence {
 /// (Not storable)
 #[derive(Clone)]
 pub struct LocalSlabHandle {
-    pub id: SlabId,
+    pub slabref: SlabRef,
     pub tx: LocalSlabRequester,
     pub counter: Arc<SlabCounter>,
-    //pub my_ref: SlabRef,
+    pub my_ref: SlabRef,
 }
 
 /// Handle for communicating with a slab that might be local OR remote
@@ -72,11 +85,19 @@ struct SlabHandle {
     return_address: TransportAddress,
 }
 
-
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
         // When comparing equality, we can skip the anticipated lifetime
         self.slab_id == other.slab_id && self.address == other.address
+    }
+}
+
+impl SlabRef {
+    pub fn slab_id(&self) -> SlabId {
+        self.slab_id
+    }
+    pub fn unknown() -> Self {
+        SlabRef{ slab_id: 0 }
     }
 }
 

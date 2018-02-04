@@ -15,7 +15,7 @@ impl Transport for Blackhole {
         true
     }
     fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
-        Some(Transmitter::new_blackhole(args.get_slab_id()))
+        Some(Transmitter::new_blackhole(args.get_slabref()))
     }
 
     fn bind_network(&self, _net: &Network) {}

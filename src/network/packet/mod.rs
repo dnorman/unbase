@@ -4,8 +4,8 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct Packet {
-    pub to_slab_id: SlabId,
-    pub from_slab_id: SlabId,
+    pub to_slabref: SlabRef,
+    pub from_slabref: SlabRef,
     pub memo: Memo,
     pub peerlist: MemoPeerList,
 }

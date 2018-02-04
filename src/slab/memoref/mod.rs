@@ -81,7 +81,7 @@ impl MemoRef {
     //     }
     //     acted
     // }
-    pub fn get_peerlist_for_peer (&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<SlabId>) -> MemoPeerList {
+    pub fn get_peerlist_for_peer (&self, my_ref: &SlabRef, maybe_dest_slabref: Option<SlabRef>) -> MemoPeerList {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
         let mut list : Vec<MemoPeer> = Vec::new();
 
@@ -93,9 +93,9 @@ impl MemoRef {
         // Tell the peer about all other presences except for ones belonging to them
         // we don't need to tell them they have it. They know, they were there :)
 
-        if let Some(dest_slab_id) = maybe_dest_slab_id {
+        if let Some(dest_slabref) = maybe_dest_slabref {
             for peer in self.peerlist.read().unwrap().iter() {
-                if peer.slabref.0.slab_id != dest_slab_id {
+                if peer.slabref != dest_slabref {
                     list.push((*peer).clone());
                 }
             }

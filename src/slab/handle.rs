@@ -26,21 +26,21 @@ use std::sync::{Arc,Mutex,RwLock};
 //     return_address: TransportAddress,
 // }
 
-impl SlabRef{
-    pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
-        let return_address = transmitter.get_return_address();
+// impl SlabRef{
+//     pub fn new ( slab_id: SlabId, owning_slab_id: SlabId, transmitter: Transmitter ) -> Self {
+//         let return_address = transmitter.get_return_address();
         
-        let inner = SlabRefInner{
-            slab_id: slab_id,
-            owning_slab_id: owning_slab_id,
-            presence: RwLock::new(Vec::new()),
-            tx: Mutex::new(transmitter),
-            return_address: RwLock::new( return_address ),
-        };
+//         let inner = SlabRefInner{
+//             slab_id: slab_id,
+//             owning_slab_id: owning_slab_id,
+//             presence: RwLock::new(Vec::new()),
+//             tx: Mutex::new(transmitter),
+//             return_address: RwLock::new( return_address ),
+//         };
 
-        SlabRef(Arc::new(inner))
-    }
-}
+//         SlabRef(Arc::new(inner))
+//     }
+// }
 
 impl SlabRefInner {
     /// Apply a list of SlabPresence to this slabref
@@ -68,21 +68,5 @@ impl SlabRefInner {
     pub fn compare(&self, other: &SlabRef) -> bool {
         // When comparing equality, we can skip the transmitter
         self.slab_id == other.slab_id && *self.presence.read().unwrap() == *other.presence.read().unwrap()
-    }
-    pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle ) -> SlabRef {
-        // For now, we don't seem to care what slabref we're being cloned from, just which one we point to
-
-        //println!("Slab({}).SlabRef({}).clone_for_slab({})", self.owning_slab_id, self.slab_id, to_slab.id );
-
-        // IF this slabref points to the destination slab, then use to_sab.my_ref
-        // because we know it exists already, and we're not allowed to assert a self-ref
-        if self.slab_id == to_slab.id {
-            to_slab.my_ref.clone()
-        }else{
-            //let address = &*self.return_address.read().unwrap();
-            //let args = TransmitterArgs::Remote( &self.slab_id, address );
-            to_slab.put_slabref( self.slab_id, &*self.presence.read().unwrap() )
-        }
-
     }
 }

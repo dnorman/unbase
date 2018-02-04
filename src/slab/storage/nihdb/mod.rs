@@ -9,7 +9,7 @@ use slab::prelude::*;
 use slab::counter::SlabCounter;
 
 pub struct NIHDB{
-    pub id: SlabId,
+    slabref: SlabRef,
     worker_thread: thread::JoinHandle<()>,
     counters: SlabCounter,
     my_handle: LocalSlabHandle,
@@ -21,8 +21,8 @@ impl Slab for NIHDB {
     fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
-    fn get_ref (&self) -> SlabRef {
-        self.my_ref.clone()
+    fn get_slabref (&self) -> SlabRef {
+        self.slabref.clone()
     }
     fn get_net (&self) -> Network {
         self.net.clone()

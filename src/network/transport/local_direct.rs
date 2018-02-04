@@ -48,7 +48,7 @@ impl Transport for LocalDirect {
                     //println!("LocalDirect Slab({}) RECEIVED {:?} from {}", slab.id, memoref, from_slabref.slab_id);
                     // clone_for_slab adds the memo to the slab, because memos cannot exist outside of an owning slab
 
-                    let owned_slabref = from_slabref.clone_for_slab(&slab);
+                    let owned_slabref = slab.get_slabref_for_slab_id( from_slabref.slab_id() )
                     memoref.clone_for_slab(&owned_slabref, &rcv_slab, true);
                 }
             });
@@ -56,7 +56,7 @@ impl Transport for LocalDirect {
             // TODO: Remove the mutex here. Consider moving transmitter out of slabref.
             //       Instead, have relevant parties request a transmitter clone from the network
             self.shared.lock().unwrap().tx_threads.push(tx_thread);
-            Some(Transmitter::new_local(args.get_slab_id(), Mutex::new(tx_channel)))
+            Some(Transmitter::new_local(args.get_slabref(), Mutex::new(tx_channel)))
         }else{
             None
         }

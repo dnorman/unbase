@@ -31,8 +31,8 @@ impl MemoPeerList {
             })
             .collect())
     }
-    pub fn slab_ids(&self) -> Vec<SlabId> {
-        self.0.iter().map(|p| p.slab_id).collect()
+    pub fn slabrefs(&self) -> Vec<SlabRef> {
+        self.0.iter().map(|p| p.slabref).collect()
     }
     // pub fn apply_peer(&mut self, peer: MemoPeer) -> bool {
     //     // assert!(self.owning_slab_id == peer.slabref.owning_slab_id, "apply_peer for dissimilar owning_slab_id peer" );
@@ -65,7 +65,7 @@ impl Deref for MemoPeerList {
 
 #[derive(Clone, Debug)]
 pub struct MemoPeer {
-    pub slab_id: SlabRef,
+    pub slabref: SlabRef,
     pub status: MemoPeeringStatus,
 }
 
@@ -168,11 +168,11 @@ impl Deref for EdgeSet {
 
 
 pub enum LocalSlabRequest {
-    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slab: SlabId },
+    ReceiveMemoWithPeerList{ memo: Memo, peerlist: MemoPeerList, from_slabref: SlabRef },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
     PutSlabPresence { presence: SlabPresence },
     GetMemo { memo_id: MemoId },
-    SendMemo { slab_id: SlabId, memoref: MemoRef },
+    SendMemo { to_slabref: SlabRef, memoref: MemoRef },
 }
 pub enum LocalSlabResponse {
     ReceiveMemoWithPeerList( () ),

@@ -30,7 +30,7 @@ impl StatefulSerialize for MemoRefHead {
 }
 
 
-pub struct MemoRefHeadSeed<'a> { pub dest_slab: &'a LocalSlabHandle, pub origin_slab: &'a SlabId }
+pub struct MemoRefHeadSeed<'a> { pub dest_slab: &'a LocalSlabHandle, pub origin_slabref: &'a SlabRef }
 
 #[derive(Deserialize)]
 enum MRHVariant{
