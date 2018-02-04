@@ -1,5 +1,4 @@
 use super::*;
-use slab::slabref::serde::*;
 use util::serde::*;
 
 impl StatefulSerialize for MemoPeerList {

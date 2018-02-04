@@ -7,7 +7,7 @@ use network::transport::TransportAddress;
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
     /// Transmit a memo to this Transmitter's recipient
-    fn send (&self, from: &SlabRef, memoref: MemoRef);
+    fn send (&self, from: SlabRef, memoref: MemoRef);
 }
 
 enum TransmitterInternal {
@@ -19,13 +19,13 @@ enum TransmitterInternal {
 #[derive(Debug)]
 pub enum TransmitterArgs<'a>{
     Local(&'a LocalSlabHandle),
-    Remote(&'a SlabId, &'a TransportAddress)
+    Remote(&'a SlabRef, &'a TransportAddress)
 }
 impl<'a> TransmitterArgs<'a>{
-    pub fn get_slab_id (&self) -> SlabId {
+    pub fn get_slabref (&self) -> SlabRef {
         match self {
-            &TransmitterArgs::Local(ref s)     => s.id.clone(),
-            &TransmitterArgs::Remote(ref id,_) => *id.clone()
+            &TransmitterArgs::Local(ref s)     => s.slabref.clone(),
+            &TransmitterArgs::Remote(ref r,_) => *r.clone()
         }
     }
 }
@@ -68,7 +68,7 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, from: &SlabRef, memoref: MemoRef) {
+    pub fn send(&self, from: SlabRef, memoref: MemoRef) {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;

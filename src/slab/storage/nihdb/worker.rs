@@ -9,8 +9,8 @@ use slab::prelude::*;
 use slab::counter::SlabCounter;
 use network::Network;
 
-pub struct MemorySlabInner {
-    pub id: SlabId,
+pub struct NIHDBWorker {
+    pub slabref: SlabRef,
     pub my_ref: SlabRef,
     handle: LocalSlabHandle,
     counters: Arc<SlabCounter>,

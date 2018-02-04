@@ -8,6 +8,7 @@ use tokio_core;
 
 use subject::SubjectId;
 use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
+use slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use memorefhead::MemoRefHead;
@@ -20,32 +21,32 @@ struct MemoCarrier{
 
 pub struct MemoryWorker {
     // * things which will probably be nearly identical across slab types
-    pub slab_id: SlabId,
+    /// The Slabref for this slab
+    pub slabref: SlabRef,
     net: Network,
     counter: Arc<SlabCounter>,
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
-    //pub my_ref: SlabRef,
 
     // * Things that should probably be memory resident for most slab types *
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Memo>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
-    slab_transmitters: HashMap<SlabId,Transmitter>, // TODO: Make this an LRU
+    slab_transmitters: HashMap<slab::SlabId,Transmitter>, // TODO: Make this an LRU
 
     // * Things that would be serialized in most other slab types *
     // Arguably it's simpler to store presence and transmitters togethere here, given that this is a
     // no-serialization slab, However I am intentionally keeping these separate from transmitters
     // for illustrative purpose
-    slab_presence_storage: HashMap<SlabId, Vec<SlabPresence>>, 
+    slab_presence_storage: HashMap<slab::SlabId, Vec<SlabPresence>>, 
     memo_storage: HashMap<MemoId,MemoCarrier>,
 }
 
 
 impl MemoryWorker {
-    pub fn spawn ( slab_id: SlabId, net: Network, counter: Arc<SlabCounter> ) -> (LocalSlabRequester, thread::JoinHandle<()>) {
+    pub fn spawn ( slabref: SlabRef, net: Network, counter: Arc<SlabCounter> ) -> (LocalSlabRequester, thread::JoinHandle<()>) {
         let me = MemoryWorker{
-            slab_id,
+            slabref,
             net,
             counter,
 
@@ -84,7 +85,7 @@ impl MemoryWorker {
 
         Box::new(f)
     }
-    pub fn send_memo ( &self, slab_id: SlabId, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    pub fn send_memo ( &self, slabref: &SlabRef, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -93,8 +94,8 @@ impl MemoryWorker {
 
         // TODO: figure out how to handle multiple transmitters to the same slab. Presumably this will require some thought of transmitter health, latency, and redundancy
         //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
-        match self.get_transmitter( slab_id ) {
-            Ok(transmitter) => transmitter.send( self.slab_id, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
+        match self.get_transmitter( slabref ) {
+            Ok(transmitter) => transmitter.send( &self.slabref, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
             Err(e)          => Box::new(future::result( Err(e) ))
         }
 
@@ -129,9 +130,9 @@ impl MemoryWorker {
 
         Box::new(future::result(Ok(LocalSlabResponse::GetMemo(maybe_memo))))
     }
-    fn get_transmitter(&self, slab_id: SlabId) -> Result<&Transmitter,Error> {
+    fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
         use std::collections::hash_map::Entry::*;
-        match self.slab_transmitters.entry(slab_id) {
+        match self.slab_transmitters.entry(slabref.slab_id()) {
             Occupied(t) => {
                 Ok(t.get())
             },
@@ -139,7 +140,7 @@ impl MemoryWorker {
                 //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
                 //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
 
-                if let Some(presences) = self.slab_presence_storage.get(&slab_id) {
+                if let Some(presences) = self.slab_presence_storage.get(&slabref.slab_id()) {
                     for presence in presences.iter() {
                         if let Some(transmitter) = presence.get_transmitter( &self.net ){
                             return Ok(t.insert(transmitter));

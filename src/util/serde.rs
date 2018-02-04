@@ -1,6 +1,6 @@
 use std::fmt;
 use network::{TransportAddress};
-use slab::SlabId;
+use slab;
 
 use serde::ser::{Serialize};
 pub use serde::ser::{Serializer,SerializeStruct,SerializeSeq,SerializeMap};
@@ -10,7 +10,7 @@ pub use serde::ser::Error as SerError;
 pub use serde::de::Error as DeError;
 
 pub struct SerializeHelper<'a> {
-    pub dest_slab_id: &'a SlabId,
+    pub dest_slabref: &'a slab::SlabRef,
     pub return_address: &'a TransportAddress
 }
 

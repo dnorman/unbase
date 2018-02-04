@@ -12,7 +12,6 @@ use futures::future;
 
 use subject::{SubjectId,SubjectType};
 use slab::prelude::*;
-use network::{SlabRef,SlabPresence};
 use memorefhead::MemoRefHead;
 use error::*;
 
@@ -22,16 +21,7 @@ pub type MemoId = u64;
 // All portions of this struct should be immutable
 
 #[derive(Clone)]
-pub struct Memo(Arc<MemoInner>);
-
-impl Deref for Memo {
-    type Target = MemoInner;
-    fn deref(&self) -> &MemoInner {
-        &*self.0
-    }
-}
-
-pub struct MemoInner {
+pub struct Memo {
     pub id: u64,
     pub subject_id: Option<SubjectId>,
     pub owning_slab_id: SlabId,
@@ -48,7 +38,7 @@ pub enum MemoBody{
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
-    MemoRequest(Vec<MemoId>,SlabRef)
+    MemoRequest(Vec<MemoId>,SlabPresence)
 }
 
 
@@ -203,7 +193,7 @@ impl MemoBody {
                 MemoBody::Peering(memo_id,subject_id,peerlist.clone_for_slab(to_slab))
             }
             &MemoBody::MemoRequest(ref memo_ids, ref slabref) =>{
-                MemoBody::MemoRequest(memo_ids.clone(), slabref.clone_for_slab(to_slab))
+                MemoBody::MemoRequest(memo_ids.clone(), to_slab.slabref_for_slab_id(slabref.slab_id()))
             }
         }
 

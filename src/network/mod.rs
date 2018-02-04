@@ -5,6 +5,7 @@ mod transmitter;
 pub mod transport;
 pub mod packet;
 
+use slab;
 pub use slab::prelude::*;
 pub use self::transport::{Transport, TransportAddress};
 pub use self::packet::Packet;
@@ -28,9 +29,9 @@ impl Deref for Network {
 
 pub struct NetworkInner {
     next_slab_id: RwLock<u32>,
-    slabs: RwLock<Vec<LocalSlabHandle>>,
+    localslabhandles: RwLock<Vec<LocalSlabHandle>>,
     transports: RwLock<Vec<Box<Transport + Send + Sync>>>,
-    root_index_seed: RwLock<Option<(MemoRefHead, SlabHandle)>>,
+    root_index_seed: RwLock<Option<(MemoRefHead, LocalSlabHandle)>>,
     create_new_system: bool,
 }
 
@@ -52,7 +53,7 @@ impl Network {
 
         let net = Network(Arc::new(NetworkInner {
             next_slab_id: RwLock::new(0),
-            slabs: RwLock::new(Vec::new()),
+            localslabhandles: RwLock::new(Vec::new()),
             transports: RwLock::new(Vec::new()),
             root_index_seed: RwLock::new(None),
             create_new_system: create_new_system,
@@ -65,7 +66,7 @@ impl Network {
     }
 
     // TODO: remove this when slab ids are randomly generated
-    pub fn hack_set_next_slab_id(&self, id: SlabId) {
+    pub fn hack_set_next_slab_id(&self, id: slab::SlabId) {
         *self.next_slab_id.write().unwrap() = id;
     }
     pub fn weak(&self) -> WeakNetwork {
@@ -93,14 +94,14 @@ impl Network {
 
         id
     }
-    pub fn get_slab_handle(&self, slab_id: SlabId) -> Option<LocalSlabHandle> {
-        if let Some(handle) = self.slabs.read().unwrap().iter().find(|s| s.id == slab_id) {
+    pub fn get_local_slab_handle(&self, slabref: SlabRef) -> Option<LocalSlabHandle> {
+        if let Some(handle) = self.localslabhandles.read().unwrap().iter().find(|s| s.slabref == slabref) {
             return Some(handle.clone());
         }
         return None;
     }
     fn get_representative_slab(&self) -> Option<LocalSlabHandle> {
-        for handle in self.slabs.read().unwrap().iter() {
+        for handle in self.localslabhandles.read().unwrap().iter() {
             if handle.is_live() {
                 return Some(handle.clone());
             }
@@ -112,7 +113,7 @@ impl Network {
         let mut res: Vec<LocalSlabHandle> = Vec::new();
         // let mut missing : Vec<usize> = Vec::new();
 
-        for handle in self.slabs.read().unwrap().iter() {
+        for handle in self.localslabhandles.read().unwrap().iter() {
             res.push( handle.clone() );
             // match slab.upgrade() {
             //     Some(s) => {
@@ -152,12 +153,12 @@ impl Network {
             new_slab.register_local_slabref(&prev_slab);
         }
     }
-    pub fn deregister_local_slab(&self, slab_id: SlabId) {
+    pub fn deregister_local_slab(&self, slabref: SlabRef) {
         // Remove the deregistered slab so get_representative_slab doesn't return it
         {
             let mut slabs = self.slabs.write().expect("slabs write lock");
             if let Some(removed) = slabs.iter()
-                .position(|s| s.id == slab_id)
+                .position(|s| s.slabref == slabref)
                 .map(|e| slabs.remove(e)) {
                 // println!("Unbinding Slab {}", removed.id);
                 let _ = removed.id;
@@ -171,7 +172,7 @@ impl Network {
         let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed write lock");
         {
             if let Some(ref mut r) = *root_index_seed {
-                if r.1.slab_id == slab_id {
+                if r.1.slabref == slabref {
                     if let Some(new_slab) = self.get_representative_slab() {
 
                         let owned_slabref = r.1.clone_for_slab(&new_slab);
@@ -200,7 +201,7 @@ impl Network {
                     // seed is resident on the requesting slab
                     seed.clone()
                 } else {
-                    let owned_slabref = from_slabref.clone_for_slab(&slab);
+                    let owned_slabref = slab.get_slabref_for_slab_id( from_slabref.slab_id() );
                     seed.clone_for_slab(&owned_slabref, slab, true)
                 }
             }

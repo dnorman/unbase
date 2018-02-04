@@ -6,28 +6,24 @@
                                                                                 
                                                                                 
                           Network                                               
-                           Arc<NetworkInner>                                    
-                            slabs -----------------------                     
-                                                          \                    
-                                                           \                   
-                                                            -> LocalSlabHandle          
-                                                                | 
-                                                                |   <-- various channels. no direct references to the Slab
-                                                                v            
-                                                            -> MemorySlab             
-                                                          /   \--> Arc<SlabInner>   
-                                                         /              subject_subscriptions -\             
-                              -> Context                /               unsubscribe_channel     |
-                             /   \ Arc<ContextInner>   /                           ^            |
-                            /        slab ------------/                            |           / 
-   SubjectHandle           /         root_index -                                (mpsc)       / 
-    context --------------/          stash *      \                                 |-?Weak?-/ 
-    subject -----                                  \                                |      (mpsc)  
-                 \                                  ---> IndexFixed                 |      /
-                  \                                        root --------------.     |     /
-                   \                                                           \    |    /
-                    \                                                           \   |   /
-                     \                                                           v  v  v
+                           Arc<NetworkInner>                             ------------- MemorySlab
+                            slabs ----------------------                /                 |
+                                                        \              /                  |   (join handle)
+                                                         \            \/                  |
+                                                           --> LocalSlabHandle  - - - -> MemoryWorker
+                                                          /                        ^       
+                                                         /                         (request channel. No direct references to the SlabWorker)     
+                              -> Context                /                                
+                             /   \ Arc<ContextInner>   /                       
+                            /        slabhandle ------/                            
+   SubjectHandle           /         root_index -                       
+    context --------------/          stash *      \                                
+    subject -----                                  \                       
+                 \                                  ---> IndexFixed                
+                  \                                        root --------------.  
+                   \                                                           \  
+                    \                                                           \ 
+                     \                                                           v
                       ---------------------------------------------------------> Subject
 
 
@@ -35,7 +31,8 @@
                                                                                 
                                                                                 
                                                                                 
-                                                                                
+        Memo
+          parents                                                                   
                                                                                 
                                                                                 
                                                                                 

@@ -28,7 +28,7 @@ use std::thread;
 // use futures::{Future, Sink};
 
 pub struct Memory{
-    pub slab_id: SlabId,
+    slabref: SlabRef,
     worker_thread: thread::JoinHandle<()>,
     counter: Arc<SlabCounter>,
     my_handle: LocalSlabHandle,
@@ -39,9 +39,9 @@ impl Slab for Memory {
     fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
-    // fn get_ref (&self) -> SlabRef {
-    //     self.my_ref.clone()
-    // }
+    fn get_slabref (&self) -> SlabRef {
+         self.slabref.clone()
+    }
     fn get_net (&self) -> Network {
         self.net.clone()
     }

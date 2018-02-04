@@ -5,6 +5,7 @@ use futures::sync::{mpsc,oneshot};
 use std::fmt;
 
 use network;
+use slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use error::*;
@@ -13,10 +14,10 @@ use memorefhead::MemoRefHead;
 use network::TransportAddress;
 
 impl LocalSlabHandle {
-    pub fn new (slab_id: SlabId, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
+    pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
 
         let handle = LocalSlabHandle{
-            id: slab_id,
+            slabref: slabref,
             counter,
             tx,
         };
@@ -38,6 +39,12 @@ impl LocalSlabHandle {
         };
 
         self.put_slab_presence(presence);
+    }
+    pub fn get_slabref_for_slab_id( &self, slab_id: slab::SlabId ) -> SlabRef {
+        // Temporary - SlabRef just contains SlabId for now. This shoulld change
+        SlabRef{
+            slab_id: slab_id
+        }
     }
     pub fn is_live (&self) -> bool {
         unimplemented!()
