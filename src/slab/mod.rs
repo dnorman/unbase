@@ -26,9 +26,12 @@ pub trait Slab {
 }
 
 
+use std::sync::Arc;
+
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::common_structs::*;
+use self::counter::SlabCounter;
 
 /// Storable
 pub type SlabId = u32;
@@ -57,6 +60,7 @@ pub struct SlabPresence {
 pub struct LocalSlabHandle {
     pub id: SlabId,
     pub tx: LocalSlabRequester,
+    pub counter: Arc<SlabCounter>,
     //pub my_ref: SlabRef,
 }
 
@@ -64,11 +68,9 @@ pub struct LocalSlabHandle {
 /// (Not storable)
 struct SlabHandle {
     pub slab_id: SlabId,
-    //presence: Vec<SlabPresence>,
     tx:       Transmitter,
     return_address: TransportAddress,
 }
-
 
 
 impl PartialEq for SlabPresence {

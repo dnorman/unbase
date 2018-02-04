@@ -1,3 +1,9 @@
+On deck:
+1. Determine if all SlabRefs should be switched to SlabIds, and make the change. I think they should,
+   but there may be a future case for some kind of smart pointer. For now let's go with the low road.
+2. Figure out how deserialization and MemoSender channels should work. Presumably we need a MemoBuffer type too. Need to be able to deserialize from disk and also from the wire.
+IMPORTANT NOTE: When retrieving and deserializing a memoref, don't automatically retrieve the memo
+
 Notes / Outstanding questions:
     Consistency Model and context compression:
         Note: An index is a tree of Subjects. Other non-index-related Subjects may form a graph. Removing subject head X from the context
