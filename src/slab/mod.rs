@@ -18,6 +18,7 @@ pub mod prelude {
     pub use slab::memoref::serde as memoref_serde;
     pub use slab::memo::serde as memo_serde;
     pub use slab::{SlabAnticipatedLifetime,SlabPresence};
+    pub use slab::{MemoPeerState,MemoPeerStatus};
 }
 
 /// Slab is the storage engine
@@ -99,6 +100,20 @@ impl SlabRef {
     pub fn unknown() -> Self {
         SlabRef{ slab_id: 0 }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct MemoPeerState {
+    pub slabref: SlabRef,
+    pub status: MemoPeerStatus,
+}
+
+#[derive(Debug,Clone,PartialEq,Serialize,Deserialize)]
+pub enum MemoPeerStatus {
+    Resident,
+    Participating,
+    NonParticipating,
+    Unknown,
 }
 
 impl SlabPresence {

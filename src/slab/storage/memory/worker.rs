@@ -15,8 +15,9 @@ use memorefhead::MemoRefHead;
 use error::*;
 
 struct MemoCarrier{
-    memo:    Option<Memo>,
-    memoref: Option<MemoRef>,
+    memo:      Option<Memo>,
+    memoref:   Option<MemoRef>,
+    peerstate: Vec<MemoPeerState>,
 }
 
 pub struct MemoryWorker {

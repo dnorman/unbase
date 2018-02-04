@@ -48,7 +48,7 @@ impl Transport for LocalDirect {
                     //println!("LocalDirect Slab({}) RECEIVED {:?} from {}", slab.id, memoref, from_slabref.slab_id);
                     // clone_for_slab adds the memo to the slab, because memos cannot exist outside of an owning slab
 
-                    let owned_slabref = slab.get_slabref_for_slab_id( from_slabref.slab_id() )
+                    let owned_slabref = slab.get_slabref_for_slab_id( from_slabref.slab_id() );
                     memoref.clone_for_slab(&owned_slabref, &rcv_slab, true);
                 }
             });

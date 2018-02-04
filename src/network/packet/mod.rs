@@ -7,7 +7,7 @@ pub struct Packet {
     pub to_slabref: SlabRef,
     pub from_slabref: SlabRef,
     pub memo: Memo,
-    pub peerlist: MemoPeerList,
+    pub peerlist: Vec<MemoPeerState>,
 }
 
 impl fmt::Debug for Packet {
