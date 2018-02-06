@@ -44,7 +44,7 @@ pub type SlabId = u32;
 /// SlabRef is how we refer to a slab
 /// The intent is to possibly convert this to an arc, or some other pointer in the future, rather than copying the full identifier all over the place
 /// One should only be able to get a SlabRef from a Slab, because it's in charge of storing Slab IDs.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SlabRef {
     owning_slab_id: SlabId,
     slab_id: SlabId
@@ -72,6 +72,7 @@ pub struct SlabPresence {
 /// (Not storable)
 #[derive(Clone)]
 pub struct LocalSlabHandle {
+    pub slab_id: SlabId,
     pub slabref: SlabRef,
     pub tx: LocalSlabRequester,
     pub counter: Arc<SlabCounter>,
@@ -97,8 +98,21 @@ impl SlabRef {
     pub fn slab_id(&self) -> SlabId {
         self.slab_id
     }
-    pub fn unknown() -> Self {
-        SlabRef{ slab_id: 0 }
+    pub fn unknown(slab: &SlabHandle) -> Self {
+        SlabRef{
+            owning_slab_id: slab.slab_id,
+            slab_id: 0
+        }
+    }
+}
+
+impl PartialEq for SlabRef {
+    fn eq(&self, other: &SlabRef) -> bool {
+        // TODO - Once this is converted to use an internal Arc, first compare pointer address
+
+        // In the case that we're comparing two slabrefs owned by different slabs, 
+        // look up the slab_id itself, and use that as a fallback comparison
+        self.slab_id == other.slab_id
     }
 }
 
@@ -121,7 +135,7 @@ impl SlabPresence {
 
         use network::TransmitterArgs;
         let args = if self.address.is_local() {
-            if let Some(ref slab) = net.get_slab_handle(self.slab_id) {
+            if let Some(ref slab) = net.get_local_slab_handle(self.slabref) {
                 TransmitterArgs::Local(slab)
             }else{
                 return None;

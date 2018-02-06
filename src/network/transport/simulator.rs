@@ -7,7 +7,7 @@ use std::io::BufRead;
 use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
-use network::*;
+use network;
 
 
 // Minkowski stuff: Still ridiculous, but necessary for our purposes.
@@ -26,8 +26,8 @@ struct SimEvent {
     _source_point: MinkowskiPoint,
     dest_point:    MinkowskiPoint,
     from_slabref:  SlabRef,
-    dest:          LocalSlabHandle,
-    memoref:       MemoRef
+    dest_slab:     LocalSlabHandle,
+    buffer:        network::buffer::MemoBuffer,
 }
 
 impl SimEvent {
@@ -44,16 +44,16 @@ impl SimEvent {
         //     &memo.parents.memo_ids(),
         //     &self.memoref.peerlist.read().unwrap().slab_ids()
         // );
-        let owned_slabref = self.dest.get_slabref_for_slab_id( self.from_slabref.slab_id() );
-        self.memoref.clone_for_slab( &owned_slabref, &self.dest, true );
+
+        // Can't do clone_for_slab here because we need to serialize and deserialize
+        //self.memoref.clone_for_slab( &self.from_slab, &self.dest_slab, true );
         // we all have to learn to deal with loss sometime
     }
 }
 impl fmt::Debug for SimEvent{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SimEvent")
-            .field("dest", &self.dest.slabref )
-            .field("memo", &self.memoref.id )
+            .field("dest", &self.dest_slab.slabref )
             .field("t", &self.dest_point.t )
             .finish()
     }
@@ -220,7 +220,7 @@ pub struct SimulatorTransmitter{
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
-    fn send (&self, from_slabref: &SlabRef, memoref: MemoRef){
+    fn send (&self, from_slabref: SlabRef, memoref: MemoRef){
         let ref q = self.source_point;
         let ref p = self.dest_point;
 
@@ -243,10 +243,10 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
         let evt = SimEvent {
             _source_point: source_point,
             dest_point: dest_point,
-            from_slabref: from_slabref.clone(),
+            from_slabref: from_slabref,
 
-            dest: self.dest.clone(),
-            memoref: memoref
+            dest_slab: self.dest.clone(),
+            buffer: buffer
         };
 
         self.simulator.add_event( evt );

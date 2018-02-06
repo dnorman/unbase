@@ -1,7 +1,7 @@
 
 use std::sync::{mpsc,Mutex};
 
-use slab::SlabId;
+use slab;
 use slab::prelude::*;
 use network::transport::TransportAddress;
 
@@ -12,8 +12,8 @@ pub trait DynamicDispatchTransmitter {
 }
 
 enum TransmitterInternal {
-    Local(Mutex<mpsc::Sender<(SlabRef,MemoRef)>>),
-    Dynamic(Box<DynamicDispatchTransmitter + Send + Sync>),
+    Local(mpsc::Sender<(SlabRef,MemoRef)>),
+    Dynamic(Box<DynamicDispatchTransmitter + Send>),
     Blackhole
 }
 
@@ -25,8 +25,8 @@ pub enum TransmitterArgs<'a>{
 impl<'a> TransmitterArgs<'a>{
     pub fn get_slabref (&self) -> SlabRef {
         match self {
-            &TransmitterArgs::Local(ref s)     => s.slabref.clone(),
-            &TransmitterArgs::Remote(ref r,_) => *r.clone()
+            &TransmitterArgs::Local(slab)  => slab.slabref.clone(),
+            &TransmitterArgs::Remote(ref id,_) => *id.clone(),
         }
     }
 }
@@ -43,28 +43,28 @@ impl TransmitterInternal {
 }
 
 pub struct Transmitter {
-    to_slab_id: SlabId,
+    to_slab_id: slab::SlabId,
     internal: TransmitterInternal
 }
 
 impl Transmitter {
     /// Create a new transmitter associated with a local slab.
-    pub fn new_local( to_slab_id: SlabId, tx: Mutex<mpsc::Sender<(SlabRef,MemoRef)>> ) -> Self {
+    pub fn new_local( to_slabref: SlabRef, tx: mpsc::Sender<(SlabRef,MemoRef)> ) -> Self {
         Self {
-            to_slab_id: to_slab_id,
+            to_slab_id: to_slabref.slab_id(),
             internal: TransmitterInternal::Local( tx )
         }
     }
-    pub fn new_blackhole(to_slab_id: SlabId) -> Self {
+    pub fn new_blackhole(to_slabref: SlabRef) -> Self {
         Self {
-            to_slab_id: to_slab_id,
+            to_slab_id: to_slabref.slab_id(),
             internal: TransmitterInternal::Blackhole
         }
     }
     /// Create a new transmitter capable of using any dynamic-dispatch transmitter.
-    pub fn new(to_slab_id: SlabId, dyn: Box<DynamicDispatchTransmitter + Send + Sync>) -> Self {
+    pub fn new(to_slabref: SlabRef, dyn: Box<DynamicDispatchTransmitter + Send>) -> Self {
         Self {
-            to_slab_id: to_slab_id,
+            to_slab_id: to_slabref.slab_id(),
             internal: TransmitterInternal::Dynamic(dyn)
         }
     }
@@ -80,7 +80,7 @@ impl Transmitter {
                 //println!("CHANNEL SEND from {}, {:?}", from.slab_id, memo);
                 // TODO - stop assuming that this is resident on the sending slab just because we're sending it
                 // TODO - lose the stupid lock on the transmitter
-                tx.lock().unwrap().send((from.clone(),memoref)).expect("local transmitter send")
+                tx.send((from.clone(),memoref)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
                 tx.send(from,memoref)

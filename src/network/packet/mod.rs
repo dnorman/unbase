@@ -1,13 +1,14 @@
 pub mod serde;
+use slab;
 use slab::prelude::*;
 use std::fmt;
 
 #[derive(Clone)]
 pub struct Packet {
-    pub to_slabref: SlabRef,
+    pub to_slab_id: slab::SlabId,
     pub from_slabref: SlabRef,
     pub memo: Memo,
-    pub peerlist: Vec<MemoPeerState>,
+    pub peerstate: Vec<MemoPeerState>,
 }
 
 impl fmt::Debug for Packet {

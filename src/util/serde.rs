@@ -10,7 +10,7 @@ pub use serde::ser::Error as SerError;
 pub use serde::de::Error as DeError;
 
 pub struct SerializeHelper<'a> {
-    pub dest_slabref: &'a slab::SlabRef,
+    pub dest_slab_id: &'a slab::SlabId,
     pub return_address: &'a TransportAddress
 }
 

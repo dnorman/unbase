@@ -184,7 +184,7 @@ impl Context{
     pub fn hack_send_context(&self, other: &Self) -> usize {
         self.compact().expect("compact");
 
-        let from_slabref = self.slab.my_ref.clone_for_slab(&other.slab);
+        let from_slabref = self.slab.slabref.clone_for_slab(&other.slab);
 
         let mut memoref_count = 0;
 

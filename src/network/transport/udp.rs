@@ -113,7 +113,7 @@ impl TransportUDP {
 
                 let helper = SerializeHelper {
                     return_address: &return_address,
-                    dest_slabref:   &packet.to_slabref,
+                    dest_slab_id:   &packet.to_slab_id,
                 };
 
                 // KEEP THIS - This is the most useful memo trace
@@ -149,7 +149,7 @@ impl TransportUDP {
         for slab in net.get_all_local_slab_handles() {
 
             let presence = SlabPresence {
-                slab_id: slab.id,
+                slab_id: slab.slabref.slab_id(),
                 address: TransportAddress::UDP( my_address.clone() ),
                 lifetime: SlabAnticipatedLifetime::Unknown
             };
@@ -160,23 +160,23 @@ impl TransportUDP {
             );
 
             self.send_to_addr(
-                &slab.slabref.clone(),
+                slab,
                 hello,
                 to_address.clone()
             );
         }
 
     }
-    pub fn send_to_addr (&self, from_slabref: SlabRef, memoref: MemoRef, address : TransportAddressUDP) {
+    pub fn send_to_addr (&self, from_slab: LocalSlabHandle, memoref: MemoRef, address : TransportAddressUDP) {
 
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = Packet{
-                to_slabref: SlabRef::unknown(),
-                from_slabref: from_slabref.clone(),
+                to_slab_id: SlabRef::unknown().slab_id(),
+                from_slabref: from_slab.slabref.clone(),
                 memo: memo.clone(),
-                peerlist: memoref.get_peerlist_for_peer(from_slabref, None)
+                peerstate: from_slab.get_peerstate(memoref, None).unwrap(),
             };
 
             //println!("TransportUDP.send({:?})", packet );
@@ -196,13 +196,13 @@ impl Transport for TransportUDP {
     }
     fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
 
-        if let &TransmitterArgs::Remote(slabref,address) = args {
+        if let &TransmitterArgs::Remote(slab_id,address) = args {
             if let &TransportAddress::UDP(ref udp_address) = address {
 
                 if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
 
                     let tx = TransmitterUDP{
-                        slabref: slabref.clone(),
+                        slab_id: slab_id,
                         address: udp_address.clone(),
                         tx_channel: tx_channel.clone(),
                     };
@@ -301,7 +301,7 @@ impl Drop for TransportUDPInternal{
 }
 
 pub struct TransmitterUDP{
-    pub slabref: SlabRef,
+    pub slab_id: slab::SlabId,
     address: TransportAddressUDP,
     // HACK HACK HACK - lose the Arc<Mutex<>> here by making transmitter Send, but not Sync
     tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>
