@@ -17,6 +17,7 @@ impl LocalSlabHandle {
     pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
 
         let handle = LocalSlabHandle{
+            slab_id: slabref.slab_id(),
             slabref: slabref,
             counter,
             tx,
@@ -52,6 +53,9 @@ impl LocalSlabHandle {
     pub fn receive_memo_with_peerlist(&self, memo: Memo, peerlist: Vec<MemoPeerState>, from_slabref: SlabRef ) {
         unimplemented!();
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
+    }
+    pub fn get_peerstate(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
+        self.call(LocalSlabRequest::GetPeerState{ memoref, maybe_dest_slabref } ).wait()
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) { 
         self.call(LocalSlabRequest::PutSlabPresence{ presence } ).wait();
@@ -112,13 +116,13 @@ impl LocalSlabHandle {
 
         //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.id, memo_id, subject_id, parents.memo_ids(), body );
 
-        let memo = Memo::new(MemoInner {
+        let memo = Memo {
             id:    memo_id,
             owning_slab_id: self.id,
             subject_id: subject_id,
             parents: parents,
             body: body
-        });
+        };
 
         let (memoref, _had_memoref) = self.put_memo( memo );
         self.consider_emit_memo(&memoref);
@@ -146,10 +150,10 @@ impl LocalSlabHandle {
                 MemoBody::Peering(
                     memoref.id,
                     memoref.subject_id,
-                    MemoPeerList::new(vec![ MemoPeer{
+                    vec![ MemoPeerState{
                         slabref: self.my_ref.clone(),
                         status: MemoPeerStatus::Resident
-                    }])
+                    }]
                 )
             );
 
@@ -181,10 +185,10 @@ impl LocalSlabHandle {
             MemoBody::Peering(
                 memoref.id,
                 memoref.subject_id,
-                MemoPeerList::new(vec![MemoPeer{
+                vec![MemoPeerState{
                     slabref: self.my_ref.clone(),
                     status: MemoPeerStatus::Participating
-                }])
+                }]
             )
         );
 
@@ -311,7 +315,7 @@ impl LocalSlabHandle {
                 let (peered_memoref,_had_memo) = self.assert_memoref( memo_id, subject_id, peerlist.clone() );
 
                 // Don't peer with yourself
-                for peer in peerlist.iter().filter(|p| p.slabref.0.slab_id != self.id ) {
+                for peer in peerlist.iter().filter(|p| p.slabref != self.slabref ) {
                     peered_memoref.update_peer( &peer.slabref, peer.status.clone());
                 }
 
@@ -339,10 +343,10 @@ impl LocalSlabHandle {
                                 MemoBody::Peering(
                                     *desired_memo_id,
                                     None,
-                                    MemoPeerList::new(vec![MemoPeer{
+                                    vec![MemoPeerState{
                                         slabref: self.my_ref.clone(),
                                         status: MemoPeerStatus::NonParticipating
-                                    }])
+                                    }]
                                 )
                             );
                             requesting_slabref.send(&self.my_ref, &peering_memoref)
@@ -419,20 +423,20 @@ impl LocalSlabHandle {
             lifetime: SlabAnticipatedLifetime::Unknown
         }
     }
-    pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
-            match presence.address {
-                TransportAddress::Simulator | TransportAddress::Local  => {
-                    return Err(Error::StorageOpDeclined(StorageOpDeclined::InvalidAddress))
-                }
-                _ => { }
-            };
+    // pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
+    //         match presence.address {
+    //             TransportAddress::Simulator | TransportAddress::Local  => {
+    //                 return Err(Error::StorageOpDeclined(StorageOpDeclined::InvalidAddress))
+    //             }
+    //             _ => { }
+    //         };
 
 
-        //let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
-        presence.get_transmitter(&self.net)
+    //     //let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
+    //     presence.get_transmitter(&self.net);
 
-        Ok(self.put_slabref( presence.slab_id, &vec![presence.clone()] ))
-    }
+    //     Ok(self.put_slabref( presence.slab_id, &vec![presence.clone()] ))
+    // }
 
 
 

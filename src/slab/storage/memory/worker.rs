@@ -4,6 +4,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::prelude::*;
 use futures::sync::{mpsc,oneshot};
+use futures::{Stream,Future};
 use tokio_core;
 
 use subject::SubjectId;
@@ -76,8 +77,9 @@ impl MemoryWorker {
     fn dispatch_request(&self,request: LocalSlabRequest, responder: oneshot::Sender<Result<LocalSlabResponse,Error>>) -> Box<Future<Item=(), Error=()>> {
         use slab::common_structs::LocalSlabRequest::*;
         let f = match request {
-            SendMemo {slab_id, memoref}    => self.send_memo(slab_id, memoref),
-            PutSlabPresence { presence }   => self.put_slab_presence(presence),
+            SendMemo {to_slabref, memoref}              => self.send_memo(to_slabref, memoref),
+            PutSlabPresence { presence }                => self.put_slab_presence(presence),
+            GetPeerState{ memoref, maybe_dest_slabref } => self.get_peerstate(memoref, maybe_dest_slabref)
         }.then(|response| {
             responder.send(response)
         }).then(|_| {
@@ -86,7 +88,7 @@ impl MemoryWorker {
 
         Box::new(f)
     }
-    pub fn send_memo ( &self, slabref: &SlabRef, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -95,8 +97,8 @@ impl MemoryWorker {
 
         // TODO: figure out how to handle multiple transmitters to the same slab. Presumably this will require some thought of transmitter health, latency, and redundancy
         //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
-        match self.get_transmitter( slabref ) {
-            Ok(transmitter) => transmitter.send( &self.slabref, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
+        match self.get_transmitter( &slabref ) {
+            Ok(transmitter) => transmitter.send( self.slabref, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
             Err(e)          => Box::new(future::result( Err(e) ))
         }
 
@@ -152,8 +154,36 @@ impl MemoryWorker {
                 }
 
                 Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))
-                //Box::new(future::result(Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))))
             }
         }
+    }
+    pub fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
+        //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
+
+        if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){
+
+            let mut peerstate : Vec<MemoPeerState> =
+                if let Some(dest_slabref) = maybe_dest_slabref {
+                    // Tell the peer about all other presences except for ones belonging to them
+                    // we don't need to tell them they have it. They know, they were there :)
+                    carrier.peerstate.iter().filter(|p| p.slabref != dest_slabref).map(|p| p.clone()).collect()
+                }else{
+                    carrier.peerstate.clone()
+                };
+
+            let my_status = match carrier.memo {
+                Some(_) => MemoPeerStatus::Resident,
+                None    => MemoPeerStatus::Participating,
+            };
+
+            peerstate.push(MemoPeerState{
+                slabref: self.slabref.clone(),
+                status: my_status
+            });
+            Box::new(future::result(Ok(LocalSlabResponse::GetPeerState(peerstate))))
+        }else{
+            Box::new(future::result(Ok(LocalSlabResponse::GetPeerState(vec![]))))
+        }
+
     }
 }

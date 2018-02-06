@@ -105,6 +105,7 @@ pub enum LocalSlabRequest {
     PutSlabPresence { presence: SlabPresence },
     GetMemo { memo_id: MemoId },
     SendMemo { to_slabref: SlabRef, memoref: MemoRef },
+    GetPeerState { memoref: MemoRef, maybe_dest_slabref: Option<SlabRef> },
 }
 pub enum LocalSlabResponse {
     ReceiveMemoWithPeerList( () ),
@@ -112,6 +113,7 @@ pub enum LocalSlabResponse {
     PutSlabPresence( () ),
     GetMemo( Option<Memo> ),
     SendMemo ( () ),
+    GetPeerState( Vec<MemoPeerState> ),
 }
 
 pub enum SlabSend {

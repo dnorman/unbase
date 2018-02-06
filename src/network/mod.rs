@@ -4,6 +4,7 @@ mod transmitter;
 
 pub mod transport;
 pub mod packet;
+pub mod buffer;
 
 use slab;
 pub use slab::prelude::*;
@@ -201,8 +202,7 @@ impl Network {
                     // seed is resident on the requesting slab
                     seed.clone()
                 } else {
-                    let owned_slabref = slab.get_slabref_for_slab_id( from_slabref.slab_id() );
-                    seed.clone_for_slab(&owned_slabref, slab, true)
+                    seed.clone_for_slab(&slab, slab, true)
                 }
             }
             None => MemoRefHead::Null,

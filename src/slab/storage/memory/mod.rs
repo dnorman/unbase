@@ -1,10 +1,9 @@
 mod worker;
 
-use futures::prelude::*;
+//use futures::prelude::*;
 use std::sync::Arc;
 
 use self::worker::MemoryWorker;
-use context::*;
 use network::{Network,Transmitter};
 use slab::Slab;
 use slab::prelude::*;

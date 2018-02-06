@@ -5,13 +5,10 @@ pub mod serde;
 
 use std::collections::HashMap;
 use std::{fmt};
-use std::sync::Arc;
-use core::ops::Deref;
 use futures::prelude::*;
 use futures::future;
 
 use subject::{SubjectId,SubjectType};
-use slab;
 use slab::prelude::*;
 use memorefhead::MemoRefHead;
 use error::*;
@@ -19,16 +16,18 @@ use error::*;
 //pub type MemoId = [u8; 32];
 pub type MemoId = u64;
 
-// All portions of this struct should be immutable
-
+// All portions of this struct should be immutable – but not necessarily identical to other copies of the memo on other slabs
+// This is because the MemoRefs and SlabRefs might differ in precise content, even though they are semantically (and hashvalue) identical
 #[derive(Clone)]
 pub struct Memo {
     pub id: u64,
     pub subject_id: Option<SubjectId>,
-    pub owning_slab_id: slab::SlabId,
+    pub owning_slabref: SlabRef,
     pub parents: MemoRefHead,
     pub body: MemoBody
 }
+
+
 
 #[derive(Clone, Debug)]
 pub enum MemoBody{
@@ -66,9 +65,6 @@ impl fmt::Debug for Memo{
 }
 
 impl Memo {
-    pub fn new (inner: MemoInner) -> Self {
-        Memo(Arc::new(inner))
-    }
     pub fn get_parent_head (&self) -> MemoRefHead {
         self.parents.clone()
     }
@@ -140,16 +136,16 @@ impl Memo {
         }
         return Box::new(future::result(Ok(false)));
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle, peerlist: &MemoPeerList) -> Memo {
+    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
         assert!(from_slabref.owning_slab_id == to_slab.id, "Memo clone_for_slab owning slab should be identical");
 
-        let memo = Memo::new(MemoInner {
+        let memo = Memo{
             id:             self.id,
-            owning_slab_id: to_slab.id,
+            owning_slabref: to_slab.slabref,
             subject_id:     self.subject_id,
             parents:        self.parents.clone_for_slab(from_slabref, to_slab, false),
             body:           self.body.clone_for_slab(from_slabref, to_slab)
-        });
+        };
 
         to_slab.receive_memo_with_peerlist( memo.clone(), peerlist.clone(), from_slabref.clone() );
         

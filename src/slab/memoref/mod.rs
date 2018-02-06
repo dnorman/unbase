@@ -40,7 +40,7 @@ pub enum MemoRefPtr {
 }
 
 impl MemoRefPtr {
-    pub fn to_peering_status (&self) -> MemoPeerStatus {
+    fn to_peering_status (&self) -> MemoPeerStatus {
         match self {
             &MemoRefPtr::Resident(_) => MemoPeerStatus::Resident,
             &MemoRefPtr::Remote      => MemoPeerStatus::Participating
@@ -49,6 +49,9 @@ impl MemoRefPtr {
 }
 
 impl MemoRef {
+    pub fn memo_id (&self) -> MemoId {
+        self.memo_id.clone()
+    }
     pub fn to_head (&self) -> MemoRefHead {
         match self.subject_id {
             None => MemoRefHead::Anonymous{
@@ -105,6 +108,33 @@ impl MemoRef {
         // Box::new(self.get_memo( slab ).and_then(|memo| {
         //     memo.descends(memoref,slab)
         // }))
+    }
+    pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, include_memo: bool ) -> Self{
+        assert!(from_slab.slab_id = self.owning_slab_id,       "Cannot clone foreign MemoRef");
+        //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
+
+        // Because our from_slabref is already owned by the destination slab, there is no need to do peerlist.clone_for_slab
+        let peerlist = from_slab.get_peerstate(self, Some(to_slab.id));
+        //println!("Slab({}).Memoref.clone_for_slab({}) C -> {:?}", self.owning_slab_id, self.id, peerlist);
+
+        // TODO - reduce the redundant work here. We're basically asserting the memoref twice
+        let memoref = to_slab.assert_memoref(
+            self.id,
+            self.subject_id,
+            peerlist.clone(),
+            match include_memo {
+                true => match *self.ptr.read().unwrap() {
+                    MemoRefPtr::Resident(ref m) => Some(m.clone_for_slab(from_slabref, to_slab, &peerlist)),
+                    MemoRefPtr::Remote          => None
+                },
+                false => None
+            }
+        ).0;
+
+
+        //println!("MemoRef.clone_for_slab({},{}) peerlist: {:?} -> MemoRef({:?})", from_slabref.slab_id, to_slab.id, &peerlist, &memoref );
+
+        memoref
     }
 
 }
