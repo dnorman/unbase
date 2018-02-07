@@ -34,7 +34,7 @@ impl LocalSlabHandle {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
-            slab_id: peer_slab.id,
+            slab_id: peer_slab.slab_id,
             address: network::transport::TransportAddress::Local,
             lifetime: SlabAnticipatedLifetime::Unknown
         };
@@ -44,6 +44,7 @@ impl LocalSlabHandle {
     pub fn get_slabref_for_slab_id( &self, slab_id: slab::SlabId ) -> SlabRef {
         // Temporary - SlabRef just contains SlabId for now. This shoulld change
         SlabRef{
+            owning_slab_id: self.slab_id,
             slab_id: slab_id
         }
     }
@@ -55,7 +56,11 @@ impl LocalSlabHandle {
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
     pub fn get_peerstate(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
-        self.call(LocalSlabRequest::GetPeerState{ memoref, maybe_dest_slabref } ).wait()
+        if let LocalSlabResponse::GetPeerState(r) = self.call(LocalSlabRequest::GetPeerState{ memoref, maybe_dest_slabref } ).wait()? {
+            Ok(r)
+        }else{
+            panic!("Invalid return type")
+        }
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) { 
         self.call(LocalSlabRequest::PutSlabPresence{ presence } ).wait();
@@ -78,7 +83,13 @@ impl LocalSlabHandle {
 
         // }
     }
-
+    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>>  {
+        if let LocalSlabResponse::PutMemo(r) = self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).wait()? {
+            Ok(r)
+        }else{
+            panic!("Invalid return type")
+        }
+    }
     pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: mpsc::Sender<MemoRefHead> ) {
 
         unimplemented!()
@@ -108,17 +119,17 @@ impl LocalSlabHandle {
     //     // }
     // }
     pub fn generate_subject_id(&self, stype: SubjectType) -> SubjectId {
-        let id = (self.id as u64).rotate_left(32) | self.counter.next_subject_id() as u64;
+        let id = (self.slab_id as u64).rotate_left(32) | self.counter.next_subject_id() as u64;
         SubjectId{ id, stype }
     }
     pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
-        let memo_id = (self.id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
+        let memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
-        //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.id, memo_id, subject_id, parents.memo_ids(), body );
+        //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.slab_id, memo_id, subject_id, parents.memo_ids(), body );
 
         let memo = Memo {
             id:    memo_id,
-            owning_slab_id: self.id,
+            owning_slabref: self.slabref.clone(),
             subject_id: subject_id,
             parents: parents,
             body: body
@@ -130,9 +141,9 @@ impl LocalSlabHandle {
         memoref
     }
     pub fn residentize_memoref(&self, memoref: &MemoRef, memo: Memo) -> bool {
-        //println!("# Slab({}).MemoRef({}).residentize()", self.id, memoref.id);
+        //println!("# Slab({}).MemoRef({}).residentize()", self.slab_id, memoref.id);
 
-        assert!(memoref.owning_slab_id == self.id);
+        assert!(memoref.owning_slab_id == self.slab_id);
         assert!( memoref.id == memo.id );
 
         let mut ptr = memoref.ptr.write().unwrap();
@@ -171,9 +182,9 @@ impl LocalSlabHandle {
         }
     }
     pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),Error> {
-        assert!(memoref.owning_slab_id == self.id);
+        assert!(memoref.owning_slab_id == self.slab_id);
 
-        //println!("# Slab({}).MemoRef({}).remotize()", self.id, memoref.id );
+        //println!("# Slab({}).MemoRef({}).remotize()", self.slab_id, memoref.id );
         
         // TODO: check peering minimums here, and punt if we're below threshold
 
@@ -201,7 +212,7 @@ impl LocalSlabHandle {
         Ok(())
     }
     pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
-        //println!("Slab({}).request_memo({})", self.id, memoref.id );
+        //println!("Slab({}).request_memo({})", self.slab_id, memoref.id );
 
         let request_memo = self.new_memo_basic(
             None,
@@ -214,7 +225,7 @@ impl LocalSlabHandle {
 
         let mut sent = 0u8;
         for peer in memoref.peerlist.read().unwrap().iter().take(5) {
-            //println!("Slab({}).request_memo({}) from {}", self.id, memoref.id, peer.slabref.slab_id );
+            //println!("Slab({}).request_memo({}) from {}", self.slab_id, memoref.id, peer.slabref.slab_id );
             peer.slabref.send( &self.my_ref, &request_memo.clone() );
             sent += 1;
         }
@@ -223,7 +234,7 @@ impl LocalSlabHandle {
     }
         /// Notify interested parties about a newly arrived memoref on this slab
     pub fn dispatch_memoref (&self, memoref : MemoRef){
-        //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?}, {:?})", self.id, &memoref.id, &memoref.subject_id, memoref.get_memo_if_resident() );
+        //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?}, {:?})", self.slab_id, &memoref.id, &memoref.subject_id, memoref.get_memo_if_resident() );
 
         if let Some(subject_id) = memoref.subject_id {
             // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
@@ -264,7 +275,7 @@ impl LocalSlabHandle {
     //      why? Presumably due to deadlocks, but this seems sloppy
     /// Perform necessary tasks given a newly arrived memo on this slab
     pub fn handle_memo_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
-        //println!("Slab({}).handle_memo_from_other_slab({:?})", self.id, memo );
+        //println!("Slab({}).handle_memo_from_other_slab({:?})", self.slab_id, memo );
 
         match memo.body {
             // This Memo is a peering status update for another memo
@@ -325,7 +336,7 @@ impl LocalSlabHandle {
             },
             MemoBody::MemoRequest(ref desired_memo_ids, ref requesting_slabref ) => {
 
-                if requesting_slabref.0.slab_id != self.id {
+                if requesting_slabref.0.slab_id != self.slab_id {
                     for desired_memo_id in desired_memo_ids {
                         if let Ok(Some(desired_memoref)) = self.store.get_memoref(&desired_memo_id) {
 
@@ -418,7 +429,7 @@ impl LocalSlabHandle {
     pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {
         // Get the address that the remote slab would recogize
         SlabPresence {
-            slab_id: self.id,
+            slab_id: self.slab_id,
             address: origin_slabref.get_return_address(),
             lifetime: SlabAnticipatedLifetime::Unknown
         }
@@ -441,7 +452,7 @@ impl LocalSlabHandle {
 
 
         //             if slab.request_memo(self) > 0 {
-        //         channel = slab.memo_wait_channel(self.id);
+        //         channel = slab.memo_wait_channel(self.slab_id);
         //     }else{
         //         return Err(Error::RetrieveError(RetrieveError::NotFound))
         //     }
@@ -456,7 +467,7 @@ impl LocalSlabHandle {
         // for _ in 0..3 {
         //     match channel.recv_timeout(timeout) {
         //         Ok(memo)       =>{
-        //             //println!("Slab({}).MemoRef({}).get_memo() received memo: {}", self.owning_slab_id, self.id, memo.id );
+        //             //println!("Slab({}).MemoRef({}).get_memo() received memo: {}", self.owning_slab_id, self.slab_id, memo.id );
         //             return Ok(memo)
         //         }
         //         Err(rcv_error) => {
@@ -509,7 +520,7 @@ impl LocalSlabHandle {
 impl fmt::Debug for LocalSlabHandle {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LocalSlabHandle")
-            .field("slab_id", &self.id)
+            .field("slab_id", &self.slab_id)
             .finish()
     }
 }

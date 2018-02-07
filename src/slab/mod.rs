@@ -76,7 +76,6 @@ pub struct LocalSlabHandle {
     pub slabref: SlabRef,
     pub tx: LocalSlabRequester,
     pub counter: Arc<SlabCounter>,
-    pub my_ref: SlabRef,
 }
 
 /// Handle for communicating with a slab that might be local OR remote
@@ -133,17 +132,18 @@ pub enum MemoPeerStatus {
 impl SlabPresence {
     pub fn get_transmitter (&self, net: &Network) -> Option<Transmitter> {
 
-        use network::TransmitterArgs;
-        let args = if self.address.is_local() {
-            if let Some(ref slab) = net.get_local_slab_handle(self.slabref) {
-                TransmitterArgs::Local(slab)
-            }else{
-                return None;
-            }
-        }else{
-            TransmitterArgs::Remote( &self.slab_id, &self.address )
-        };
+        unimplemented!()
+        // use network::TransmitterArgs;
+        // let args = if self.address.is_local() {
+        //     if let Some(ref slab) = net.get_local_slab_handle(self.slabref) {
+        //         TransmitterArgs::Local(slab)
+        //     }else{
+        //         return None;
+        //     }
+        // }else{
+        //     TransmitterArgs::Remote( &self.slab_id, &self.address )
+        // };
 
-        net.get_transmitter(&args)
+        // net.get_transmitter(&args)
     }
 }

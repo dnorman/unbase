@@ -100,19 +100,19 @@ impl Deref for EdgeSet {
 
 
 pub enum LocalSlabRequest {
-    ReceiveMemoWithPeerList{ memo: Memo, peerlist: Vec<MemoPeerState>, from_slabref: SlabRef },
+    GetMemo { memoref: MemoRef },
+    PutMemo { memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef },
+    SendMemo { to_slabref: SlabRef, memoref: MemoRef },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
     PutSlabPresence { presence: SlabPresence },
-    GetMemo { memo_id: MemoId },
-    SendMemo { to_slabref: SlabRef, memoref: MemoRef },
     GetPeerState { memoref: MemoRef, maybe_dest_slabref: Option<SlabRef> },
 }
 pub enum LocalSlabResponse {
-    ReceiveMemoWithPeerList( () ),
+    GetMemo( Option<Memo> ),
+    PutMemo ( () ),
+    SendMemo ( () ),
     RemotizeMemoIds( () ),
     PutSlabPresence( () ),
-    GetMemo( Option<Memo> ),
-    SendMemo ( () ),
     GetPeerState( Vec<MemoPeerState> ),
 }
 
