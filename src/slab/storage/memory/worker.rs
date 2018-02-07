@@ -79,7 +79,8 @@ impl MemoryWorker {
         let f = match request {
             SendMemo {to_slabref, memoref}              => self.send_memo(to_slabref, memoref),
             PutSlabPresence { presence }                => self.put_slab_presence(presence),
-            GetPeerState{ memoref, maybe_dest_slabref } => self.get_peerstate(memoref, maybe_dest_slabref)
+            GetPeerState{ memoref, maybe_dest_slabref } => self.get_peerstate(memoref, maybe_dest_slabref),
+            GetMemo{ memoref }                          => self.get_memo(memoref).map(LocalSlabResponse::GetMemo),
         }.then(|response| {
             responder.send(response)
         }).then(|_| {
@@ -88,7 +89,7 @@ impl MemoryWorker {
 
         Box::new(f)
     }
-    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -97,11 +98,52 @@ impl MemoryWorker {
 
         // TODO: figure out how to handle multiple transmitters to the same slab. Presumably this will require some thought of transmitter health, latency, and redundancy
         //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
-        match self.get_transmitter( &slabref ) {
-            Ok(transmitter) => transmitter.send( self.slabref, memoref.clone() ).map(|_| LocalSlabResponse::SendMemo(())),
-            Err(e)          => Box::new(future::result( Err(e) ))
-        }
 
+        // TODO: update transmitter to return a future?
+        Box::new(self.get_memo(memoref).and_then(|maybe_memo| {
+            if let Some(memo) = maybe_memo {
+                match self.get_transmitter( &slabref ) {
+                    Ok(transmitter) => {
+                        transmitter.send( self.slabref, memo );//.map(|_| LocalSlabResponse::SendMemo(())),
+                        Ok(())
+                    },
+                    Err(e) => Err(e)
+                }
+            }else{
+                Err(Error::RetrieveError(RetrieveError::NotFound))
+            }
+        }))
+    }
+    fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>>{
+
+    //     let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.subject_id, peerlist.clone(), Some(memo.clone()) );
+
+    //     {
+    //         let mut counters = self.counters.write().unwrap();
+    //         counters.memos_received += 1;
+    //         if had_memoref {
+    //             counters.memos_redundantly_received += 1;
+    //         }
+    //     }
+    //     //println!("Slab({}).reconstitute_memo({}) B -> {:?}", self.id, memo_id, memoref );
+
+
+    //     self.consider_emit_memo(&memoref);
+
+    //     if let Some(ref memo) = memoref.get_memo_if_resident() {
+
+    //         self.check_memo_waiters(memo);
+    //         //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
+    //         // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
+    //         // otherwise 
+    //         self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
+    //         self.do_peering(&memoref, &origin_slabref);
+
+    //     }
+
+    //     self.dispatch_memoref(memoref);
+
+        unimplemented!()
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
         use std::mem;
@@ -123,15 +165,19 @@ impl MemoryWorker {
         // TODO: update transmitter?
         Box::new(future::result(Ok(LocalSlabResponse::PutSlabPresence(()))))
     }
-    pub fn get_memo ( &self, memo_id: MemoId ) -> Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    pub fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
-        let maybe_memo = match self.memo_storage.get(&memo_id){
+        if let Some(memo) = memoref.get_memo_if_resident(){
+            return Box::new(future::result(Ok(Some(memo))));
+        }
+
+        let maybe_memo = match self.memo_storage.get(&memoref.memo_id()){
             Some(&MemoCarrier{ memo: Some(ref memo), .. }) => Some(memo.clone()),
             _                                              => None
         };
 
-        Box::new(future::result(Ok(LocalSlabResponse::GetMemo(maybe_memo))))
+        Box::new(future::result(Ok(maybe_memo)))
     }
     fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
         use std::collections::hash_map::Entry::*;

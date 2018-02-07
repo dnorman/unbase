@@ -1,5 +1,6 @@
 
 use std::sync::{mpsc,Mutex};
+use futures::prelude::*;
 
 use slab;
 use slab::prelude::*;
@@ -8,11 +9,11 @@ use network::transport::TransportAddress;
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
     /// Transmit a memo to this Transmitter's recipient
-    fn send (&self, from: SlabRef, memoref: MemoRef);
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef);
 }
 
 enum TransmitterInternal {
-    Local(mpsc::Sender<(SlabRef,MemoRef)>),
+    Local(LocalSlabHandle),
     Dynamic(Box<DynamicDispatchTransmitter + Send>),
     Blackhole
 }
@@ -49,10 +50,10 @@ pub struct Transmitter {
 
 impl Transmitter {
     /// Create a new transmitter associated with a local slab.
-    pub fn new_local( to_slabref: SlabRef, tx: mpsc::Sender<(SlabRef,MemoRef)> ) -> Self {
+    pub fn new_local( to_slabhandle: LocalSlabHandle ) -> Self {
         Self {
-            to_slab_id: to_slabref.slab_id(),
-            internal: TransmitterInternal::Local( tx )
+            to_slab_id: to_slabhandle.slabref.slab_id(),
+            internal: TransmitterInternal::Local( to_slabhandle )
         }
     }
     pub fn new_blackhole(to_slabref: SlabRef) -> Self {
@@ -69,24 +70,22 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, from: SlabRef, memoref: MemoRef) {
+    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;
 
         use self::TransmitterInternal::*;
         match self.internal {
-            Local(ref tx) => {
-                //println!("CHANNEL SEND from {}, {:?}", from.slab_id, memo);
-                // TODO - stop assuming that this is resident on the sending slab just because we're sending it
-                // TODO - lose the stupid lock on the transmitter
-                tx.send((from.clone(),memoref)).expect("local transmitter send")
+            Local(ref handle) => {
+                handle.put_memo(memo, peerstate, from_slabref).wait();
+                //tx.send((from.clone(),memoref)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
-                tx.send(from,memoref)
+                tx.send(memo, peerstate, from_slabref)
             }
             Blackhole => {
-                println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memoref {:?}", from, memoref );
+                println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memo {:?}", from_slabref, memo );
             }
         }
     }

@@ -1,36 +1,6 @@
 
     // fn add_receiver (&self, mpsc::UnboundedReceiver<(SlabRequest,oneshot::Sender<SlabResponse>)>);
-    // fn receive_memo_with_peerlist(&self, memo: self::memo::Memo, peerlist: self::common_structs::MemoPeerList, from_slabref: self::slabref::SlabRef ){
 
-    //     let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.subject_id, peerlist.clone(), Some(memo.clone()) );
-
-    //     {
-    //         let mut counters = self.counters.write().unwrap();
-    //         counters.memos_received += 1;
-    //         if had_memoref {
-    //             counters.memos_redundantly_received += 1;
-    //         }
-    //     }
-    //     //println!("Slab({}).reconstitute_memo({}) B -> {:?}", self.id, memo_id, memoref );
-
-
-    //     self.consider_emit_memo(&memoref);
-
-    //     if let Some(ref memo) = memoref.get_memo_if_resident() {
-
-    //         self.check_memo_waiters(memo);
-    //         //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
-    //         // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
-    //         // otherwise 
-    //         self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
-    //         self.do_peering(&memoref, &origin_slabref);
-
-    //     }
-
-    //     self.dispatch_memoref(memoref);
-
-
-    // }
 
 
     /// remove the memo itself from storage, but not the reference to it. Returns Ok(true) if the memo was removed from the store, Ok(false) if it was not present, or Err(_) if there was a problem with removing it
