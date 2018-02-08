@@ -1,15 +1,17 @@
 
 use std::sync::{mpsc,Mutex};
 use futures::prelude::*;
+use futures::future;
 
 use slab;
 use slab::prelude::*;
 use network::transport::TransportAddress;
+use error::*;
 
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
     /// Transmit a memo to this Transmitter's recipient
-    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef);
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>>;
 }
 
 enum TransmitterInternal {
@@ -20,7 +22,7 @@ enum TransmitterInternal {
 
 #[derive(Debug)]
 pub enum TransmitterArgs<'a>{
-    Local(&'a LocalSlabHandle),
+    Local(LocalSlabHandle),
     Remote(&'a SlabRef, &'a TransportAddress)
 }
 impl<'a> TransmitterArgs<'a>{
@@ -70,7 +72,7 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) {
+    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;
@@ -78,7 +80,7 @@ impl Transmitter {
         use self::TransmitterInternal::*;
         match self.internal {
             Local(ref handle) => {
-                handle.put_memo(memo, peerstate, from_slabref).wait();
+                handle.put_memo(memo, peerstate, from_slabref)
                 //tx.send((from.clone(),memoref)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
@@ -86,6 +88,8 @@ impl Transmitter {
             }
             Blackhole => {
                 println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memo {:?}", from_slabref, memo );
+
+                Box::new(future::result(Ok(())))
             }
         }
     }

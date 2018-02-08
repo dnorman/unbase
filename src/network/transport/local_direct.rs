@@ -9,13 +9,7 @@ pub struct LocalDirect {}
 impl LocalDirect {
     // TODO: Potentially, make this return an Arc of itself.
     pub fn new () -> Self{
-        LocalDirect {
-            shared: Arc::new(Mutex::new(
-                Internal {
-                    tx_threads: Vec::new()
-                }
-            ))
-        }
+        LocalDirect {}
     }
 }
 
@@ -23,8 +17,8 @@ impl Transport for LocalDirect {
     fn is_local (&self) -> bool {
         true
     }
-    fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
-        if let &TransmitterArgs::Local(rcv_slab) = args {
+    fn make_transmitter (&self, args: TransmitterArgs ) -> Option<Transmitter> {
+        if let TransmitterArgs::Local(rcv_slab) = args {
             Some(Transmitter::new_local(rcv_slab))
         }else{
             None

@@ -23,11 +23,11 @@ impl Deref for MemoRef {
 }
 
 pub struct MemoRefInner {
-    pub id:       MemoId,
+    pub memo_id:        MemoId,
     pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
-    pub subject_id: Option<SubjectId>,
+    pub subject_id:     Option<SubjectId>,
     //TODO1 - remove this: pub peerlist: RwLock<MemoPeerList>,
-    pub ptr:      RwLock<MemoRefPtr>,
+    //pub ptr:            RwLock<MemoRefPtr>,
 }
 
 pub enum MemoRefPtr {
@@ -65,16 +65,18 @@ impl MemoRef {
         }
     }
     pub fn is_resident(&self) -> bool {
-        match *self.ptr.read().unwrap() {
-            MemoRefPtr::Resident(_) => true,
-            _                       => false
-        }
+        unimplemented!()
+        // match *self.ptr.read().unwrap() {
+        //     MemoRefPtr::Resident(_) => true,
+        //     _                       => false
+        // }
     }
     pub fn get_memo_if_resident(&self) -> Option<Memo> {
-        match *self.ptr.read().unwrap() {
-            MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
-            _ => None
-        }
+        unimplemented!()
+        // match *self.ptr.read().unwrap() {
+        //     MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
+        //     _ => None
+        // }
     }
     /*    pub fn memo_durability_score( &self, _memo: &Memo ) -> u8 {
         // TODO: devise durability_score algo
@@ -87,22 +89,23 @@ impl MemoRef {
         0
     }
     */
-    pub fn get_memo (&self, slab: &LocalSlabHandle) -> Box<Future<Item=Memo, Error=Error>> {
-//        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
-        assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
+    // CONSIDER REMOVAL
+//     pub fn get_memo (&self, slab: &LocalSlabHandle) -> Box<Future<Item=Memo, Error=Error>> {
+// //        println!("Slab({}).MemoRef({}).get_memo()", self.owning_slab_id, self.id );
+//         assert!(self.owning_slab_id == slab.id,"requesting slab does not match owning slab");
 
-        match *self.ptr.read().unwrap(){
-            MemoRefPtr::Resident(ref memo) => {
-                Box::new(future::result(Ok(memo.clone())))
-            }
-            MemoRefPtr::Local | MemoRefPtr::Remote  => {
-                slab.get_memo( self.id )
-            }
-        }
+//         match *self.ptr.read().unwrap(){
+//             MemoRefPtr::Resident(ref memo) => {
+//                 Box::new(future::result(Ok(memo.clone())))
+//             }
+//             MemoRefPtr::Local | MemoRefPtr::Remote  => {
+//                 slab.get_memo( self.id )
+//             }
+//         }
 
-    }
+//     }
     pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
-        assert!(self.owning_slab_id == slab.id);
+        assert!(self.owning_slab_id == slab.slab_id());
 
         unimplemented!();
         // Box::new(self.get_memo( slab ).and_then(|memo| {
@@ -114,27 +117,28 @@ impl MemoRef {
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
 
         // Because our from_slabref is already owned by the destination slab, there is no need to do peerlist.clone_for_slab
-        let peerlist = from_slab.get_peerstate(self, Some(to_slab.id));
+        let peerlist = from_slab.get_peerstate(self.clone(), Some(to_slab.slabref.clone()));
         //println!("Slab({}).Memoref.clone_for_slab({}) C -> {:?}", self.owning_slab_id, self.id, peerlist);
 
-        // TODO - reduce the redundant work here. We're basically asserting the memoref twice
-        let memoref = to_slab.assert_memoref(
-            self.id,
-            self.subject_id,
-            peerlist.clone(),
-            match include_memo {
-                true => match *self.ptr.read().unwrap() {
-                    MemoRefPtr::Resident(ref m) => Some(m.clone_for_slab(from_slabref, to_slab, &peerlist)),
-                    MemoRefPtr::Remote          => None
-                },
-                false => None
-            }
-        ).0;
+        unimplemented!()
+        // // TODO - reduce the redundant work here. We're basically asserting the memoref twice
+        // let memoref = to_slab.assert_memoref(
+        //     self.id,
+        //     self.subject_id,
+        //     peerlist.clone(),
+        //     match include_memo {
+        //         true => match *self.ptr.read().unwrap() {
+        //             MemoRefPtr::Resident(ref m) => Some(m.clone_for_slab(from_slabref, to_slab, &peerlist)),
+        //             MemoRefPtr::Remote          => None
+        //         },
+        //         false => None
+        //     }
+        // ).0;
 
 
-        //println!("MemoRef.clone_for_slab({},{}) peerlist: {:?} -> MemoRef({:?})", from_slabref.slab_id, to_slab.id, &peerlist, &memoref );
+        // //println!("MemoRef.clone_for_slab({},{}) peerlist: {:?} -> MemoRef({:?})", from_slabref.slab_id, to_slab.id, &peerlist, &memoref );
 
-        memoref
+        // memoref
     }
 
 }
@@ -142,13 +146,13 @@ impl MemoRef {
 impl fmt::Debug for MemoRef{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MemoRef")
-           .field("id", &self.id)
+           .field("id", &self.memo_id)
            .field("owning_slab_id", &self.owning_slab_id)
            .field("subject_id", &self.subject_id)
-           .field("resident", &match *self.ptr.read().unwrap() {
-               MemoRefPtr::Remote      => false,
-               MemoRefPtr::Resident(_) => true
-           })
+        //    .field("resident", &match *self.ptr.read().unwrap() {
+        //        MemoRefPtr::Remote      => false,
+        //        MemoRefPtr::Resident(_) => true
+        //    })
            .finish()
     }
 }
@@ -156,7 +160,7 @@ impl fmt::Debug for MemoRef{
 impl PartialEq for MemoRef {
     fn eq(&self, other: &MemoRef) -> bool {
         // TODO: handle the comparision of pre-hashed memos as well as hashed memos
-        self.id == other.id
+        self.memo_id == other.memo_id
     }
 }
 

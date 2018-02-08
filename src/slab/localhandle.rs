@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use core::ops::Deref;
-use futures::*;
+use futures::prelude::*;
 use futures::sync::{mpsc,oneshot};
 use std::fmt;
 
@@ -25,7 +25,9 @@ impl LocalSlabHandle {
 
         handle
     }
-
+    pub fn slab_id(&self) -> slab::SlabId {
+        self.slab_id.clone()
+    }
     fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
         let (p, c) = oneshot::channel::<LocalSlabResponse>();
         unimplemented!()
@@ -83,12 +85,19 @@ impl LocalSlabHandle {
 
         // }
     }
-    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>>  {
-        if let LocalSlabResponse::PutMemo(r) = self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).wait()? {
-            Ok(r)
-        }else{
-            panic!("Invalid return type")
-        }
+
+    // #[async]
+    // pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Result<(),Error> + 'static>{
+    //     Ok(())
+    // }
+    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error> + 'static>  {
+        Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).and_then(|r| {
+            if let LocalSlabResponse::PutMemo(_) = r {
+                return Ok(())
+            }else{
+                panic!("Invalid return type");
+            }
+        }) )
     }
     pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: mpsc::Sender<MemoRefHead> ) {
 
@@ -135,10 +144,14 @@ impl LocalSlabHandle {
             body: body
         };
 
-        let (memoref, _had_memoref) = self.put_memo( memo );
-        self.consider_emit_memo(&memoref);
+        // TODO1 figure out if put_memo should give back a remoref. Probably Yes??
+        unimplemented!();
+        //let (memoref, _had_memoref) = self.put_memo( memo, vec![], self.slabref ).wait();
 
-        memoref
+        // TODO1 figure out where and how this should be called
+        //self.consider_emit_memo(&memoref);
+
+        //memoref
     }
     pub fn residentize_memoref(&self, memoref: &MemoRef, memo: Memo) -> bool {
         //println!("# Slab({}).MemoRef({}).residentize()", self.slab_id, memoref.id);
@@ -149,7 +162,7 @@ impl LocalSlabHandle {
         let mut ptr = memoref.ptr.write().unwrap();
 
         if let MemoRefPtr::Remote = *ptr {
-            *ptr = MemoRefPtr::Resident( memo );
+            *ptr = MemoRefPtr::Resident( Arc::new(memo) );
 
             // should this be using do_peering_for_memo?
             // doing it manually for now, because I think we might only want to do
@@ -162,17 +175,20 @@ impl LocalSlabHandle {
                     memoref.id,
                     memoref.subject_id,
                     vec![ MemoPeerState{
-                        slabref: self.my_ref.clone(),
+                        slabref: self.slabref.clone(),
                         status: MemoPeerStatus::Resident
                     }]
                 )
             );
 
-            let requests = Vec::new();
-            for peer in memoref.peerlist.read().unwrap().iter() {
-                requests.push( self.call(LocalSlabRequest::SendMemo{ slab_id: peer.slab_id, memoref: peering_memoref.clone() } ) );
-                peer.slabref.send( &self.my_ref, &peering_memoref );
-            }
+            //TODO1
+            unimplemented!();
+            // let requests = Vec::new();
+            // for peer in memoref.peerstate.read().unwrap().iter() {
+
+            //     requests.push( self.call(LocalSlabRequest::SendMemo{ slabref: peer.slab_id, memoref: peering_memoref.clone() } ) );
+            //     peer.slabref.send( &self.slabref, &peering_memoref );
+            // }
 
             // residentized
             true
@@ -188,28 +204,30 @@ impl LocalSlabHandle {
         
         // TODO: check peering minimums here, and punt if we're below threshold
 
-        self.store.conditional_remove_memo( memoref.id )?;
+        // TODO1
+        unimplemented!()
+        // self.store.conditional_remove_memo( memoref.id )?;
 
-        let peering_memoref = self.new_memo_basic(
-            None,
-            memoref.to_head(),
-            MemoBody::Peering(
-                memoref.id,
-                memoref.subject_id,
-                vec![MemoPeerState{
-                    slabref: self.my_ref.clone(),
-                    status: MemoPeerStatus::Participating
-                }]
-            )
-        );
+        // let peering_memoref = self.new_memo_basic(
+        //     None,
+        //     memoref.to_head(),
+        //     MemoBody::Peering(
+        //         memoref.id,
+        //         memoref.subject_id,
+        //         vec![MemoPeerState{
+        //             slabref: self.slabref.clone(),
+        //             status: MemoPeerStatus::Participating
+        //         }]
+        //     )
+        // );
 
         //self.consider_emit_memo(&memoref);
 
-        for peer in memoref.peerlist.iter() {
-            peer.slabref.send( &self.my_ref, &peering_memoref );
-        }
+        // for peer in memoref.peerlist.iter() {
+        //     peer.slabref.send( &self.my_ref, &peering_memoref );
+        // }
 
-        Ok(())
+        // Ok(())
     }
     pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
         //println!("Slab({}).request_memo({})", self.slab_id, memoref.id );
@@ -219,7 +237,7 @@ impl LocalSlabHandle {
             MemoRefHead::Null,
             MemoBody::MemoRequest(
                 vec![memoref.id],
-                self.my_ref.clone()
+                self.presence()
             )
         );
 
@@ -288,7 +306,7 @@ impl LocalSlabHandle {
                             memoref.update_peer(origin_slabref, MemoPeerStatus::Resident);
                         }
 
-                        self.net.apply_root_index_seed( &presence, root_index_seed, &self.my_ref );
+                        self.net.apply_root_index_seed( &presence, root_index_seed, self );
                     }
                     &MemoRefHead::Null => {}
                 }
@@ -386,7 +404,7 @@ impl LocalSlabHandle {
             self.add_to_durability_remediation(memoref);
 
             for peer_ref in self.peer_refs.read().unwrap().iter().filter(|x| !memoref.is_peered_with_slabref(x) ).take( needs_peers as usize ) {
-                peer_ref.send( &self.my_ref, memoref );
+                peer_ref.send( &self.slabref, memoref );
             }
         }else{
             self.remove_from_durability_remediation(&memoref);
@@ -430,7 +448,7 @@ impl LocalSlabHandle {
         // Get the address that the remote slab would recogize
         SlabPresence {
             slab_id: self.slab_id,
-            address: origin_slabref.get_return_address(),
+            addresses: origin_slabref.get_return_addresses(),
             lifetime: SlabAnticipatedLifetime::Unknown
         }
     }

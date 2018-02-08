@@ -30,7 +30,7 @@ pub enum TransportAddress{
 }
 
 pub trait Transport {
-    fn make_transmitter(  &self, args: &TransmitterArgs  ) -> Option<Transmitter>;
+    fn make_transmitter(  &self, args: TransmitterArgs  ) -> Option<Transmitter>;
     fn is_local        (  &self ) -> bool;
     fn bind_network    (  &self, &Network );
     fn unbind_network  (  &self, &Network );
