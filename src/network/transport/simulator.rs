@@ -4,10 +4,15 @@ use std::io;
 use std::thread;
 use std::time;
 use std::io::BufRead;
+use futures::future;
+use futures::prelude::*;
+
 use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
 use network;
+use network::packet::Packet;
+use error::*;
 
 
 // Minkowski stuff: Still ridiculous, but necessary for our purposes.
@@ -183,13 +188,13 @@ impl Transport for Simulator {
     fn is_local (&self) -> bool {
         true
     }
-    fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
-        if let TransmitterArgs::Local(ref slab) = *args {
+    fn make_transmitter (&self, args: TransmitterArgs ) -> Option<Transmitter> {
+        if let TransmitterArgs::Local(ref slab) = args {
             let tx = SimulatorTransmitter{
                 source_point: XYZPoint{ x: 1000, y: 1000, z: 1000 }, // TODO: move this - not appropriate here
                 dest_point: XYZPoint{ x: 1000, y: 1000, z: 1000 },
                 simulator: self.clone(),
-                dest: *slab.clone(),
+                dest: slab.clone(),
             };
             Some(Transmitter::new(args.get_slabref(), Box::new(tx)))
         }else{
@@ -220,7 +225,7 @@ pub struct SimulatorTransmitter{
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
-    fn send (&self, from_slabref: SlabRef, memoref: MemoRef){
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
         let ref q = self.source_point;
         let ref p = self.dest_point;
 
@@ -240,6 +245,13 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
             t: source_point.t + ( distance as u64 * self.simulator.speed_of_light ) + 1 // add 1 to ensure nothing is instant
         };
 
+        let packet = Packet {
+            to_slab_id: self.dest.slab_id(),
+            from_slabref: from_slabref,
+            memo:      memo,
+            peerstate:  peerstate,
+        };
+
         let evt = SimEvent {
             _source_point: source_point,
             dest_point: dest_point,
@@ -247,8 +259,10 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
 
             dest_slab: self.dest.clone(),
             buffer: buffer
+
         };
 
         self.simulator.add_event( evt );
+        Box::new(future::result(Ok(())))
     }
 }

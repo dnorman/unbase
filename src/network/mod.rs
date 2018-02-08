@@ -128,7 +128,7 @@ impl Network {
 
         res
     }
-    pub fn get_transmitter(&self, args: &TransmitterArgs) -> Option<Transmitter> {
+    pub fn get_transmitter(&self, args: TransmitterArgs) -> Option<Transmitter> {
         for transport in self.transports.read().unwrap().iter() {
             if let Some(transmitter) = transport.make_transmitter(args) {
                 return Some(transmitter);
@@ -136,17 +136,20 @@ impl Network {
         }
         None
     }
-    pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Option<TransportAddress> {
+    pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Vec<TransportAddress> {
+        let addresses = Vec::new();
+
         for transport in self.transports.read().unwrap().iter() {
-            return Some( transport.get_return_address(address) )
+            addresses.push( transport.get_return_address(address) )
         }
-        None
+
+        addresses
     }
     pub fn register_local_slab(&self, new_slab: LocalSlabHandle) {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
-            self.slabs.write().unwrap().insert(0, new_slab);
+            self.localslabhandles.write().unwrap().insert(0, new_slab);
         }
 
         for prev_slab in self.get_all_local_slab_handles() {
@@ -157,52 +160,46 @@ impl Network {
     pub fn deregister_local_slab(&self, slabref: SlabRef) {
         // Remove the deregistered slab so get_representative_slab doesn't return it
         {
-            let mut slabs = self.slabs.write().expect("slabs write lock");
-            if let Some(removed) = slabs.iter()
+            let mut slabhandles = self.localslabhandles.write().expect("slabs write lock");
+            if let Some(removed_sh) = slabhandles.iter()
                 .position(|s| s.slabref == slabref)
-                .map(|e| slabs.remove(e)) {
-                // println!("Unbinding Slab {}", removed.id);
-                let _ = removed.id;
-                // removed.unbind_network(self);
+                .map(|e| slabhandles.remove(e)) {
+                    // Does anyone care if we succeeded in removing the slabhandle from our list?
+                    // println!("Unbinding Slab {}", removed.id);
+                    // let _ = removed.slab_id;
+                    //removed.unbind_network(self);
             }
         }
 
         // If the deregistered slab is the one that's holding the root_index_seed
         // then we need to move it to a different slab
 
-        let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed write lock");
-        {
-            if let Some(ref mut r) = *root_index_seed {
-                if r.1.slabref == slabref {
-                    if let Some(new_slab) = self.get_representative_slab() {
 
-                        let owned_slabref = r.1.clone_for_slab(&new_slab);
-                        r.0 = r.0.clone_for_slab(&owned_slabref, &new_slab, false);
-                        r.1 = new_slab.my_ref.clone();
-                        return;
-                    }
-                    // don't return
-                } else {
-                    return;
+        if let seed @ Some((ref seed_mrh, ref seed_slabhandle)) = *self.root_index_seed.write().expect("root_index_seed write lock") {
+            if seed_slabhandle.slabref == slabref {
+                if let Some(new_slab) = self.get_representative_slab() {
+
+                    // Clone our old MRH under the newly selected slab
+                    *seed_mrh = seed_mrh.clone_for_slab(&seed_slabhandle, &new_slab, false);
+                    *seed_slabhandle = new_slab;
+                }else{
+                    seed.take();
                 }
             }
         }
-
-        // No slabs left
-        root_index_seed.take();
     }
     pub fn get_root_index_seed(&self, slab: &LocalSlabHandle) -> MemoRefHead {
         
         let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
 
         match *root_index_seed {
-            Some((ref seed, ref from_slabref)) => {
+            Some((ref seed, ref from_slabhandle)) => {
         
-                if from_slabref.owning_slab_id == slab.id {
+                if from_slabhandle.slabref == slab.slabref {
                     // seed is resident on the requesting slab
                     seed.clone()
                 } else {
-                    seed.clone_for_slab(&slab, slab, true)
+                    seed.clone_for_slab(&from_slabhandle, slab, true)
                 }
             }
             None => MemoRefHead::Null,
@@ -219,7 +216,7 @@ impl Network {
         if self.create_new_system {
             // I'm a new system, so I can do this!
             let seed = SystemCreator::generate_root_index_seed(slab);
-            *self.root_index_seed.write().unwrap() = Some((seed.clone(), slab.my_ref.clone()));
+            *self.root_index_seed.write().unwrap() = Some((seed.clone(), slab.clone()));
             return true;
         }
 
@@ -234,7 +231,7 @@ impl Network {
     pub fn apply_root_index_seed(&self,
                                  _presence: &SlabPresence,
                                  root_index_seed: &MemoRefHead,
-                                 resident_slabref: &SlabRef)
+                                 resident_slabhandle: &LocalSlabHandle)
                                  -> bool {
 
         {
@@ -255,7 +252,7 @@ impl Network {
         }
 
         *self.root_index_seed.write().unwrap() = Some((root_index_seed.clone(),
-                                                       resident_slabref.clone()));
+                                                       resident_slabhandle.clone()));
         true
 
     }

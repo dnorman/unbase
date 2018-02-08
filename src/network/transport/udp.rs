@@ -1,11 +1,15 @@
 use std::net::UdpSocket;
 use std::thread;
 use std::str;
+use futures::future;
+use futures::prelude::*;
 
 use super::*;
 use std::sync::mpsc;
 use std::sync::{Arc,Mutex};
 use slab::*;
+use error::*;
+
 // use std::collections::BTreeMap;
 use super::packet::*;
 use util::serde::DeserializeSeed;
@@ -173,7 +177,7 @@ impl TransportUDP {
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = Packet{
-                to_slab_id: SlabRef::unknown().slab_id(),
+                to_slab_id: SlabRef::unknown(&from_slab).slab_id(),
                 from_slabref: from_slab.slabref.clone(),
                 memo: memo.clone(),
                 peerstate: from_slab.get_peerstate(memoref, None).unwrap(),
@@ -194,15 +198,15 @@ impl Transport for TransportUDP {
     fn is_local (&self) -> bool {
         false
     }
-    fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
+    fn make_transmitter (&self, args: TransmitterArgs) -> Option<Transmitter> {
 
-        if let &TransmitterArgs::Remote(slab_id,address) = args {
+        if let TransmitterArgs::Remote(slabref,address) = args {
             if let &TransportAddress::UDP(ref udp_address) = address {
 
                 if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
 
                     let tx = TransmitterUDP{
-                        slab_id: slab_id,
+                        slab_id: slabref.slab_id(),
                         address: udp_address.clone(),
                         tx_channel: tx_channel.clone(),
                     };
@@ -307,29 +311,28 @@ pub struct TransmitterUDP{
     tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>
 }
 impl DynamicDispatchTransmitter for TransmitterUDP {
-    fn send (&self, from: SlabRef, memoref: MemoRef) {
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
         //println!("TransmitterUDP.send({:?},{:?})", from, memoref);
 
-        if let Some(memo) = memoref.get_memo_if_resident(){
-            let packet = Packet {
-                to_slab_id: self.slab_id,
-                from_slab_id: from.slab_id,
-                memo:      memo,
-                peerlist:  memoref.get_peerlist_for_peer(from, Some(self.slab_id)),
-            };
+        let packet = Packet {
+            to_slab_id: self.slab_id,
+            from_slabref: from_slabref,
+            memo:      memo,
+            peerstate:  peerstate,
+        };
 
-            //println!("UDP QUEUE FOR SEND {:?}", &packet);
+        //println!("UDP QUEUE FOR SEND {:?}", &packet);
 
-            //use util::serde::SerializeHelper;
-            //let helper = SerializeHelper{ transmitter: self };
-            //wrapper = SerializeWrapper<Packet>
-    //        let b = serde_json::to_vec(&packet).expect("serde_json::to_vec");
-    //        println!("UDP QUEUE FOR SEND SERIALIZED {}", String::from_utf8(b).unwrap() );
+        //use util::serde::SerializeHelper;
+        //let helper = SerializeHelper{ transmitter: self };
+        //wrapper = SerializeWrapper<Packet>
+//        let b = serde_json::to_vec(&packet).expect("serde_json::to_vec");
+//        println!("UDP QUEUE FOR SEND SERIALIZED {}", String::from_utf8(b).unwrap() );
 
-            if let Some(ref tx_channel) = *(self.tx_channel.lock().unwrap()) {
-                tx_channel.send((self.address.clone(), packet)).unwrap();
-            }
-        }
+        //TODO: Convert this to use a tokio-shared-udp-socket or tokio_kcp
+        let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
+        tx_channel.send((self.address.clone(), packet)).unwrap();
+        Box::new(future::result(Ok(())))
     }
 }
 impl Drop for TransmitterUDP{

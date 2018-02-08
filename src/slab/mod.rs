@@ -64,7 +64,7 @@ pub enum SlabAnticipatedLifetime {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlabPresence {
     pub slab_id: SlabId,
-    pub address: TransportAddress,
+    pub addresses: Vec<TransportAddress>,
     pub lifetime: SlabAnticipatedLifetime,
 }
 
@@ -89,7 +89,7 @@ struct SlabHandle {
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
         // When comparing equality, we can skip the anticipated lifetime
-        self.slab_id == other.slab_id && self.address == other.address
+        self.slab_id == other.slab_id && self.addresses == other.addresses
     }
 }
 
@@ -97,9 +97,9 @@ impl SlabRef {
     pub fn slab_id(&self) -> SlabId {
         self.slab_id
     }
-    pub fn unknown(slab: &SlabHandle) -> Self {
+    pub fn unknown(slab: &LocalSlabHandle) -> Self {
         SlabRef{
-            owning_slab_id: slab.slab_id,
+            owning_slab_id: slab.slab_id(),
             slab_id: 0
         }
     }
@@ -144,6 +144,6 @@ impl SlabPresence {
         //     TransmitterArgs::Remote( &self.slab_id, &self.address )
         // };
 
-        // net.get_transmitter(&args)
+        // net.get_transmitter(args)
     }
 }

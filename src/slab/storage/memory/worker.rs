@@ -100,19 +100,16 @@ impl MemoryWorker {
         //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
 
         // TODO: update transmitter to return a future?
-        Box::new(self.get_memo(memoref).and_then(|maybe_memo| {
-            if let Some(memo) = maybe_memo {
-                match self.get_transmitter( &slabref ) {
+        if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerstate, .. }) = self.memo_storage.get(&memoref.memo_id()){
+            match self.get_transmitter( &slabref ) {
                     Ok(transmitter) => {
-                        transmitter.send( self.slabref, memo );//.map(|_| LocalSlabResponse::SendMemo(())),
-                        Ok(())
+                        transmitter.send( memo.clone(), peerstate.clone(), self.slabref.clone() )
                     },
                     Err(e) => Err(e)
                 }
-            }else{
-                Err(Error::RetrieveError(RetrieveError::NotFound))
-            }
-        }))
+        }else{
+            Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
+        }
     }
     fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>>{
 
@@ -168,9 +165,10 @@ impl MemoryWorker {
     pub fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
-        if let Some(memo) = memoref.get_memo_if_resident(){
-            return Box::new(future::result(Ok(Some(memo))));
-        }
+        // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
+        // if let Some(memo) = memoref.get_memo_if_resident(){
+        //     return Box::new(future::result(Ok(Some(memo))));
+        // }
 
         let maybe_memo = match self.memo_storage.get(&memoref.memo_id()){
             Some(&MemoCarrier{ memo: Some(ref memo), .. }) => Some(memo.clone()),
