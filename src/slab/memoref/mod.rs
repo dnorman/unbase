@@ -6,11 +6,10 @@ use slab::prelude::*;
 use memorefhead::MemoRefHead;
 use error::Error;
 
-use std::sync::{Arc,RwLock};
+use std::sync::{Arc};
 use std::fmt;
 use core::ops::Deref;
 use futures::prelude::*;
-use futures::future;
 
 #[derive(Clone)]
 pub struct MemoRef(pub Arc<MemoRefInner>);

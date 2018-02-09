@@ -3,13 +3,11 @@ extern crate linked_hash_map;
 mod transmitter;
 
 pub mod transport;
-pub mod packet;
 pub mod buffer;
 
 use slab;
 pub use slab::prelude::*;
 pub use self::transport::{Transport, TransportAddress};
-pub use self::packet::Packet;
 use util::system_creator::SystemCreator;
 pub use self::transmitter::{Transmitter, TransmitterArgs};
 

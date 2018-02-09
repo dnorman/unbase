@@ -11,8 +11,9 @@ use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
 use network;
-use network::packet::Packet;
 use error::*;
+use network::buffer::MemoBuffer;
+
 
 
 // Minkowski stuff: Still ridiculous, but necessary for our purposes.
@@ -53,6 +54,9 @@ impl SimEvent {
         // Can't do clone_for_slab here because we need to serialize and deserialize
         //self.memoref.clone_for_slab( &self.from_slab, &self.dest_slab, true );
         // we all have to learn to deal with loss sometime
+
+        let from_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
+        self.buffer.deserialize_to_slabhandle(self.dest_slab, &from_address);
     }
 }
 impl fmt::Debug for SimEvent{
@@ -245,21 +249,13 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
             t: source_point.t + ( distance as u64 * self.simulator.speed_of_light ) + 1 // add 1 to ensure nothing is instant
         };
 
-        let packet = Packet {
-            to_slab_id: self.dest.slab_id(),
-            from_slabref: from_slabref,
-            memo:      memo,
-            peerstate:  peerstate,
-        };
-
         let evt = SimEvent {
             _source_point: source_point,
             dest_point: dest_point,
             from_slabref: from_slabref,
 
             dest_slab: self.dest.clone(),
-            buffer: buffer
-
+            buffer: PacketBuffer
         };
 
         self.simulator.add_event( evt );

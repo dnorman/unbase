@@ -190,8 +190,8 @@ impl Context{
 
         for head in self.stash.iter() {
             memoref_count += head.len();
-            println!("HACK SEND CONTEXT {} ({:?}) From {} to {}",  head.subject_id().unwrap(), head.memo_ids(), self.slab.id, other.slab.id );
-            other.apply_head(&head.clone_for_slab(&from_slabref, &other.slab, false)).expect("apply head");
+            println!("HACK SEND CONTEXT {} ({:?}) From {} to {}",  head.subject_id().unwrap(), head.memo_ids(), self.slab.slab_id(), other.slab.slab_id() );
+            other.apply_head(&head.clone_for_slab(&self.slab, &other.slab, false)).expect("apply head");
         }
 
         memoref_count

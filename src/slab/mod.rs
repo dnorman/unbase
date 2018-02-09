@@ -103,6 +103,12 @@ impl SlabRef {
             slab_id: 0
         }
     }
+    pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle) -> Self {
+        SlabRef{
+            owning_slab_id: to_slab.slab_id(),
+            slab_id: self.slab_id
+        }
+    }
 }
 
 impl PartialEq for SlabRef {
