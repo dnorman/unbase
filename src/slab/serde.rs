@@ -1,6 +1,6 @@
-use util::serde::*;
+//use util::serde::*;
 //use network::TransportAddress;
-use super::*;
+//use super::*;
 
 /*
 impl<'a> StatefulSerialize for &'a SlabPresence {

@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use core::ops::Deref;
 use futures::prelude::*;
 use futures::sync::{mpsc,oneshot};
 use std::fmt;
@@ -11,7 +10,6 @@ use slab::counter::SlabCounter;
 use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
-use network::TransportAddress;
 
 impl LocalSlabHandle {
     pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
@@ -37,7 +35,7 @@ impl LocalSlabHandle {
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
             slab_id: peer_slab.slab_id,
-            address: network::transport::TransportAddress::Local,
+            addresses: &[network::transport::TransportAddress::Local],
             lifetime: SlabAnticipatedLifetime::Unknown
         };
 
@@ -78,7 +76,7 @@ impl LocalSlabHandle {
     pub fn get_memoref (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
         unimplemented!();
     }
-    pub fn get_memo (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
+    pub fn get_memo (&self, memoref: MemoRef ) -> Box<Future<Item=Memo, Error=Error>> {
         unimplemented!();
 
         // if let LocalSlabResponse::GetMemo(memo) = self.call(LocalSlabRequest::GetMemo{ memo_id } ) {
@@ -90,7 +88,7 @@ impl LocalSlabHandle {
     // pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Result<(),Error> + 'static>{
     //     Ok(())
     // }
-    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error> + 'static>  {
+    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> impl Future<Item=(), Error=Error> {
         Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).and_then(|r| {
             if let LocalSlabResponse::PutMemo(_) = r {
                 return Ok(())
@@ -157,8 +155,9 @@ impl LocalSlabHandle {
         //println!("# Slab({}).MemoRef({}).residentize()", self.slab_id, memoref.id);
 
         assert!(memoref.owning_slab_id == self.slab_id);
-        assert!( memoref.id == memo.id );
+        assert!( memoref.memo_id() == memo.id );
 
+        // TODO get rid of ptr, and possibly the whole function
         let mut ptr = memoref.ptr.write().unwrap();
 
         if let MemoRefPtr::Remote = *ptr {

@@ -204,7 +204,7 @@ impl MemoRefHead {
     pub fn memo_ids (&self) -> Vec<MemoId> {
         match *self {
             MemoRefHead::Null => Vec::new(),
-            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.id).collect()
+            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.memo_id).collect()
         }
     }
     pub fn subject_id (&self) -> Option<SubjectId> {
@@ -267,7 +267,8 @@ impl MemoRefHead {
         };
         
         for memoref in head.iter(){
-            let memo = memoref.get_memo(slab).wait().unwrap();
+            // TODO: update head iter to be a stream
+            let memo = slab.get_memo(memoref.clone()).wait().unwrap();
 
             if let MemoBody::FullyMaterialized { .. } = memo.body {
                 //
@@ -279,7 +280,7 @@ impl MemoRefHead {
         true
     }
     pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
-        assert!(from_slab.slab_id != to_slab.id, "slab id should differ");
+        assert!(from_slab.slab_id != to_slab.slab_id(), "slab id should differ");
         match *self {
             MemoRefHead::Null                    => MemoRefHead::Null,
             MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
@@ -362,7 +363,7 @@ impl Iterator for CausalMemoIter {
         if let Some(memoref) = self.queue.pop_front() {
             // this is wrong - Will result in G, E, F, C, D, B, A
 
-            match memoref.get_memo( &self.slab ).wait() {
+            match self.slab.get_memo( memoref.clone() ).wait() {
                 Ok(memo) => {
                     self.queue.append(&mut memo.get_parent_head().to_vecdeque());
                     return Some(Ok(memo));

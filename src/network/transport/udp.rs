@@ -3,6 +3,7 @@ use std::thread;
 use std::str;
 use futures::future;
 use futures::prelude::*;
+use network::buffer::Packet;
 
 use super::*;
 use std::sync::mpsc;
@@ -11,11 +12,6 @@ use slab::*;
 use error::*;
 
 // use std::collections::BTreeMap;
-use super::packet::*;
-use util::serde::DeserializeSeed;
-
-use util::serde::{SerializeHelper,SerializeWrapper};
-use super::packet::serde::PacketSeed;
 //use std::time;
 
 use serde_json;// {serialize as bin_serialize, deserialize as bin_deserialize};
@@ -29,7 +25,7 @@ struct TransportUDPInternal {
     socket: Arc<UdpSocket>,
     tx_thread: Option<thread::JoinHandle<()>>,
     rx_thread: Option<thread::JoinHandle<()>>,
-    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>>,
+    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,PacketBuffer)>>>>>,
     network: Option<WeakNetwork>,
     address: TransportAddressUDP
 }
@@ -114,19 +110,8 @@ impl TransportUDP {
             let return_address = TransportAddress::UDP(inbound_address);
             //let mut buf = [0; 65536];
             while let Ok((to_address, packet)) = rx_channel.recv() {
-
-                let helper = SerializeHelper {
-                    return_address: &return_address,
-                    dest_slab_id:   &packet.to_slab_id,
-                };
-
-                // KEEP THIS - This is the most useful memo trace
-                //println!("UDP SEND FROM {} TO {} -> {}: {:?} {:?} {:?}", &packet.from_slab_id, &packet.to_slab_id, &packet.memo.id, &packet.memo.body, &packet.memo.parents.memo_ids(), &packet.peerlist.slab_ids() );
-                let b = serde_json::to_vec( &SerializeWrapper(&packet, &helper) ).expect("serde_json::to_vec");
-                //println!("UDP SEND {}", String::from_utf8(b.clone()).unwrap());
-
                 //HACK: we're trusting that each memo is smaller than 64k
-                socket.send_to(&b, &to_address.address).expect("Failed to send");
+                socket.send_to(&packet.0, &to_address.address).expect("Failed to send");
                 //println!("SENT UDP PACKET ({}) {}", &to_address.address, &String::from_utf8(b).unwrap());
             }
     });
@@ -154,7 +139,7 @@ impl TransportUDP {
 
             let presence = SlabPresence {
                 slab_id: slab.slabref.slab_id(),
-                address: TransportAddress::UDP( my_address.clone() ),
+                addresses: vec![TransportAddress::UDP( my_address.clone() )],
                 lifetime: SlabAnticipatedLifetime::Unknown
             };
 

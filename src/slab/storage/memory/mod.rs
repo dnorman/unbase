@@ -4,7 +4,7 @@ mod worker;
 use std::sync::Arc;
 
 use self::worker::MemoryWorker;
-use network::{Network,Transmitter};
+use network::{Network};
 use slab::Slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;

@@ -8,7 +8,7 @@ use futures::{Stream,Future};
 use tokio_core;
 
 use subject::SubjectId;
-use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
+use network::{Network,Transmitter,TransportAddress};
 use slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
@@ -89,7 +89,7 @@ impl MemoryWorker {
 
         Box::new(f)
     }
-    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> impl Future<Item=(), Error=Error> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -201,7 +201,7 @@ impl MemoryWorker {
             }
         }
     }
-    pub fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
+    pub fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> impl Future<Item=LocalSlabResponse, Error=Error> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
         if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){

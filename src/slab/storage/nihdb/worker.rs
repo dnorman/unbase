@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::collections::HashMap;
-use futures::prelude::*;
-use futures::sync::{mpsc,oneshot};
-use futures::future;
+//use futures::prelude::*;
+use futures::sync::{mpsc};
+//use futures::future;
 use nihdb;
 
 use slab::prelude::*;
