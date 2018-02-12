@@ -2,7 +2,6 @@ use futures::{future, {Stream,Future}, sync::{mpsc,oneshot}};
 use std::thread;
 use tokio::executor::current_thread;
 
-use slab::prelude::*;
 use super::*;
 
 pub struct CoreThread{

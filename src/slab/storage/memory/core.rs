@@ -23,7 +23,7 @@ struct MemoCarrier{
 pub struct MemoryCore {
     // * things which will probably be nearly identical across slab types
     /// The Slabref for this slab
-    pub slabref: SlabRef,
+    pub slab_id: slab::SlabId,
     net: Network,
     counter: Arc<SlabCounter>,
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
@@ -44,9 +44,9 @@ pub struct MemoryCore {
 }
 
 impl MemoryCore {
-    pub fn new ( slabref: SlabRef, net: Network, counter: Arc<SlabCounter> ) -> Self {
+    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter> ) -> Self {
         MemoryCore{
-            slabref,
+            slab_id,
             net,
             counter,
 
@@ -57,6 +57,12 @@ impl MemoryCore {
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
             slab_transmitters:    HashMap::new(),
+        }
+    }
+    fn get_slabref(&self) -> SlabRef {
+        SlabRef{
+            owning_slab_id: self.slab_id,
+            slab_id: self.slab_id
         }
     }
     fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
@@ -115,7 +121,7 @@ impl StorageInterfaceCore for MemoryCore {
         if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerstate, .. }) = self.memo_storage.get(&memoref.memo_id()){
             match self.get_transmitter( &slabref ) {
                     Ok(transmitter) => {
-                        transmitter.send( memo.clone(), peerstate.clone(), self.slabref.clone() )
+                        transmitter.send( memo.clone(), peerstate.clone(), self.get_slabref() )
                     },
                     Err(e) => future::result(Err(e))
                 }
@@ -196,7 +202,7 @@ impl StorageInterfaceCore for MemoryCore {
             };
 
             peerstate.push(MemoPeerState{
-                slabref: self.slabref.clone(),
+                slabref: self.get_slabref(),
                 status: my_status
             });
             Box::new(future::result(Ok(peerstate)))

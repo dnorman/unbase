@@ -6,6 +6,7 @@ pub enum Error{
     TransmitError(TransmitError),
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
+    LocalSlab(LocalSlabError),
 }
 
 #[derive(PartialEq, Debug)]
@@ -39,4 +40,9 @@ pub enum ObserveError{
 pub enum StorageOpDeclined{
     InsufficientPeering,
     InvalidAddress,
+}
+
+#[derive(PartialEq, Debug)]
+pub enum LocalSlabError{
+    Unreachable
 }
