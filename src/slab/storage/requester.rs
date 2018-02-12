@@ -1,10 +1,24 @@
-use futures::{Stream, Future, sync::{mpsc,oneshot}};
+use futures::{future, Stream, Future, sync::{mpsc,oneshot}};
 use super::*;
+use error::*;
 
 impl StorageRequester{
     fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
-        let (p, c) = oneshot::channel::<LocalSlabResponse>();
-        unimplemented!()
+        let (p, c) = oneshot::channel::<Result<LocalSlabResponse,Error>>();
+        self.tx.unbounded_send((request,p)).unwrap();
+
+        Box::new( c.then(|r|{
+            match r{
+                Err(e) => {
+                    // The oneshot channel can fail if the sender goes away
+                    future::result(Err(Error::LocalSlab(LocalSlabError::Unreachable)))
+                }
+                Ok(r) =>{
+                    // The request can succeed or fail
+                    future::result(r)
+                }
+            }
+        }))
     }
     pub fn get_memo(&self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetMemo{ memoref } ).and_then(|r| {

@@ -5,10 +5,7 @@ use std::sync::Arc;
 
 use self::core::MemoryCore;
 use network::{Network};
-use slab::Slab;
-use slab::storage;
-use slab::prelude::*;
-use slab::counter::SlabCounter;
+use slab::{self, storage, prelude::*, Slab, counter::SlabCounter};
 use context::Context;
 
 
@@ -23,24 +20,25 @@ use context::Context;
 // use std::collections::HashMap;
 // use std::collections::hash_map::Entry;
 use std::fmt;
-use std::thread;
 // use std::time;
 // use futures::{Future, Sink};
 
 pub struct Memory{
-    slabref: SlabRef,
+    slab_id: slab::SlabId,
     core_thread: storage::CoreThread,
     counter: Arc<SlabCounter>,
-    my_handle: LocalSlabHandle,
     net: Network
 }
 
 impl Slab for Memory {
     fn get_handle (&self) -> LocalSlabHandle {
-        self.my_handle.clone()
+        LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.core_thread.requester() )
     }
     fn get_slabref (&self) -> SlabRef {
-         self.slabref.clone()
+        SlabRef{
+            owning_slab_id: self.slab_id,
+            slab_id: self.slab_id
+        }
     }
     fn get_net (&self) -> Network {
         self.net.clone()
@@ -72,13 +70,10 @@ impl Memory {
         // TODO: Under single threaded mode this should be Rc<StorageCore>
         let core_thread = storage::CoreThread::new(Box::new(core));
 
-        let my_handle = LocalSlabHandle::new( slab_id, counter.clone(), core_thread.requester() );
-
         let me = Memory{
             slab_id,
             core_thread,
             counter,
-            my_handle,
             net: net.clone(),
         };
 
@@ -97,7 +92,7 @@ impl Drop for Memory {
         // if let Some(t) = self.memoref_dispatch_thread.write().unwrap().take() {
         //     t.join().expect("join memoref_dispatch_thread");
         // }
-        self.net.deregister_local_slab(self.slab_id);
+        self.net.deregister_local_slab(self.get_slabref());
         // TODO: Drop all observers? Or perhaps observers should drop the slab (weak ref directionality)
     }
 }
