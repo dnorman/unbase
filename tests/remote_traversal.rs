@@ -23,7 +23,7 @@ fn remote_traversal_simulated() {
     // Tick - now slab A should know that Slab B has it
     simulator.wait_ticks(3);
 
-    context_a.slab.remotize_memo_ids( &rec_a1.get_all_memo_ids() ).expect("failed to remotize memos");
+    context_a.slab.remotize_memorefs( &rec_a1.get_all_memorefs() ).expect("failed to remotize memos");
 
     simulator.wait_ticks(1);
 
@@ -48,7 +48,7 @@ fn remote_traversal_nondeterministic_direct() {
 
     thread::sleep(time::Duration::from_millis(50));
 
-    context_a.slab.remotize_memo_ids_wait( &rec_a1.get_all_memo_ids(), 1000 ).expect("failed to remotize memos");
+    context_a.slab.remotize_memo_ids_wait( &rec_a1.get_head_memorefs(), 1000 ).expect("failed to remotize memos");
 
     thread::sleep(time::Duration::from_millis(50));
 
@@ -80,7 +80,7 @@ fn remote_traversal_nondeterministic_udp() {
         rec_a1.set_value("animal_sound","Woof").unwrap();
         rec_a1.set_value("animal_sound","Meow").unwrap();
         
-        context_a.slab.remotize_memo_ids_wait( &rec_a1.get_all_memo_ids(), 1000 ).expect("remotize memos");
+        context_a.slab.remotize_memo_ids_wait( &rec_a1.get_head_memorefs(), 1000 ).expect("remotize memos");
 
         // Not really any strong reason to wait here, except just to play nice and make sure slab_b's peering is updated
         // TODO: test memo expungement/de-peering, followed immediately by MemoRequest for same
