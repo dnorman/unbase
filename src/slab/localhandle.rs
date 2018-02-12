@@ -1,10 +1,12 @@
 use std::sync::Arc;
+use futures::future;
 use futures::prelude::*;
 use futures::sync::{mpsc,oneshot};
 use std::fmt;
 
 use network;
 use slab;
+use slab::storage::StorageRequester;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use error::*;
@@ -12,30 +14,40 @@ use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
 
 impl LocalSlabHandle {
-    pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>) -> LocalSlabHandle {
+    pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, storage: StorageRequester) -> LocalSlabHandle {
 
         let handle = LocalSlabHandle{
             slab_id: slabref.slab_id(),
             slabref: slabref,
             counter,
-            tx,
+            storage,
         };
 
         handle
     }
+
+    pub fn get_memo (&self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>> {
+        self.storage.get_memo(memoref)
+    }
+    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>> {
+        self.storage.put_memo(memo, peerstate, from_slabref)
+    }
+    pub fn put_slab_presence(&self, presence: SlabPresence ) {
+        self.storage.put_slab_presence(presence).wait();
+    }
+    pub fn get_peerstate(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
+        self.storage.get_peerstate(memoref, maybe_dest_slabref).wait()
+    }
+
     pub fn slab_id(&self) -> slab::SlabId {
         self.slab_id.clone()
-    }
-    fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
-        let (p, c) = oneshot::channel::<LocalSlabResponse>();
-        unimplemented!()
     }
     pub fn register_local_slabref(&self, peer_slab: &LocalSlabHandle) {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
             slab_id: peer_slab.slab_id,
-            addresses: &[network::transport::TransportAddress::Local],
+            addresses: vec![network::transport::TransportAddress::Local],
             lifetime: SlabAnticipatedLifetime::Unknown
         };
 
@@ -55,47 +67,12 @@ impl LocalSlabHandle {
         unimplemented!();
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
-    pub fn get_peerstate(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
-        if let LocalSlabResponse::GetPeerState(r) = self.call(LocalSlabRequest::GetPeerState{ memoref, maybe_dest_slabref } ).wait()? {
-            Ok(r)
-        }else{
-            panic!("Invalid return type")
-        }
-    }
-    pub fn put_slab_presence(&self, presence: SlabPresence ) { 
-        self.call(LocalSlabRequest::PutSlabPresence{ presence } ).wait();
-    }
+
     fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: Vec<MemoPeerState>, maybe_memo: Option<Memo>) -> (MemoRef, bool){
         unimplemented!()
     }
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
-                unimplemented!();
-
-            // self.call(LocalSlabRequest::RemotizeMemoIds{ memo_ids } ).wait()?
-    }
-    pub fn get_memoref (&self, memo_id: MemoId ) -> Box<Future<Item=Memo, Error=Error>> {
         unimplemented!();
-    }
-    pub fn get_memo (&self, memoref: MemoRef ) -> Box<Future<Item=Memo, Error=Error>> {
-        unimplemented!();
-
-        // if let LocalSlabResponse::GetMemo(memo) = self.call(LocalSlabRequest::GetMemo{ memo_id } ) {
-
-        // }
-    }
-
-    // #[async]
-    // pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Result<(),Error> + 'static>{
-    //     Ok(())
-    // }
-    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> impl Future<Item=(), Error=Error> {
-        Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).and_then(|r| {
-            if let LocalSlabResponse::PutMemo(_) = r {
-                return Ok(())
-            }else{
-                panic!("Invalid return type");
-            }
-        }) )
     }
     pub (crate) fn observe_subject (&self, subject_id: SubjectId, tx: mpsc::Sender<MemoRefHead> ) {
 
@@ -171,7 +148,7 @@ impl LocalSlabHandle {
                 None,
                 memoref.to_head(),
                 MemoBody::Peering(
-                    memoref.id,
+                    memoref.memo_id(),
                     memoref.subject_id,
                     vec![ MemoPeerState{
                         slabref: self.slabref.clone(),
@@ -445,11 +422,12 @@ impl LocalSlabHandle {
     // should this be a function of the slabref rather than the owning slab?
     pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {
         // Get the address that the remote slab would recogize
-        SlabPresence {
-            slab_id: self.slab_id,
-            addresses: origin_slabref.get_return_addresses(),
-            lifetime: SlabAnticipatedLifetime::Unknown
-        }
+        unimplemented!()
+        // SlabPresence {
+        //     slab_id: self.slab_id,
+        //     addresses: origin_slabref.get_return_addresses(),
+        //     lifetime: SlabAnticipatedLifetime::Unknown
+        // }
     }
     // pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
     //         match presence.address {

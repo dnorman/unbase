@@ -1,11 +1,12 @@
-mod worker;
+mod core;
 
 //use futures::prelude::*;
 use std::sync::Arc;
 
-use self::worker::MemoryWorker;
+use self::core::MemoryCore;
 use network::{Network};
 use slab::Slab;
+use slab::storage;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use context::Context;
@@ -28,7 +29,7 @@ use std::thread;
 
 pub struct Memory{
     slabref: SlabRef,
-    worker_thread: thread::JoinHandle<()>,
+    core_thread: storage::CoreThread,
     counter: Arc<SlabCounter>,
     my_handle: LocalSlabHandle,
     net: Network
@@ -62,17 +63,20 @@ impl Memory {
 
         let counter = Arc::new(SlabCounter::new());
 
-        let (req_stream,worker_thread) = MemoryWorker::spawn(
+        let core = MemoryCore::new(
             slab_id,
             net.clone(),
             counter.clone()
         );
 
-        let my_handle = LocalSlabHandle::new( slab_id, counter.clone(), req_stream );
+        // TODO: Under single threaded mode this should be Rc<StorageCore>
+        let core_thread = storage::CoreThread::new(Box::new(core));
+
+        let my_handle = LocalSlabHandle::new( slab_id, counter.clone(), core_thread.requester() );
 
         let me = Memory{
             slab_id,
-            worker_thread,
+            core_thread,
             counter,
             my_handle,
             net: net.clone(),
@@ -85,7 +89,7 @@ impl Memory {
     }
 }
 
-impl  Drop for Memory {
+impl Drop for Memory {
     fn drop(&mut self) {
 
         //println!("# SlabInner({}).drop", self.id);

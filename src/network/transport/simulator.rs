@@ -229,7 +229,7 @@ pub struct SimulatorTransmitter{
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
-    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
         let ref q = self.source_point;
         let ref p = self.dest_point;
 
@@ -259,6 +259,6 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
         };
 
         self.simulator.add_event( evt );
-        Box::new(future::result(Ok(())))
+        future::result(Ok(()))
     }
 }

@@ -7,8 +7,6 @@ use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
-pub type LocalSlabRequester = mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>;
-
 pub type RelationSlotId = u8;
 
 #[derive(Clone, Debug, Serialize)]
@@ -96,24 +94,6 @@ impl Deref for EdgeSet {
     fn deref(&self) -> &HashMap<RelationSlotId, MemoRefHead> {
         &self.0
     }
-}
-
-
-pub enum LocalSlabRequest {
-    GetMemo { memoref: MemoRef },
-    PutMemo { memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef },
-    SendMemo { to_slabref: SlabRef, memoref: MemoRef },
-    RemotizeMemoIds{ memo_ids: Vec<MemoId> },
-    PutSlabPresence { presence: SlabPresence },
-    GetPeerState { memoref: MemoRef, maybe_dest_slabref: Option<SlabRef> },
-}
-pub enum LocalSlabResponse {
-    GetMemo( Option<Memo> ),
-    PutMemo ( () ),
-    SendMemo ( () ),
-    RemotizeMemoIds( () ),
-    PutSlabPresence( () ),
-    GetPeerState( Vec<MemoPeerState> ),
 }
 
 pub enum SlabSend {

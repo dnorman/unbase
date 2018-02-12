@@ -34,7 +34,6 @@ use std::sync::Arc;
 
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
-use self::common_structs::*;
 use self::counter::SlabCounter;
 
 
@@ -74,9 +73,22 @@ pub struct SlabPresence {
 pub struct LocalSlabHandle {
     pub slab_id: SlabId,
     pub slabref: SlabRef,
-    pub tx: LocalSlabRequester,
+    // under single threaded mode, this should be Rc<StorageCore>
+    pub storage: self::storage::StorageRequester,
     pub counter: Arc<SlabCounter>,
 }
+
+// /// Had to impl clone manually due to StorageInterfaceClonable
+// impl Clone for LocalSlabHandle{
+//     fn clone(&self) -> Self {
+//         LocalSlabHandle {
+//             slab_id: self.slab_id.clone(),
+//             slabref: self.slabref.clone(),
+//             storage: self.storage.clone(),
+//             counter: self.counter.clone(),
+//         }       
+//     }
+// }
 
 /// Handle for communicating with a slab that might be local OR remote
 /// (Not storable)
