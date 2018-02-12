@@ -4,6 +4,8 @@ mod memo;
 mod memoref;
 mod counter;
 mod localhandle;
+mod dispatcher;
+
 pub mod storage;
 
 

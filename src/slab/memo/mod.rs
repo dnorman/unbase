@@ -38,7 +38,7 @@ pub enum MemoBody{
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,Vec<MemoPeerState>),
-    MemoRequest(Vec<MemoId>,SlabPresence)
+    MemoRequest(Vec<MemoRef>,SlabPresence)
 }
 
 

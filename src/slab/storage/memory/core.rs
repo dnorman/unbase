@@ -6,13 +6,13 @@ use futures::sync::{mpsc,oneshot};
 use futures::{Stream,Future};
 
 use slab::storage::StorageInterfaceCore;
-use subject::SubjectId;
 use network::{Network,Transmitter};
 use slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use memorefhead::MemoRefHead;
 use error::*;
+use slab::dispatcher::MemoDispatch;
 
 struct MemoCarrier{
     memo:      Option<Memo>,
@@ -29,10 +29,7 @@ pub struct MemoryCore {
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
-    // * Things that should probably be memory resident for most slab types *
-    memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Memo>>>,
-    subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
-    index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
+    dispatcher: mpsc::UnboundedSender<MemoDispatch>,
     slab_transmitters: HashMap<slab::SlabId,Transmitter>, // TODO: Make this an LRU
 
     // * Things that would be serialized in most other slab types *
@@ -44,7 +41,7 @@ pub struct MemoryCore {
 }
 
 impl MemoryCore {
-    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter> ) -> Self {
+    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter>, dispatcher: mpsc::UnboundedSender<MemoDispatch> ) -> Self {
         MemoryCore{
             slab_id,
             net,
@@ -53,10 +50,11 @@ impl MemoryCore {
             memo_storage:          HashMap::new(),
             slab_presence_storage: HashMap::new(),
 
-            memo_wait_channels:    HashMap::new(),
-            subject_subscriptions: HashMap::new(),
-            index_subscriptions:   Vec::new(),
+            // I think we want to have the transmitters locally accessible
+            // so we can send stuff directly without deserializing
             slab_transmitters:    HashMap::new(),
+
+            dispatcher: dispatcher,
         }
     }
     fn get_slabref(&self) -> SlabRef {
@@ -123,7 +121,7 @@ impl StorageInterfaceCore for MemoryCore {
                     Ok(transmitter) => {
                         transmitter.send( memo.clone(), peerstate.clone(), self.get_slabref() )
                     },
-                    Err(e) => future::result(Err(e))
+                    Err(e) => Box::new(future::result(Err(e)))
                 }
                 ;
                 unimplemented!()
@@ -144,21 +142,7 @@ impl StorageInterfaceCore for MemoryCore {
     //     }
     //     //println!("Slab({}).reconstitute_memo({}) B -> {:?}", self.id, memo_id, memoref );
 
-
-    //     self.consider_emit_memo(&memoref);
-
-    //     if let Some(ref memo) = memoref.get_memo_if_resident() {
-
-    //         self.check_memo_waiters(memo);
-    //         //TODO1 - figure out eventual consistency index update behavior. Think fairly hard about blockchain fan-in / block-tree
-    //         // NOTE: this might be a correct place to employ selective hearing. Highest liklihood if the subject is in any of our contexts,
-    //         // otherwise 
-    //         self.handle_memo_from_other_slab(memo, &memoref, &origin_slabref);
-    //         self.do_peering(&memoref, &origin_slabref);
-
-    //     }
-
-    //     self.dispatch_memoref(memoref);
+        self.dispatcher.unbounded_send(MemoDispatch{memo, memoref, from_slabref});
 
         unimplemented!()
     }

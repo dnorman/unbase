@@ -112,3 +112,143 @@ impl Deref for MemoPeerList {
 
         acted
     }
+
+
+    pub fn residentize_memoref(&self, memoref: &MemoRef, memo: Memo) -> bool {
+        //println!("# Slab({}).MemoRef({}).residentize()", self.slab_id, memoref.id);
+
+        assert!(memoref.owning_slab_id == self.slab_id);
+        assert!( memoref.memo_id() == memo.id );
+
+        // TODO get rid of ptr, and possibly the whole function
+        let mut ptr = memoref.ptr.write().unwrap();
+
+        if let MemoRefPtr::Remote = *ptr {
+            *ptr = MemoRefPtr::Resident( Arc::new(memo) );
+
+            // should this be using do_peering_for_memo?
+            // doing it manually for now, because I think we might only want to do
+            // a concise update to reflect our peering status change
+
+            let peering_memoref = self.new_memo(
+                None,
+                memoref.to_head(),
+                MemoBody::Peering(
+                    memoref.memo_id(),
+                    memoref.subject_id,
+                    vec![ MemoPeerState{
+                        slabref: self.slabref.clone(),
+                        status: MemoPeerStatus::Resident
+                    }]
+                )
+            );
+
+            //TODO1
+            unimplemented!();
+            // let requests = Vec::new();
+            // for peer in memoref.peerstate.read().unwrap().iter() {
+
+            //     requests.push( self.call(LocalSlabRequest::SendMemo{ slabref: peer.slab_id, memoref: peering_memoref.clone() } ) );
+            //     peer.slabref.send( &self.slabref, &peering_memoref );
+            // }
+
+            // residentized
+            true
+        }else{
+            // already resident
+            false
+        }
+    }
+
+
+        // pub fn remotize_memo_ids_wait( &self, memo_ids: &[MemoId], ms: u64 ) -> Result<(),Error> {
+    //     use std::time::{Instant,Duration};
+    //     let start = Instant::now();
+    //     let wait = Duration::from_millis(ms);
+    //     use std::thread;
+
+    //     loop {
+    //         if start.elapsed() > wait{
+    //             return Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering))
+    //         }
+
+    //         #[allow(unreachable_patterns)]
+    //         match self.call(LocalSlabRequest::RemotizeMemoIds{ memo_ids } ).wait() {
+    //             Ok(_) => {
+    //                 return Ok(())
+    //             },
+    //             Err(Error::StorageOpDeclined(StorageOpDeclined::InsufficientPeering)) => {}
+    //             Err(e)                                      => return Err(e)
+    //         }
+
+    //         thread::sleep(Duration::from_millis(50));
+    //     }
+    // }
+
+
+        // should this be a function of the slabref rather than the owning slab?
+    pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {
+        // Get the address that the remote slab would recogize
+        unimplemented!()
+        // SlabPresence {
+        //     slab_id: self.slab_id,
+        //     addresses: origin_slabref.get_return_addresses(),
+        //     lifetime: SlabAnticipatedLifetime::Unknown
+        // }
+    }
+    // pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
+    //         match presence.address {
+    //             TransportAddress::Simulator | TransportAddress::Local  => {
+    //                 return Err(Error::StorageOpDeclined(StorageOpDeclined::InvalidAddress))
+    //             }
+    //             _ => { }
+    //         };
+
+
+    //     //let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
+    //     presence.get_transmitter(&self.net);
+
+    //     Ok(self.put_slabref( presence.slab_id, &vec![presence.clone()] ))
+    // }
+
+
+
+        //             if slab.request_memo(self) > 0 {
+        //         channel = slab.memo_wait_channel(self.slab_id);
+        //     }else{
+        //         return Err(Error::RetrieveError(RetrieveError::NotFound))
+        //     }
+
+        // // By sending the memo itself through the channel
+        // // we guarantee that there's no funny business with request / remotize timing
+
+
+        // use std::time;
+        // let timeout = time::Duration::from_millis(100000);
+
+        // for _ in 0..3 {
+        //     match channel.recv_timeout(timeout) {
+        //         Ok(memo)       =>{
+        //             //println!("Slab({}).MemoRef({}).get_memo() received memo: {}", self.owning_slab_id, self.slab_id, memo.id );
+        //             return Ok(memo)
+        //         }
+        //         Err(rcv_error) => {
+
+        //             use std::sync::mpsc::RecvTimeoutError::*;
+        //             match rcv_error {
+        //                 Timeout => {}
+        //                 Disconnected => {
+        //                     return Err(Error::RetrieveError(RetrieveError::SlabError))
+        //                 }
+        //             }
+        //         }
+        //     }
+
+        //     // have another go around
+        //     if slab.request_memo( &self ) == 0 {
+        //         return Err(Error::RetrieveError(RetrieveError::NotFound))
+        //     }
+
+        // }
+
+        // Err(Error::RetrieveError(RetrieveError::NotFoundByDeadline))

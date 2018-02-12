@@ -231,9 +231,10 @@ impl Subject {
     //     head.apply( &context.get_resident_subject_head(self.id), &context.slab );
     //     head
     // }
-    pub fn get_all_memo_ids ( &self, slab: &LocalSlabHandle ) -> Vec<MemoId> {
-        //println!("# Subject({}).get_all_memo_ids()",self.id);
-        self.get_head().causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,Error>").id ).collect()
+    pub fn get_head_memorefs ( &self, slab: &LocalSlabHandle ) -> Vec<MemoRef> {
+        //println!("# Subject({}).get_all_memorefs()",self.id);
+        self.get_head().to_vec()
+        //.causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,Error>") ).collect()
     }
     // pub fn is_fully_materialized (&self, context: &Context) -> bool {
     //     self.head.read().unwrap().is_fully_materialized(&context.slab)

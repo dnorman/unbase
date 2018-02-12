@@ -13,6 +13,7 @@ pub trait DynamicDispatchTransmitter {
 }
 
 enum TransmitterInternal {
+    // TODO1: consider changing this to slab::storage::StorageRequester instead of LocalSlabHandle
     Local(LocalSlabHandle),
     Dynamic(Box<DynamicDispatchTransmitter + Send>),
     Blackhole
@@ -70,7 +71,7 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
+    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;
@@ -82,12 +83,12 @@ impl Transmitter {
                 //tx.send((from.clone(),memoref)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
-                tx.send(memo, peerstate, from_slabref)
+                Box::new( tx.send(memo, peerstate, from_slabref) )
             }
             Blackhole => {
                 println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memo {:?}", from_slabref, memo );
 
-                future::result(Ok(()))
+                Box::new( future::result(Ok(())) )
             }
         }
     }
