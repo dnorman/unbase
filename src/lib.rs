@@ -37,9 +37,9 @@
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
-#![feature(proc_macro, conservative_impl_trait, generators, integer_atomics)]
-extern crate futures_await as futures;
-extern crate tokio_core;
+#![feature(proc_macro, conservative_impl_trait, generators, integer_atomics, use_nested_groups)]
+extern crate futures;
+extern crate tokio;
 extern crate core;
 extern crate linked_hash_map;
 extern crate itertools;
@@ -62,6 +62,12 @@ pub mod index;
 pub mod memorefhead;
 pub mod util;
 pub mod subjecthandle;
+
+// #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+// pub mod executor_std;
+
+// #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+// pub mod executor_wasm;
 
 pub use network::Network;
 pub use subjecthandle::SubjectHandle;

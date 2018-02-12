@@ -1,14 +1,13 @@
-use std::thread;
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures::future;
 use futures::prelude::*;
 use futures::sync::{mpsc,oneshot};
 use futures::{Stream,Future};
-use tokio_core;
 
+use slab::storage::StorageInterfaceCore;
 use subject::SubjectId;
-use network::{Network,Transmitter,TransportAddress};
+use network::{Network,Transmitter};
 use slab;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
@@ -21,7 +20,7 @@ struct MemoCarrier{
     peerstate: Vec<MemoPeerState>,
 }
 
-pub struct MemoryWorker {
+pub struct MemoryCore {
     // * things which will probably be nearly identical across slab types
     /// The Slabref for this slab
     pub slabref: SlabRef,
@@ -44,10 +43,9 @@ pub struct MemoryWorker {
     memo_storage: HashMap<MemoId,MemoCarrier>,
 }
 
-
-impl MemoryWorker {
-    pub fn spawn ( slabref: SlabRef, net: Network, counter: Arc<SlabCounter> ) -> (LocalSlabRequester, thread::JoinHandle<()>) {
-        let me = MemoryWorker{
+impl MemoryCore {
+    pub fn new ( slabref: SlabRef, net: Network, counter: Arc<SlabCounter> ) -> Self {
+        MemoryCore{
             slabref,
             net,
             counter,
@@ -59,37 +57,51 @@ impl MemoryWorker {
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
             slab_transmitters:    HashMap::new(),
+        }
+    }
+    fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
+        use std::collections::hash_map::Entry::*;
+        match self.slab_transmitters.entry(slabref.slab_id()) {
+            Occupied(t) => {
+                Ok(t.get())
+            },
+            Vacant(t) => {
+                //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
+                //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
+
+                if let Some(presences) = self.slab_presence_storage.get(&slabref.slab_id()) {
+                    for presence in presences.iter() {
+                        if let Some(transmitter) = presence.get_transmitter( &self.net ){
+                            return Ok(t.insert(transmitter));
+                        }else{
+                            return Err(Error::TransmitError(TransmitError::InvalidTransmitter))
+                        }
+                    }
+                }
+
+                Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))
+            }
+        }
+    }
+}
+
+impl StorageInterfaceCore for MemoryCore {
+    fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>> {
+        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
+
+        // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
+        // if let Some(memo) = memoref.get_memo_if_resident(){
+        //     return Box::new(future::result(Ok(Some(memo))));
+        // }
+
+        let maybe_memo = match self.memo_storage.get(&memoref.memo_id()){
+            Some(&MemoCarrier{ memo: Some(ref memo), .. }) => Some(memo.clone()),
+            _                                              => None
         };
 
-        let (tx,rx) = mpsc::unbounded::<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>();
-
-        let worker_thread = thread::spawn(move || {
-            let mut core = tokio_core::reactor::Core::new().unwrap();
-            let server = rx.for_each(|(request, resp_channel)| {
-                me.dispatch_request(request,resp_channel)
-            });
-
-            core.run(server).unwrap();
-        });
-
-        (tx,worker_thread)
+        Box::new(future::result(Ok(maybe_memo)))
     }
-    fn dispatch_request(&self,request: LocalSlabRequest, responder: oneshot::Sender<Result<LocalSlabResponse,Error>>) -> Box<Future<Item=(), Error=()>> {
-        use slab::common_structs::LocalSlabRequest::*;
-        let f = match request {
-            SendMemo {to_slabref, memoref}              => self.send_memo(to_slabref, memoref),
-            PutSlabPresence { presence }                => self.put_slab_presence(presence),
-            GetPeerState{ memoref, maybe_dest_slabref } => self.get_peerstate(memoref, maybe_dest_slabref),
-            GetMemo{ memoref }                          => self.get_memo(memoref).map(LocalSlabResponse::GetMemo),
-        }.then(|response| {
-            responder.send(response)
-        }).then(|_| {
-            Ok(())
-        });
-
-        Box::new(f)
-    }
-    pub fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> impl Future<Item=(), Error=Error> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -105,8 +117,10 @@ impl MemoryWorker {
                     Ok(transmitter) => {
                         transmitter.send( memo.clone(), peerstate.clone(), self.slabref.clone() )
                     },
-                    Err(e) => Err(e)
+                    Err(e) => future::result(Err(e))
                 }
+                ;
+                unimplemented!()
         }else{
             Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
         }
@@ -142,7 +156,7 @@ impl MemoryWorker {
 
         unimplemented!()
     }
-    pub fn put_slab_presence(&self, presence: SlabPresence ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
+    fn put_slab_presence(&self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
         use std::mem;
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
@@ -160,48 +174,9 @@ impl MemoryWorker {
         };
 
         // TODO: update transmitter?
-        Box::new(future::result(Ok(LocalSlabResponse::PutSlabPresence(()))))
+        Box::new(future::result(Ok( () )))
     }
-    pub fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>>  {
-        //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
-
-        // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
-        // if let Some(memo) = memoref.get_memo_if_resident(){
-        //     return Box::new(future::result(Ok(Some(memo))));
-        // }
-
-        let maybe_memo = match self.memo_storage.get(&memoref.memo_id()){
-            Some(&MemoCarrier{ memo: Some(ref memo), .. }) => Some(memo.clone()),
-            _                                              => None
-        };
-
-        Box::new(future::result(Ok(maybe_memo)))
-    }
-    fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
-        use std::collections::hash_map::Entry::*;
-        match self.slab_transmitters.entry(slabref.slab_id()) {
-            Occupied(t) => {
-                Ok(t.get())
-            },
-            Vacant(t) => {
-                //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
-                //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
-
-                if let Some(presences) = self.slab_presence_storage.get(&slabref.slab_id()) {
-                    for presence in presences.iter() {
-                        if let Some(transmitter) = presence.get_transmitter( &self.net ){
-                            return Ok(t.insert(transmitter));
-                        }else{
-                            return Err(Error::TransmitError(TransmitError::InvalidTransmitter))
-                        }
-                    }
-                }
-
-                Err(Error::TransmitError(TransmitError::SlabPresenceNotFound))
-            }
-        }
-    }
-    pub fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> impl Future<Item=LocalSlabResponse, Error=Error> {
+    fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerState>, Error=Error>> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
         if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){
@@ -224,9 +199,9 @@ impl MemoryWorker {
                 slabref: self.slabref.clone(),
                 status: my_status
             });
-            Box::new(future::result(Ok(LocalSlabResponse::GetPeerState(peerstate))))
+            Box::new(future::result(Ok(peerstate)))
         }else{
-            Box::new(future::result(Ok(LocalSlabResponse::GetPeerState(vec![]))))
+            Box::new(future::result(Ok(vec![])))
         }
 
     }

@@ -9,7 +9,7 @@ use error::*;
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
     /// Transmit a memo to this Transmitter's recipient
-    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>>;
+    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error>;
 }
 
 enum TransmitterInternal {
@@ -70,7 +70,7 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
+    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;
@@ -87,7 +87,7 @@ impl Transmitter {
             Blackhole => {
                 println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memo {:?}", from_slabref, memo );
 
-                Box::new(future::result(Ok(())))
+                future::result(Ok(()))
             }
         }
     }
