@@ -88,38 +88,36 @@ impl DispatcherInner{
     pub fn dispatch_memoref (&self, memoref : MemoRef){
         //println!("# \t\\ Slab({}).dispatch_memoref({}, {:?}, {:?})", self.slab_id, &memoref.id, &memoref.subject_id, memoref.get_memo_if_resident() );
 
-        if let Some(subject_id) = memoref.subject_id {
-            // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
-            // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
+        // TODO: Switch subject subscription mechanism to be be based on channels, and matching trees
+        // subject_subscriptions: Mutex<HashMap<SubjectId, Vec<mpsc::Sender<Option<MemoRef>>>>>
 
+        let subject_id = memoref.subject_id;
+        
+        if let SubjectType::IndexNode = subject_id.stype {
+            // TODO3 - update this to consider popularity of this node, and/or common points of reference with a given context
+            let mut senders = &self.index_subscriptions;
+            let len = senders.len();
+            for i in (0..len).rev() {
+                if let Err(_) = senders[i].clone().send(memoref.to_head()).wait(){
+                    // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
+                    senders.swap_remove(i);
+                }
+            }
 
-            if let SubjectType::IndexNode = subject_id.stype {
-                // TODO3 - update this to consider popularity of this node, and/or common points of reference with a given context
-                let mut senders = self.index_subscriptions.lock().unwrap();
-                let len = senders.len();
-                for i in (0..len).rev() {
-                    if let Err(_) = senders[i].clone().send(memoref.to_head()).wait(){
+        }
+
+        if let Some(ref mut senders) = self.subject_subscriptions.get_mut( &subject_id ) { 
+            let len = senders.len();
+
+            for i in (0..len).rev() {
+                match senders[i].clone().send(memoref.to_head()).wait() {
+                    Ok(..) => { }
+                    Err(_) => {
                         // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
                         senders.swap_remove(i);
                     }
                 }
-
             }
-
-            if let Some(ref mut senders) = self.subject_subscriptions.lock().unwrap().get_mut( &subject_id ) { 
-                let len = senders.len();
-
-                for i in (0..len).rev() {
-                    match senders[i].clone().send(memoref.to_head()).wait() {
-                        Ok(..) => { }
-                        Err(_) => {
-                            // TODO3: proactively remove senders when the receiver goes out of scope. Necessary for memory bloat
-                            senders.swap_remove(i);
-                        }
-                    }
-                }
-            }
-
         }
     }
 

@@ -105,7 +105,7 @@ impl Stash {
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
         match apply_head.subject_id() {
-            Some(SubjectId{ stype: SubjectType::IndexNode, .. }) => {},
+            SubjectId{ stype: SubjectType::IndexNode, .. } => {},
             _ => {
                 panic!("Only SubjectType::IndexNode may be applied to a context {:?}", apply_head)
             }

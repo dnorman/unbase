@@ -24,10 +24,10 @@ impl StorageRequester{
             }
         }))
     }
-    pub fn get_memo(&self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>>{
+    pub fn get_memo(&self, memoref: MemoRef ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetMemo{ memoref } ).and_then(|r| {
-            if let LocalSlabResponse::GetMemo(maybe_memo) = r {
-                return Ok(maybe_memo)
+            if let LocalSlabResponse::GetMemo(retrieval) = r {
+                return Ok(retrieval)
             }else{
                 panic!("Invalid return type");
             }

@@ -2,11 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{future, Future, prelude::*, sync::mpsc};
 
-use slab::storage::{StorageCore, StorageCoreInterface};
 use network::{Network,Transmitter};
-use slab;
-use slab::prelude::*;
-use slab::counter::SlabCounter;
+use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface, StorageMemoRetrieval}};
 use error::*;
 use slab::dispatcher::MemoDispatch;
 
@@ -91,20 +88,28 @@ impl StorageCore for MemoryCore {
 }
 
 impl StorageCoreInterface for MemoryCore {
-    fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=Option<Memo>, Error=Error>> {
+    fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
         // if let Some(memo) = memoref.get_memo_if_resident(){
         //     return Box::new(future::result(Ok(Some(memo))));
         // }
-
-        let maybe_memo = match self.memo_storage.get(&memoref.memo_id()){
-            Some(&MemoCarrier{ memo: Some(ref memo), .. }) => Some(memo.clone()),
-            _                                              => None
-        };
-
-        Box::new(future::result(Ok(maybe_memo)))
+        use slab::storage::StorageMemoRetrieval::*;
+        match self.memo_storage.get(&memoref.memo_id()) {
+            Some(carrier) => {
+                match carrier.memo {
+                    Some(memo) =>  Box::new(future::result(Ok(Found(memo.clone())))),
+                    None       =>  Box::new(future::result(Ok(Remote(carrier.peerset.clone()))))
+                }
+            }
+            None => {
+                // IN THEORY we shouldn't get here if there are outstanding memorefs
+                // In actuality it will be fairly likely to happen, and will require a remediation strategy
+                Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
+            }
+        }
+        
     }
     fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
