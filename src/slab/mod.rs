@@ -15,12 +15,12 @@ pub mod prelude {
     pub use slab::SlabRef;
     pub use slab::LocalSlabHandle;
     pub use slab::common_structs::*;
-    pub use slab::memoref::{MemoRef,MemoRefInner,MemoRefPtr};
+    pub use slab::memoref::MemoRef;
     pub use slab::memo::{MemoId,Memo,MemoBody};
     pub use slab::memoref::serde as memoref_serde;
     pub use slab::memo::serde as memo_serde;
     pub use slab::{SlabAnticipatedLifetime,SlabPresence};
-    pub use slab::{MemoPeerState,MemoPeerStatus};
+    pub use slab::memo::peerstate::{MemoPeerSet,MemoPeerState,MemoPeerStatus};
 }
 
 /// Slab is the storage engine
@@ -133,20 +133,6 @@ impl PartialEq for SlabRef {
         // look up the slab_id itself, and use that as a fallback comparison
         self.slab_id == other.slab_id
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct MemoPeerState {
-    pub slabref: SlabRef,
-    pub status: MemoPeerStatus,
-}
-
-#[derive(Debug,Clone,PartialEq,Serialize,Deserialize)]
-pub enum MemoPeerStatus {
-    Resident,
-    Participating,
-    NonParticipating,
-    Unknown,
 }
 
 impl SlabPresence {

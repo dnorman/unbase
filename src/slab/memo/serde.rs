@@ -149,7 +149,7 @@ impl<'a> Visitor for MemoSeed<'a>{
                return Err(DeError::invalid_length(0, &self));
             }
        };
-       let subject_id: Option<SubjectId> = match visitor.visit()? {
+       let subject_id: SubjectId = match visitor.visit()? {
             Some(value) => value,
             None => {
                return Err(DeError::invalid_length(1, &self));
@@ -296,7 +296,7 @@ impl<'a> Visitor for RelationSetSeed<'a> {
     fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
         where Visitor: MapVisitor,
     {
-        let mut values : HashMap<RelationSlotId,Option<SubjectId>> = HashMap::new();
+        let mut values : HashMap<RelationSlotId,SubjectId> = HashMap::new();
 
         let _ = self.dest_slab;
         let _ = self.origin_slabref;
@@ -439,7 +439,7 @@ impl<'a> Visitor for MBPeeringSeed<'a> {
         where Visitor: MapVisitor,
     {
         let mut memo_ids : Option<MemoId> = None;
-        let mut subject_id: Option<Option<SubjectId>> = None;
+        let mut subject_id: SubjectId = None;
         let mut peerlist   : Option<MemoPeerList> = None;
         while let Some(key) = visitor.visit_key()? {
             match key {

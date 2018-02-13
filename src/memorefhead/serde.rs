@@ -157,7 +157,7 @@ impl<'a> Visitor for MRHSubjectSeed<'a> {
         where Visitor: MapVisitor,
     {
         let mut head : Option<Vec<MemoRef>> = None;
-        let mut subject_id : Option<SubjectId> = None;
+        let mut subject_id : SubjectId = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 's' => subject_id = Some(visitor.visit_value()?),

@@ -5,25 +5,22 @@ use tokio::executor::current_thread;
 use super::*;
 
 pub struct CoreThread{
-    tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>,
     worker_thread: thread::JoinHandle<()>
 }
 
 struct CoreThreadInner{
-    core: Box<StorageInterfaceCore+Send> 
+    core: Box<StorageCoreInterface+Send> 
 }
 
 impl CoreThread{
-    pub fn new (core: Box<StorageInterfaceCore+Send> ) -> CoreThread {
-
-        let (tx,rx) = mpsc::unbounded::<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>();
+    pub fn new (core: Box<StorageCoreInterface+Send>, request_rx:  mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) -> CoreThread {
 
         let inner = CoreThreadInner{ core };
 
         let worker_thread = thread::spawn(move || {
             current_thread::run(|_| {
 
-            let server = rx.for_each(|(request, resp_channel)| {
+            let server = request_rx.for_each(|(request, resp_channel)| {
                 current_thread::spawn( inner.dispatch_request(request,resp_channel) );
                 future::result(Ok(()))
             });
@@ -33,11 +30,8 @@ impl CoreThread{
             });
         });
 
-        CoreThread{ tx, worker_thread }
+        CoreThread{ worker_thread }
 
-    }
-    pub fn requester(&self) -> StorageRequester {
-        StorageRequester{ tx: self.tx.clone() }
     }
 }
 
@@ -55,10 +49,10 @@ impl CoreThreadInner{
                 Ok(())
             }))
         }
-        if let PutMemo { memo, peerstate, from_slabref } = request{
-            return Box::new(self.core.put_memo( memo, peerstate, from_slabref ).then(|r| {
+        if let PutMemo { memo, peerset, from_slabref } = request{
+            return Box::new(self.core.put_memo( memo, peerset, from_slabref ).then(|r| {
                 match r {
-                    Ok(r)  => responder.send(Ok(LocalSlabResponse::PutMemo( () ) )),
+                    Ok(memoref)  => responder.send(Ok(LocalSlabResponse::PutMemo( memoref ) )),
                     Err(e) => responder.send(Err(e))
                 };
                 Ok(())

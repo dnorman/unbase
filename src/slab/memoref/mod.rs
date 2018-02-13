@@ -1,82 +1,97 @@
 pub mod serde;
 
 use subject::SubjectId;
-use slab;
-use slab::prelude::*;
+use slab::{self, storage::StorageCore, prelude::*};
 use memorefhead::MemoRefHead;
 use error::Error;
 
-use std::sync::{Arc};
 use std::fmt;
-use core::ops::Deref;
 use futures::prelude::*;
 
 #[derive(Clone)]
-pub struct MemoRef(pub Arc<MemoRefInner>);
-
-impl Deref for MemoRef {
-    type Target = MemoRefInner;
-    fn deref(&self) -> &MemoRefInner {
-        &*self.0
-    }
-}
-
-pub struct MemoRefInner {
+pub struct MemoRef {
     pub memo_id:        MemoId,
+    #[cfg(debug_assertions)]
     pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
-    pub subject_id:     Option<SubjectId>,
-    //TODO1 - remove this: pub peerlist: RwLock<MemoPeerList>,
-    //pub ptr:            RwLock<MemoRefPtr>,
+    pub subject_id:     SubjectId,
 }
 
-pub enum MemoRefPtr {
-    /// Memo is in memory now, right here in fact
-    Resident(Arc<Memo>),
-    /// Memo Is stored on the local slab which owns this memoref, you'll need to look it up
-    Local,
-    /// Is stored on a remote slab
-    Remote
-}
+//#[derive(Clone)]
+//pub struct MemoRef(pub Arc<MemoRefInner>);
 
-impl MemoRefPtr {
-    fn to_peering_status (&self) -> MemoPeerStatus {
-        match self {
-            &MemoRefPtr::Resident(_) => MemoPeerStatus::Resident,
-            &MemoRefPtr::Remote      => MemoPeerStatus::Participating
-        }
-    }
-}
+// impl Deref for MemoRef {
+//     type Target = MemoRefInner;
+//     fn deref(&self) -> &MemoRefInner {
+//         &*self.0
+//     }
+// }
+
+// pub struct MemoRefInner {
+//     pub memo_id:        MemoId,
+//     pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
+//     pub subject_id:     SubjectId,
+//     //TODO1 - remove this: pub peerlist: RwLock<MemoPeerList>,
+//     //pub ptr:            RwLock<MemoRefPtr>,
+// }
+
+// pub enum MemoRefPtr {
+//     // /// Memo is in memory now, right here in fact
+//     // Resident(Arc<Memo>),
+//     /// Memo Is stored on the local slab which owns this memoref, you'll need to look it up
+//     Local,
+//     /// Is stored on a remote slab
+//     Remote
+// }
+
+// impl MemoRefPtr {
+//     fn to_peering_status (&self) -> MemoPeerStatus {
+//         match self {
+//             &MemoRefPtr::Resident(_) => MemoPeerStatus::Resident,
+//             &MemoRefPtr::Remote      => MemoPeerStatus::Participating
+//         }
+//     }
+// }
 
 impl MemoRef {
+    pub fn new <C> (core: &C, memo_id: MemoId, subject_id: SubjectId) -> Self 
+        where C: StorageCore {
+            MemoRef{
+                memo_id,
+                subject_id,
+
+                #[cfg(debug_assertions)]
+                owning_slab_id: core.slab_id()
+            }
+    }
     pub fn memo_id (&self) -> MemoId {
         self.memo_id.clone()
     }
     pub fn to_head (&self) -> MemoRefHead {
-        match self.subject_id {
-            None => MemoRefHead::Anonymous{
+        if self.subject_id.is_anonymous() {
+            MemoRefHead::Anonymous{
                 head: vec![self.clone()]
-            },
-            Some(subject_id) => 
-                MemoRefHead::Subject {
-                    subject_id: subject_id,
-                    head: vec![self.clone()]
-                }
+            }
+        }else{
+            MemoRefHead::Subject {
+                subject_id: self.subject_id,
+                head: vec![self.clone()]
+            }
         }
     }
-    pub fn is_resident(&self) -> bool {
-        unimplemented!()
-        // match *self.ptr.read().unwrap() {
-        //     MemoRefPtr::Resident(_) => true,
-        //     _                       => false
-        // }
-    }
-    pub fn get_memo_if_resident(&self) -> Option<Memo> {
-        unimplemented!()
-        // match *self.ptr.read().unwrap() {
-        //     MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
-        //     _ => None
-        // }
-    }
+    // pub fn is_resident(&self) -> bool {
+    //     unimplemented!()
+    //     // match *self.ptr.read().unwrap() {
+    //     //     MemoRefPtr::Resident(_) => true,
+    //     //     _                       => false
+    //     // }
+    // }
+    // pub fn get_memo_if_resident(&self) -> Option<Memo> {
+    //     unimplemented!()
+    //     // match *self.ptr.read().unwrap() {
+    //     //     MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
+    //     //     _ => None
+    //     // }
+    // }
     /*    pub fn memo_durability_score( &self, _memo: &Memo ) -> u8 {
         // TODO: devise durability_score algo
         //       Should this number be inflated for memos we don't care about?
@@ -104,7 +119,7 @@ impl MemoRef {
 
 //     }
     pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
-        assert!(self.owning_slab_id == slab.slab_id());
+        debug_assert!(self.owning_slab_id == slab.slab_id());
 
         unimplemented!();
         // Box::new(self.get_memo( slab ).and_then(|memo| {
@@ -112,11 +127,11 @@ impl MemoRef {
         // }))
     }
     pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, include_memo: bool ) -> Self{
-        assert!(from_slab.slab_id = self.owning_slab_id,       "Cannot clone foreign MemoRef");
+        debug_assert!(from_slab.slab_id = self.owning_slab_id,       "Cannot clone foreign MemoRef");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
 
         // Because our from_slabref is already owned by the destination slab, there is no need to do peerlist.clone_for_slab
-        let peerlist = from_slab.get_peerstate(self.clone(), Some(to_slab.slabref.clone()));
+        let peerlist = from_slab.get_peerset(self.clone(), Some(to_slab.slabref.clone()));
         //println!("Slab({}).Memoref.clone_for_slab({}) C -> {:?}", self.owning_slab_id, self.id, peerlist);
 
         unimplemented!()
@@ -163,8 +178,8 @@ impl PartialEq for MemoRef {
     }
 }
 
-impl Drop for MemoRefInner{
-    fn drop(&mut self) {
-        //println!("# MemoRefInner({}).drop", self.id);
-    }
-}
+// impl Drop for MemoRefInner{
+//     fn drop(&mut self) {
+//         //println!("# MemoRefInner({}).drop", self.id);
+//     }
+// }

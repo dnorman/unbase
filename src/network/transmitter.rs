@@ -9,7 +9,7 @@ use error::*;
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {
     /// Transmit a memo to this Transmitter's recipient
-    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error>;
+    fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error>;
 }
 
 enum TransmitterInternal {
@@ -71,7 +71,7 @@ impl Transmitter {
         }
     }
     /// Send a Memo over to the target of this transmitter
-    pub fn send(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
+    pub fn send(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> Box<Future<Item=(), Error=Error>> {
         //println!("Transmitter({} to: {}).send(from: {}, {:?})", self.internal.kind(), self.to_slab_id, from.slab_id, memoref );
         let _ = self.internal.kind();
         let _ = self.to_slab_id;
@@ -79,11 +79,11 @@ impl Transmitter {
         use self::TransmitterInternal::*;
         match self.internal {
             Local(ref handle) => {
-                handle.put_memo(memo, peerstate, from_slabref)
+                handle.put_memo(memo, peerset, from_slabref)
                 //tx.send((from.clone(),memoref)).expect("local transmitter send")
             }
             Dynamic(ref tx) => {
-                Box::new( tx.send(memo, peerstate, from_slabref) )
+                Box::new( tx.send(memo, peerset, from_slabref) )
             }
             Blackhole => {
                 println!("WARNING! Transmitter Blackhole transmitter used. from {:?}, memo {:?}", from_slabref, memo );

@@ -1,8 +1,12 @@
-use futures::{future, Stream, Future, sync::{mpsc,oneshot}};
+use futures::{future, Stream, Future, sync::oneshot};
 use super::*;
 use error::*;
 
 impl StorageRequester{
+    pub fn new () -> (Self,mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) {
+        let (tx,rx) = mpsc::unbounded::<LocalSlabRequestAndResponder>();
+        ( StorageRequester{tx}, rx )
+    }
     fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
         let (p, c) = oneshot::channel::<Result<LocalSlabResponse,Error>>();
         self.tx.unbounded_send((request,p)).unwrap();
@@ -29,10 +33,10 @@ impl StorageRequester{
             }
         }))
     }
-    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>>{
-        Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerstate, from_slabref } ).and_then(|r| {
-            if let LocalSlabResponse::PutMemo(_) = r {
-                return Ok(())
+    pub fn put_memo(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
+        Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerset, from_slabref } ).and_then(|r| {
+            if let LocalSlabResponse::PutMemo(memoref) = r {
+                return Ok(memoref);
             }else{
                 panic!("Invalid return type");
             }
@@ -56,10 +60,10 @@ impl StorageRequester{
             }
         }))
     }
-    pub fn get_peerstate (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerState>, Error=Error>>{
-        Box::new( self.call(LocalSlabRequest::GetPeerState{ memoref, maybe_dest_slabref } ).and_then(|r| {
-            if let LocalSlabResponse::GetPeerState(peerstate) = r {
-                return Ok(peerstate)
+    pub fn get_peerset (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerState>, Error=Error>>{
+        Box::new( self.call(LocalSlabRequest::GetPeerSet{ memoref, maybe_dest_slabref } ).and_then(|r| {
+            if let LocalSlabResponse::GetPeerSet(peerset) = r {
+                return Ok(peerset)
             }else{
                 panic!("Invalid return type");
             }

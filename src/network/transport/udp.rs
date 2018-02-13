@@ -165,7 +165,7 @@ impl TransportUDP {
                 to_slab_id: SlabRef::unknown(&from_slab).slab_id(),
                 from_slabref: from_slab.slabref.clone(),
                 memo: memo.clone(),
-                peerstate: from_slab.get_peerstate(memoref, None).unwrap(),
+                peerset: from_slab.get_peerset(memoref, None).unwrap(),
             };
 
             //println!("TransportUDP.send({:?})", packet );
@@ -296,14 +296,14 @@ pub struct TransmitterUDP{
     tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>
 }
 impl DynamicDispatchTransmitter for TransmitterUDP {
-    fn send (&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
+    fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
         //println!("TransmitterUDP.send({:?},{:?})", from, memoref);
 
         let packet = Packet {
             to_slab_id: self.slab_id,
             from_slabref: from_slabref,
             memo:      memo,
-            peerstate:  peerstate,
+            peerset:  peerset,
         };
 
         //println!("UDP QUEUE FOR SEND {:?}", &packet);

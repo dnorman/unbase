@@ -143,7 +143,8 @@ impl Context{
             return Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead));
         }
 
-        if let Some(subject_id) = head.subject_id() {
+        let subject_id = head.subject_id();
+        if !subject_id.is_anonymous() {
             head.apply( &self.stash.get_head(subject_id), &self.slab )?;
         }
         
@@ -277,7 +278,7 @@ impl Context{
         }
 
         let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSet::empty(), e: edgeset, t: subject_id.stype };
-        let head = self.slab.new_memo_basic_noparent(Some(subject_id), memobody).to_head();
+        let head = self.slab.new_memo_basic_noparent(subject_id, memobody).to_head();
 
         self.apply_head(&head).expect("apply head")
     }
@@ -299,8 +300,8 @@ impl Context{
             for edgelink in parent_mrh.project_occupied_edges(&self.slab)? {
                 if let EdgeLink::Occupied{slot_id,head:edge_mrh} = edgelink {
 
-                    if let Some(subject_id) = edge_mrh.subject_id(){
-                        if let stash_mrh @ MemoRefHead::Subject{..} = self.stash.get_head(subject_id) {
+                    if let Some(subject_id) = edge_mrh.subject_id().ok(){
+                        if let stash_mrh @ MemoRefHead::Subject{..} = self.stash.get_head(subject_id.clone()) {
                             // looking for cases where the stash is fresher than the edge
                             if stash_mrh.descends_or_contains(&edge_mrh, &self.slab)?{
                                 updated_edges.insert( slot_id, stash_mrh );
@@ -314,7 +315,7 @@ impl Context{
                 // TODO: When should this be materialized?
                 let memobody = MemoBody::Edge(updated_edges);
                 let subject_id = parent_mrh.subject_id().unwrap();
-                let head = self.slab.new_memo_basic(Some(subject_id), parent_mrh, memobody.clone()).to_head();
+                let head = self.slab.new_memo_basic(subject_id.clone(), parent_mrh, memobody.clone()).to_head();
                 
                 self.apply_head(&head)?;
             }
@@ -406,7 +407,7 @@ mod test {
 
         {
             // manually perform compaction
-            let updated_head2 = context.stash.get_head( head2.subject_id().unwrap() );
+            let updated_head2 = context.stash.get_head( head2.subject_id() );
             let head = slabhandle.new_memo_basic(head3.subject_id(), head3.clone(), MemoBody::Edge(EdgeSet::single(0, updated_head2))).to_head();
             context.apply_head(&head).unwrap();
         }
@@ -415,7 +416,7 @@ mod test {
 
         {
             // manually perform compaction
-            let updated_head3 = context.stash.get_head( head3.subject_id().unwrap() );
+            let updated_head3 = context.stash.get_head( head3.subject_id() );
             let head = slabhandle.new_memo_basic(head4.subject_id(), head4, MemoBody::Edge(EdgeSet::single(0, updated_head3))).to_head();
             context.apply_head(&head).unwrap();
         }

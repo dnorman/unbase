@@ -1,12 +1,12 @@
 use std::collections::{HashMap, hash_map::Entry};
+use std::sync::Arc;
 use futures::{ future, prelude::*, sync::{mpsc,oneshot} };
 use tokio::executor::current_thread;
 use std::thread;
 
-use slab::{prelude::*, storage::*};
-use subject::SubjectId;
+use slab::{prelude::*, storage::*, counter::SlabCounter};
+use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
-use error::*;
 
 pub struct MemoDispatch{
     memo: Memo,
@@ -14,8 +14,8 @@ pub struct MemoDispatch{
     from_slabref: SlabRef
 }
 
-struct Dispatcher{
-    tx: mpsc::UnboundedSender<MemoDispatch>,
+pub struct Dispatcher{
+    pub tx: mpsc::UnboundedSender<MemoDispatch>,
     worker_thread: thread::JoinHandle<()>
 }
 
@@ -28,7 +28,7 @@ struct DispatcherInner{
 }
 
 impl Dispatcher{
-    pub fn new ( storage: StorageRequester ) -> Dispatcher {
+    pub fn new ( storage: StorageRequester, counter: Arc<SlabCounter> ) -> Dispatcher {
 
         let (tx,rx) = mpsc::unbounded::<MemoDispatch>();
 
@@ -61,11 +61,11 @@ impl Dispatcher{
 impl DispatcherInner{
     pub fn dispatch(&self, memo: Memo, memoref: MemoRef, from_slabref: SlabRef) -> Box<Future<Item=(), Error=()>> {
 
-        self.check_memo_waiters(&memo);
-        self.consider_emit_memo(&memo);
-        self.handle_memo_from_other_slab();
-        self.do_peering(&memoref, &origin_slabref);
-        self.dispatch_memoref(memoref);
+        // self.check_memo_waiters(&memo);
+        // self.consider_emit_memo(&memo);
+        // self.handle_memo_from_other_slab();
+        // self.do_peering(&memoref, from_slabref);
+        // self.dispatch_memoref(memoref);
 
         Box::new(future::result(Ok(())))
     }
