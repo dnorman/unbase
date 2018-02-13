@@ -27,15 +27,17 @@ impl LocalSlabHandle {
     }
 
     pub fn get_memo (&self, memoref: MemoRef ) -> Box<Future<Item=Memo, Error=Error>> {
-        Box::new(self.storage.get_memo(memoref).map_err(|r|{
+        use slab::storage::StorageMemoRetrieval::*;
+        self.storage.get_memo(memoref).and_then(|r|{
             match r {
-                Some(memo) => Box::new(future::result(Ok(memo))),
-                None       => {
+                Found(memo)     => Box::new(future::result(Ok(memo))),
+                Remote(peerset) => {
                     unimplemented!();
                 }
             }
-        }))
+        });
 
+        unimplemented!()
         //                 let timeout = tokio_core::reactor::Timeout::new(Duration::from_millis(170), &handle).unwrap();
 
         // let work = request.select2(timeout).then(|res| match res {

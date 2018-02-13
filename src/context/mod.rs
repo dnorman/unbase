@@ -154,7 +154,7 @@ impl Context{
     }
     pub (crate) fn get_subject_handle_with_head (&self, head: MemoRefHead)  -> Result<SubjectHandle, Error> {
         Ok(SubjectHandle{
-            id: head.subject_id().ok_or( Error::RetrieveError(RetrieveError::InvalidMemoRefHead) )?,
+            id: head.subject_id().ok_or( Error::RetrieveError(RetrieveError::InvalidMemoRefHead) )?.clone(),
             subject: self.get_subject_with_head(head)?,
             context: self.clone()
         })
