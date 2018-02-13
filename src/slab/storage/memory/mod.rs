@@ -1,11 +1,10 @@
 mod core;
 
-//use futures::prelude::*;
 use std::sync::Arc;
 
 use self::core::MemoryCore;
 use network::{Network};
-use slab::{self, storage, prelude::*, Slab, counter::SlabCounter};
+use slab::{self, dispatcher::*, storage::{self, *}, prelude::*, Slab, counter::SlabCounter};
 use context::Context;
 
 
@@ -26,13 +25,14 @@ use std::fmt;
 pub struct Memory{
     slab_id: slab::SlabId,
     core_thread: storage::CoreThread,
+    storage_requester: StorageRequester,
     counter: Arc<SlabCounter>,
     net: Network
 }
 
 impl Slab for Memory {
     fn get_handle (&self) -> LocalSlabHandle {
-        LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.core_thread.requester() )
+        LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.storage_requester.clone() )
     }
     fn get_slabref (&self) -> SlabRef {
         SlabRef{
@@ -60,21 +60,25 @@ impl Memory {
         // );
 
         let counter = Arc::new(SlabCounter::new());
+        let (storage_requester, requester_rx) = StorageRequester::new();
+        let dispatcher = Dispatcher::new( storage_requester.clone(), counter.clone() );
 
         let core = MemoryCore::new(
             slab_id,
             net.clone(),
-            counter.clone()
+            counter.clone(),
+            dispatcher.tx.clone()
         );
 
         // TODO: Under single threaded mode this should be Rc<StorageCore>
-        let core_thread = storage::CoreThread::new(Box::new(core));
+        let core_thread = storage::CoreThread::new(Box::new(core), requester_rx);
 
         let me = Memory{
             slab_id,
             core_thread,
             counter,
             net: net.clone(),
+            storage_requester,
         };
 
         net.register_local_slab(me.get_handle());

@@ -64,10 +64,10 @@ impl MemoRefHead {
         // If so, any memorefs that it descends must be removed
         let head = match *self {
             MemoRefHead::Null => {
-                if let Some(subject_id) = new.subject_id {
+                if !new.subject_id.is_anonymous() {
                     *self = MemoRefHead::Subject{
                         head: vec![new.clone()],
-                        subject_id
+                        subject_id: new.subject_id
                     };
                 }else{
                     *self = MemoRefHead::Anonymous{ head: vec![new.clone()] };
@@ -207,10 +207,10 @@ impl MemoRefHead {
             MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.memo_id).collect()
         }
     }
-    pub fn subject_id (&self) -> Option<SubjectId> {
+    pub fn subject_id (&self) -> SubjectId {
         match *self {
-            MemoRefHead::Null | MemoRefHead::Anonymous{..} => None,
-            MemoRefHead::Subject{ subject_id, .. }     => Some(subject_id)
+            MemoRefHead::Null | MemoRefHead::Anonymous{..} => SubjectId::anonymous(),
+            MemoRefHead::Subject{ subject_id, .. }         => subject_id
         }
     }
     pub fn is_some (&self) -> bool {

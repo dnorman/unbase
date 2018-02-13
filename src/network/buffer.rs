@@ -29,7 +29,7 @@ pub struct PacketBuffer (
     pub Vec<u8>
 );
 impl PacketBuffer {
-    pub fn new( memo: MemoBuffer, peerstate: Vec<MemoPeerState>, dest: SlabRef, from_slabref: SlabRef, return_address: &TransportAddress) -> Self {
+    pub fn new( memo: MemoBuffer, peerset: MemoPeerSet, dest: SlabRef, from_slabref: SlabRef, return_address: &TransportAddress) -> Self {
         let packet = Packet {
             to_slab_id: dest.slab_id(),
             from_slabref: from_slabref,
@@ -66,7 +66,7 @@ struct Packet {
     pub to_slab_id: slab::SlabId,
     pub from_slabref: SlabRef,
     pub memo: MemoBuffer,
-    pub peerstate: Vec<MemoPeerState>,
+    pub peerset: MemoPeerSet,
 }
 
 

@@ -15,6 +15,7 @@ use futures::sync::mpsc::channel;
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
 pub enum SubjectType {
+    Anonymous,
     IndexNode,
     Record,
 }
@@ -30,6 +31,12 @@ impl <'a> core::cmp::PartialEq<&'a str> for SubjectId {
 }
 
 impl SubjectId {
+    pub fn anonymous () -> Self {
+        SubjectId{
+            id: 0,
+            stype: SubjectType::Anonymous
+        }
+    }
     pub fn test(test_id: u64) -> Self{
         SubjectId{
             id:    test_id,
@@ -47,6 +54,41 @@ impl SubjectId {
         match self.stype {
             IndexNode => format!("I{}", self.id),
             Record    => format!("R{}", self.id)
+        }
+    }
+    pub fn is_some(&self) -> bool {
+        if let SubjectType::Anonymous = self.stype {
+            false
+        }else{
+            true
+        }
+    }
+    pub fn is_anonymous(&self) -> bool {
+        if let SubjectType::Anonymous = self.stype {
+            true
+        }else{
+            false
+        }
+    }
+    pub fn ok<E>(&self) -> Option<&Self> {
+        if let SubjectType::Anonymous = self.stype {
+            None
+        }else{
+            Some(self)
+        }
+    }
+    pub fn ok_or<E>(&self, err: E) -> Result<&Self, E> {
+        if let SubjectType::Anonymous = self.stype {
+            Err(err)
+        }else{
+            Ok(self)
+        }
+    }
+    pub fn unwrap(&self) -> &Self {
+        if let SubjectType::Anonymous = self.stype {
+            panic!("Subject is Anonymous")
+        }else{
+            self
         }
     }
 }
@@ -71,7 +113,7 @@ impl Subject {
         //println!("# Subject({}).new()",subject_id);
 
         let memoref = slab.new_memo_basic_noparent(
-                Some(id),
+                id,
                 MemoBody::FullyMaterialized {v: vals, r: RelationSet::empty(), e: EdgeSet::empty(), t: stype.clone() }
             );
         let head = memoref.to_head();
@@ -103,7 +145,8 @@ impl Subject {
         //println!("Subject.reconstitute({:?})", head);
         // Arguably we shouldn't ever be reconstituting a subject
 
-        if let Some(subject_id) = head.subject_id(){
+        let subject_id = head.subject_id();
+        if !subject_id.is_anonymous(){
             let subject = Subject{
                 id:   subject_id,
                 head: Arc::new(RwLock::new(head))
@@ -162,7 +205,7 @@ impl Subject {
             let mut head = self.head.write().unwrap();
 
             let memoref = slab.new_memo_basic(
-                Some(self.id),
+                self.id,
                 head.clone(),
                 MemoBody::Edit(vals)
             );
@@ -183,7 +226,7 @@ impl Subject {
             let mut head = self.head.write().unwrap();
 
             let memoref = slab.new_memo(
-                Some(self.id),
+                self.id,
                 head.clone(),
                 MemoBody::Relation(relationset)
             );
@@ -203,7 +246,7 @@ impl Subject {
             let mut head = self.head.write().unwrap();
 
             let memoref = slab.new_memo(
-                Some(self.id),
+                self.id,
                 head.clone(),
                 MemoBody::Edge(edgeset)
             );

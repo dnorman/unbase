@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use futures::future;
 use futures::prelude::*;
-use futures::sync::{mpsc,oneshot};
+use futures::sync::mpsc;
 use std::fmt;
 
 use network;
@@ -50,14 +50,14 @@ impl LocalSlabHandle {
         //     Err(Either::B((timeout_error, _get))) => Err(From::from(timeout_error)),
         // });
     }
-    pub fn put_memo(&self, memo: Memo, peerstate: Vec<MemoPeerState>, from_slabref: SlabRef ) -> Box<Future<Item=(), Error=Error>> {
-        self.storage.put_memo(memo, peerstate, from_slabref)
+    pub fn put_memo(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
+        self.storage.put_memo(memo, peerset, from_slabref)
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) {
         self.storage.put_slab_presence(presence).wait();
     }
-    pub fn get_peerstate(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
-        self.storage.get_peerstate(memoref, maybe_dest_slabref).wait()
+    pub fn get_peerset(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerState>, Error> {
+        self.storage.get_peerset(memoref, maybe_dest_slabref).wait()
     }
 
     pub fn slab_id(&self) -> slab::SlabId {
@@ -89,7 +89,7 @@ impl LocalSlabHandle {
         // self.call(LocalSlabRequest::ReceiveMemoWithPeerList{ memo, peerlist, from_slabref } ).wait()
     }
 
-    fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: Vec<MemoPeerState>, maybe_memo: Option<Memo>) -> (MemoRef, bool){
+    fn assert_memoref( &self, memo_id: MemoId, subject_id: SubjectId, peerlist: Vec<MemoPeerState>, maybe_memo: Option<Memo>) -> (MemoRef, bool){
         unimplemented!()
     }
     pub fn remotize_memo_ids( &self, memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  { 
@@ -127,7 +127,7 @@ impl LocalSlabHandle {
         let id = (self.slab_id as u64).rotate_left(32) | self.counter.next_subject_id() as u64;
         SubjectId{ id, stype }
     }
-    pub fn new_memo ( &self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
+    pub fn new_memo ( &self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> MemoRef {
         let memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
         //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.slab_id, memo_id, subject_id, parents.memo_ids(), body );
@@ -184,7 +184,7 @@ impl LocalSlabHandle {
     pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
         //println!("Slab({}).request_memo({})", self.slab_id, memoref.id );
 
-        // self.storage.get_peerstate(memoref.clone(), None).and_then(|peerstates|{
+        // self.storage.get_peerset(memoref.clone(), None).and_then(|peerstates|{
 
         //     for peerstate in peerstates.iter().take(5) {
         //         let request_memo = self.new_memo_basic(
@@ -224,10 +224,10 @@ impl LocalSlabHandle {
     pub fn peer_slab_count (&self) -> usize {
         self.counter.get_peer_slabs() as usize
     }
-    pub fn new_memo_basic (&self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {
+    pub fn new_memo_basic (&self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> MemoRef {
         self.new_memo(subject_id, parents, body)
     }
-    pub fn new_memo_basic_noparent (&self, subject_id: Option<SubjectId>, body: MemoBody) -> MemoRef {
+    pub fn new_memo_basic_noparent (&self, subject_id: SubjectId, body: MemoBody) -> MemoRef {
         self.new_memo(subject_id, MemoRefHead::Null, body)
     }
 

@@ -2,6 +2,7 @@
  * A memo is an immutable message.
 */
 pub mod serde;
+pub mod peerstate;
 
 use std::collections::HashMap;
 use std::{fmt};
@@ -21,10 +22,12 @@ pub type MemoId = u64;
 #[derive(Clone)]
 pub struct Memo {
     pub id: u64,
-    pub subject_id: Option<SubjectId>,
-    pub owning_slabref: SlabRef,
+    pub subject_id: SubjectId,
     pub parents: MemoRefHead,
-    pub body: MemoBody
+    pub body: MemoBody,
+
+    #[cfg(debug_assertions)]
+    pub owning_slabref: SlabRef,
 }
 
 
@@ -37,7 +40,7 @@ pub enum MemoBody{
     Edit(HashMap<String, String>),
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
-    Peering(MemoId,Option<SubjectId>,Vec<MemoPeerState>),
+    Peering(MemoId,SubjectId,MemoPeerSet),
     MemoRequest(Vec<MemoRef>,SlabPresence)
 }
 
@@ -136,32 +139,31 @@ impl Memo {
         }
         return Box::new(future::result(Ok(false)));
     }
-    pub fn clone_for_slab (&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
-        assert!(from_slabref.owning_slab_id == to_slab.id, "Memo clone_for_slab owning slab should be identical");
+    pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
+        debug_assert!(self.owning_slabref == from_slab.slabref, "Memo clone_for_slab owning slab should be identical");
 
         let memo = Memo{
             id:             self.id,
             owning_slabref: to_slab.slabref,
             subject_id:     self.subject_id,
-            parents:        self.parents.clone_for_slab(from_slabref, to_slab, false),
-            body:           self.body.clone_for_slab(from_slabref, to_slab)
+            parents:        self.parents.clone_for_slab(from_slab, to_slab, false),
+            body:           self.body.clone_for_slab(from_slab, to_slab)
         };
 
-        to_slab.receive_memo_with_peerlist( memo.clone(), peerlist.clone(), from_slabref.clone() );
+        to_slab.receive_memo_with_peerlist( memo.clone(), peerlist.clone(), from_slab.slabref.clone() );
         
         memo
     }
 }
 
 impl MemoBody {
-    fn clone_for_slab(&self, from_slabref: &SlabRef, to_slab: &LocalSlabHandle ) -> MemoBody {
-        assert!(from_slabref.owning_slab_id == to_slab.id, "MemoBody clone_for_slab owning slab should be identical");
+    fn clone_for_slab(&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle ) -> MemoBody {
 
         match self {
             &MemoBody::SlabPresence{ ref p, ref r } => {
                 MemoBody::SlabPresence{
                     p: p.clone(),
-                    r: r.clone_for_slab(from_slabref, to_slab, true),
+                    r: r.clone_for_slab(from_slab, to_slab, true),
 
                     // match r {
                     //     &MemoRefHead::Subject{..} | &MemoRefHead::Anonymous{..} => {
@@ -172,25 +174,25 @@ impl MemoBody {
                 }
             }
             &MemoBody::Relation(ref relationset) => {
-                MemoBody::Relation(relationset.clone_for_slab(from_slabref, to_slab))
+                MemoBody::Relation(relationset.clone_for_slab(to_slab))
             }
             &MemoBody::Edge(ref edgeset) => {
-                MemoBody::Edge(edgeset.clone_for_slab(from_slabref, to_slab))
+                MemoBody::Edge(edgeset.clone_for_slab(from_slab, to_slab))
             }
             &MemoBody::Edit(ref hm) => {
                 MemoBody::Edit(hm.clone())
             }
             &MemoBody::FullyMaterialized{ ref v, ref r, ref t, ref e } => {
-                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
+                MemoBody::FullyMaterialized{ v: v.clone(), r: r.clone_for_slab(to_slab), e: e.clone_for_slab(from_slab, to_slab), t: t.clone() }
             }
             &MemoBody::PartiallyMaterialized{ ref v, ref r,ref e, ref t } => {
-                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(from_slabref, to_slab), e: e.clone_for_slab(from_slabref, to_slab), t: t.clone() }
+                MemoBody::PartiallyMaterialized{ v: v.clone(), r: r.clone_for_slab(to_slab), e: e.clone_for_slab(from_slab, to_slab), t: t.clone() }
             }
-            &MemoBody::Peering(memo_id, subject_id, ref peerlist) => {
-                MemoBody::Peering(memo_id,subject_id,peerlist.clone_for_slab(to_slab))
+            &MemoBody::Peering(memo_id, subject_id, ref peerset) => {
+                MemoBody::Peering(memo_id,subject_id,peerset.clone_for_slab(to_slab))
             }
-            &MemoBody::MemoRequest(ref memo_ids, ref slabref) =>{
-                MemoBody::MemoRequest(memo_ids.clone(), to_slab.slabref_for_slab_id(slabref.slab_id()))
+            &MemoBody::MemoRequest(ref memo_ids, ref slab_presence) =>{
+                MemoBody::MemoRequest(memo_ids.clone(), slab_presence.clone())
             }
         }
 

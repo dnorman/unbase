@@ -60,57 +60,6 @@
     //     };
 
     // }
-    // fn assert_memoref( &self, memo_id: MemoId, subject_id: Option<SubjectId>, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
-
-    //     match memo {
-    //         Some(m) => {
-    //             let memo = Rc::new(memo);
-
-    //         }
-    //         None => {
-                
-    //         }
-    //     }
-
-    //     let had_memoref;
-    //     let memoref = match self.memorefs_by_id.entry(memo_id) {
-    //         Entry::Vacant(o)   => {
-    //             let mr = MemoRef(Arc::new(
-    //                 MemoRefInner {
-    //                     id: memo_id,
-    //                     owning_slab_id: self.id,
-    //                     subject_id: subject_id,
-    //                     peerlist: RwLock::new(peerlist),
-    //                     ptr:      RwLock::new(match memo {
-    //                         Some(m) => {
-    //                             assert!(self.id == m.owning_slab_id);
-    //                             MemoRefPtr::Resident(m)
-    //                         }
-    //                         None    => MemoRefPtr::Remote
-    //                     })
-    //                 }
-    //             ));
-
-    //             had_memoref = false;
-    //             o.insert( mr ).clone()// TODO: figure out how to prolong the borrow here & avoid clone
-    //         }
-    //         Entry::Occupied(o) => {
-    //             let mr = o.get();
-    //             had_memoref = true;
-    //             if let Some(m) = memo {
-
-    //                 let mut ptr = mr.ptr.write().unwrap();
-    //                 if let MemoRefPtr::Remote = *ptr {
-    //                     *ptr = MemoRefPtr::Resident(m)
-    //                 }
-    //             }
-    //             mr.apply_peers( &peerlist );
-    //             mr.clone()
-    //         }
-    //     };
-
-    //     (memoref, had_memoref)
-    // }
     // fn fetch_memoref_stream (&self, memo_ids: Box<Stream<Item = &MemoId, Error = ()>>) -> Box<Stream<Item = Option<&MemoRef>, Error = Error>> {
     //     unimplemented!()
     //     //memo_ids.map(|memo_id| self.memorefs_by_id.get(memo_id) )
@@ -175,19 +124,6 @@ impl MemorySlabWorker {
         };
 
         rx
-    }
-    pub fn check_memo_waiters ( &self, memo: &Memo) {
-        match self.memo_wait_channels.lock().unwrap().entry(memo.id) {
-            Entry::Occupied(o) => {
-                for channel in o.get() {
-                    // we don't care if it worked or not.
-                    // if the channel is closed, we're scrubbing it anyway
-                    channel.send(memo.clone()).ok();
-                }
-                o.remove();
-            },
-            Entry::Vacant(_) => {}
-        };
     }
     pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) {
 

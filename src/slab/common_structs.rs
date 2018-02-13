@@ -1,8 +1,6 @@
 use core::ops::Deref;
 use std::collections::HashMap;
-use futures::sync::{mpsc,oneshot};
 
-use error::*;
 use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
@@ -13,7 +11,7 @@ pub type RelationSlotId = u8;
 pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
 
 impl RelationSet {
-    pub fn clone_for_slab(&self, _from_slabref: &SlabRef, _to_slab: &LocalSlabHandle) -> Self {
+    pub fn clone_for_slab(&self, _to_slab: &LocalSlabHandle) -> Self {
 
         self.clone()
         // let new = self.0

@@ -104,7 +104,7 @@ impl<'a> Visitor for MemoRefSeed<'a> {
                 return Err(DeError::invalid_length(0, &self));
             }
         };
-        let subject_id: Option<SubjectId> = match visitor.visit()? {
+        let subject_id: SubjectId = match visitor.visit()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));
