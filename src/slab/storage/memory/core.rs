@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{future, Future, prelude::*, sync::mpsc};
+use futures::{future, Future, prelude::*, sync::{mpsc,oneshot}};
 
 use network::{Network,Transmitter};
 use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface, StorageMemoRetrieval}};
+use subject::SubjectId;
+use memorefhead::MemoRefHead;
 use error::*;
-use slab::dispatcher::MemoDispatch;
+use slab::dispatcher::Dispatch;
 
 struct MemoCarrier{
     memoref:  MemoRef,
@@ -22,7 +24,7 @@ pub struct MemoryCore {
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
-    dispatcher_tx: mpsc::UnboundedSender<MemoDispatch>,
+    dispatcher_tx: mpsc::UnboundedSender<Dispatch>,
     slab_transmitters: HashMap<slab::SlabId,Transmitter>, // TODO: Make this an LRU
 
     // * Things that would be serialized in most other slab types *
@@ -34,7 +36,7 @@ pub struct MemoryCore {
 }
 
 impl MemoryCore {
-    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter>, dispatcher_tx: mpsc::UnboundedSender<MemoDispatch> ) -> Self {
+    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter>, dispatcher_tx: mpsc::UnboundedSender<Dispatch> ) -> Self {
         MemoryCore{
             slab_id,
             net,
@@ -88,7 +90,7 @@ impl StorageCore for MemoryCore {
 }
 
 impl StorageCoreInterface for MemoryCore {
-    fn get_memo ( &self, memoref: MemoRef ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>> {
+    fn get_memo ( &self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
@@ -99,8 +101,36 @@ impl StorageCoreInterface for MemoryCore {
         match self.memo_storage.get(&memoref.memo_id()) {
             Some(carrier) => {
                 match carrier.memo {
-                    Some(memo) =>  Box::new(future::result(Ok(Found(memo.clone())))),
-                    None       =>  Box::new(future::result(Ok(Remote(carrier.peerset.clone()))))
+                    Some(memo) => {
+                        Box::new(future::result(Ok(Found(memo.clone()))))
+                    },
+                    None       =>  {
+                        let (tx,rx) = oneshot::channel::<Result<Memo,Error>>();
+
+                        // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
+                        self.dispatcher_tx.unbounded_send( Dispatch::WaitForMemo{ memoref, tx } );
+
+                        // Send the request
+                        for peerstate in carrier.peerset.list.iter().take(5) {
+                            let memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
+
+                            let memo = Memo {
+                                id:    memo_id,
+                                owning_slabref: self.get_slabref(),
+                                subject_id: SubjectId::anonymous(),
+                                parents: MemoRefHead::Null,
+                                body: MemoBody::MemoRequest( vec![memoref.clone()], peerstate.slabref.return_presence() )
+                            };
+
+                            self.put_memo(memo, vec![], self.get_slabref()).and_then(|memoref|{
+                                // TODO1 - left off here
+
+                                rx
+                            })
+                        }
+
+                        Box::new(future::result(Ok(Remote(carrier.peerset.clone()))))
+                    }
                 }
             }
             None => {
@@ -160,7 +190,7 @@ impl StorageCoreInterface for MemoryCore {
             }
         };
 
-        self.dispatcher_tx.unbounded_send(MemoDispatch{memo, memoref: memoref.clone(), from_slabref});
+        self.dispatcher_tx.unbounded_send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref});
 
         Box::new(future::result(Ok(memoref)))
     }

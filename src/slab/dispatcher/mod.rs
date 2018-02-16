@@ -4,48 +4,51 @@ use futures::{ future, prelude::*, sync::{mpsc,oneshot} };
 use tokio::executor::current_thread;
 use std::thread;
 
+use network::Network;
 use slab::{prelude::*, storage::*, counter::SlabCounter};
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
+use error::Error;
 
-pub struct MemoDispatch{
-    memo: Memo,
-    memoref: MemoRef,
-    from_slabref: SlabRef
+pub enum Dispatch{
+    GotMemo{ memo: Memo, memoref: MemoRef, from_slabref: SlabRef },
+    WaitForMemo{ memoref: MemoRef, tx: oneshot::Sender<Result<Memo,Error>> },
 }
 
+/// A Dispatcher is associated with a slab, and is notified via channel immediately after memos are written to slab storage.
+/// Dispatcher is responsible for peering and other response behaviors, as well as notifying any parties waiting for said memo
 pub struct Dispatcher{
-    pub tx: mpsc::UnboundedSender<MemoDispatch>,
+    pub tx: mpsc::UnboundedSender<Dispatch>,
     worker_thread: thread::JoinHandle<()>
 }
 
 struct DispatcherInner{
     storage: StorageRequester,
 
-    memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Memo>>>,
+    memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Result<Memo,Error>>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
+    net: Network,
 }
 
 impl Dispatcher{
-    pub fn new ( storage: StorageRequester, counter: Arc<SlabCounter> ) -> Dispatcher {
+    pub fn new ( net: Network, storage: StorageRequester, counter: Arc<SlabCounter> ) -> Dispatcher {
 
-        let (tx,rx) = mpsc::unbounded::<MemoDispatch>();
+        let (tx,rx) = mpsc::unbounded::<Dispatch>();
 
         let inner = DispatcherInner{
-            storage:               storage,
             memo_wait_channels:    HashMap::new(),
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
+            net, 
+            storage,
         };
 
         let worker_thread = thread::spawn(move || {
             current_thread::run(|_| {
 
             let server = rx.for_each(|dispatch| {
-                if let MemoDispatch{ memo, memoref, from_slabref } = dispatch {
-                    current_thread::spawn( inner.dispatch(memo, memoref, from_slabref) );
-                }
+                current_thread::spawn( inner.dispatch( dispatch ) );
                 future::result(Ok(()))
             });
 
@@ -59,18 +62,29 @@ impl Dispatcher{
 }
 
 impl DispatcherInner{
-    pub fn dispatch(&self, memo: Memo, memoref: MemoRef, from_slabref: SlabRef) -> Box<Future<Item=(), Error=()>> {
+    pub fn dispatch(&self, dispatch: Dispatch ) -> Box<Future<Item=(), Error=()>> {
 
-        // self.check_memo_waiters(&memo);
-        // self.consider_emit_memo(&memo);
-        // self.handle_memo_from_other_slab();
+        match dispatch {
+            Dispatch::GotMemo{ memo, memoref, from_slabref } => {
+                self.check_waiters(&memo);
+                //self.consider_emit(&memo);
+            },
+            Dispatch::WaitForMemo{ memoref, sender } => {
+                match self.memo_wait_channels.entry( memoref.memo_id() ) {
+                    Entry::Vacant(o)       => { o.insert( vec![sender] ); }
+                    Entry::Occupied(mut o) => { o.get_mut().push(sender); }
+                };
+            }
+        };
+
+        // 
+        // self.handle_from_other_slab();
         // self.do_peering(&memoref, from_slabref);
         // self.dispatch_memoref(memoref);
 
         Box::new(future::result(Ok(())))
     }
-
-    pub fn check_memo_waiters ( &self, memo: &Memo) {
+    pub fn check_waiters ( &self, memo: &Memo) {
         match self.memo_wait_channels.entry(memo.id) {
             Entry::Occupied(o) => {
                 for channel in o.get() {
@@ -124,7 +138,7 @@ impl DispatcherInner{
     //NOTE: nothing that calls get_memo, directly or indirectly is presently allowed here (but get_memo_if_resident is ok)
     //      why? Presumably due to deadlocks, but this seems sloppy
     /// Perform necessary tasks given a newly arrived memo on this slab
-    pub fn handle_memo_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
+    pub fn handle_from_other_slab( &self, memo: &Memo, memoref: &MemoRef, origin_slabref: &SlabRef ){
         //println!("Slab({}).handle_memo_from_other_slab({:?})", self.slab_id, memo );
 
         match memo.body {
