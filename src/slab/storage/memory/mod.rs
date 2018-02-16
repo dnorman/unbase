@@ -61,7 +61,7 @@ impl Memory {
 
         let counter = Arc::new(SlabCounter::new());
         let (storage_requester, requester_rx) = StorageRequester::new();
-        let dispatcher = Dispatcher::new( storage_requester.clone(), counter.clone() );
+        let dispatcher = Dispatcher::new( net.clone(), storage_requester.clone(), counter.clone() );
 
         let core = MemoryCore::new(
             slab_id,

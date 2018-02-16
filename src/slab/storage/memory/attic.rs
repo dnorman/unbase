@@ -115,16 +115,6 @@ impl MemorySlabWorker {
 
 
     }
-    pub fn memo_wait_channel (&self, memo_id: MemoId ) -> mpsc::Receiver<Memo> {
-        let (tx, rx) = channel::<Memo>();
-
-        match self.memo_wait_channels.lock().unwrap().entry(memo_id) {
-            Entry::Vacant(o)       => { o.insert( vec![tx] ); }
-            Entry::Occupied(mut o) => { o.get_mut().push(tx); }
-        };
-
-        rx
-    }
     pub fn do_peering(&self, memoref: &MemoRef, origin_slabref: &SlabRef) {
 
         let do_send = if let Some(memo) = memoref.get_memo_if_resident(){

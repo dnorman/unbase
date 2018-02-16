@@ -16,7 +16,7 @@ pub enum MemoPeerStatus {
 
 #[derive(Clone,Debug)]
 pub struct MemoPeerSet{
-    list: Vec<MemoPeerState>,
+    pub list: Vec<MemoPeerState>,
 }
 
 impl MemoPeerSet {

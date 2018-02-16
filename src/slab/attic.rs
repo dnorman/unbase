@@ -129,17 +129,6 @@
     //     }
     // }
 
-
-        // should this be a function of the slabref rather than the owning slab?
-    pub fn presence_for_origin (&self, origin_slabref: &SlabRef ) -> SlabPresence {
-        // Get the address that the remote slab would recogize
-        unimplemented!()
-        // SlabPresence {
-        //     slab_id: self.slab_id,
-        //     addresses: origin_slabref.get_return_addresses(),
-        //     lifetime: SlabAnticipatedLifetime::Unknown
-        // }
-    }
     // pub fn slabhandle_from_presence(&self, presence: &SlabPresence) -> Result<SlabHandle,Error> {
     //         match presence.address {
     //             TransportAddress::Simulator | TransportAddress::Local  => {

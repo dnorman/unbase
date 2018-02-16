@@ -33,10 +33,12 @@ pub trait Slab {
 
 
 use std::sync::Arc;
+use futures::sync::oneshot;
 
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::counter::SlabCounter;
+use self::dispatcher::Dispatch;
 
 
 /// The actual identifier for a slab Storable
@@ -122,6 +124,15 @@ impl SlabRef {
             owning_slab_id: to_slab.slab_id(),
             slab_id: self.slab_id
         }
+    }
+    pub fn return_presence (&self) -> SlabPresence {
+        // Get the address that the remote slab would recogize
+        unimplemented!()
+        // SlabPresence {
+        //     slab_id: self.slab_id,
+        //     addresses: origin_slabref.get_return_addresses(),
+        //     lifetime: SlabAnticipatedLifetime::Unknown
+        // }
     }
 }
 

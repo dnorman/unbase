@@ -12,13 +12,14 @@ use slab::counter::SlabCounter;
 use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
+use slab::dispatcher::Dispatch;
 
 impl LocalSlabHandle {
     pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, storage: StorageRequester) -> LocalSlabHandle {
 
         let handle = LocalSlabHandle{
             slab_id: slabref.slab_id(),
-            slabref: slabref,
+            slabref,
             counter,
             storage,
         };
@@ -28,11 +29,10 @@ impl LocalSlabHandle {
 
     pub fn get_memo (&self, memoref: MemoRef ) -> Box<Future<Item=Memo, Error=Error>> {
         use slab::storage::StorageMemoRetrieval::*;
-        self.storage.get_memo(memoref).and_then(|r|{
+        self.storage.get_memo(memoref, true).and_then(|r|{
             match r {
                 Found(memo)     => Box::new(future::result(Ok(memo))),
                 Remote(peerset) => {
-                    unimplemented!();
                 }
             }
         });
@@ -182,35 +182,6 @@ impl LocalSlabHandle {
         // }
 
         // Ok(())
-    }
-    pub fn request_memo (&self, memoref: &MemoRef) -> u8 {
-        //println!("Slab({}).request_memo({})", self.slab_id, memoref.id );
-
-        // self.storage.get_peerset(memoref.clone(), None).and_then(|peerstates|{
-
-        //     for peerstate in peerstates.iter().take(5) {
-        //         let request_memo = self.new_memo_basic(
-        //             None,
-        //             MemoRefHead::Null,
-        //             MemoBody::MemoRequest(
-        //                 vec![memoref.clone()],
-        //                 self.presence_for_origin( origin_slabref )
-        //             )
-        //         );
-        //         //self.storage.sen
-
-        //     }
-
-        // });
-
-        // let mut sent = 0u8;
-        // for peer in memoref.peerlist.read().unwrap().iter().take(5) {
-        //     //println!("Slab({}).request_memo({}) from {}", self.slab_id, memoref.id, peer.slabref.slab_id );
-        //     peer.slabref.send( &self.slabref, &request_memo.clone() );
-        // }
-
-        // sent
-        unimplemented!()
     }
 
     pub fn count_of_memorefs_resident( &self ) -> u32 {
