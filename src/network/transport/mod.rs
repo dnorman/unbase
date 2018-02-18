@@ -15,7 +15,7 @@ pub use super::transmitter::{Transmitter, DynamicDispatchTransmitter};
 
 use network::*;
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub enum TransportAddress{
     Null,
     Blackhole,
@@ -30,7 +30,7 @@ pub enum TransportAddress{
 }
 
 pub trait Transport {
-    fn make_transmitter(  &self, args: TransmitterArgs  ) -> Option<Transmitter>;
+    fn make_transmitter(  &self, args: &TransmitterArgs  ) -> Option<Transmitter>;
     fn is_local        (  &self ) -> bool;
     fn bind_network    (  &self, &Network );
     fn unbind_network  (  &self, &Network );

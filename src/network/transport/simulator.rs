@@ -5,14 +5,13 @@ use std::thread;
 use std::time;
 use std::io::BufRead;
 use futures::future;
-use futures::prelude::*;
+//use futures::prelude::*;
 
 use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
 use network;
 use error::*;
-use network::buffer::MemoBuffer;
 
 
 
@@ -55,8 +54,9 @@ impl SimEvent {
         //self.memoref.clone_for_slab( &self.from_slab, &self.dest_slab, true );
         // we all have to learn to deal with loss sometime
 
-        let from_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
-        self.buffer.deserialize_to_slabhandle(self.dest_slab, &from_address);
+//        let from_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
+//        self.buffer.deserialize_to_slabhandle(self.dest_slab, &from_address);
+        unimplemented!()
     }
 }
 impl fmt::Debug for SimEvent{
@@ -192,13 +192,13 @@ impl Transport for Simulator {
     fn is_local (&self) -> bool {
         true
     }
-    fn make_transmitter (&self, args: TransmitterArgs ) -> Option<Transmitter> {
-        if let TransmitterArgs::Local(ref slab) = args {
+    fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
+        if let &TransmitterArgs::Local(ref slab) = args {
             let tx = SimulatorTransmitter{
                 source_point: XYZPoint{ x: 1000, y: 1000, z: 1000 }, // TODO: move this - not appropriate here
                 dest_point: XYZPoint{ x: 1000, y: 1000, z: 1000 },
                 simulator: self.clone(),
-                dest: slab.clone(),
+                dest: (*slab).clone(),
             };
             Some(Transmitter::new(args.get_slabref(), Box::new(tx)))
         }else{
@@ -229,7 +229,7 @@ pub struct SimulatorTransmitter{
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
-    fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
+    fn send (&self, _memo: Memo, _peerset: MemoPeerSet, _from_slabref: SlabRef) -> future::FutureResult<(), Error> {
         let ref q = self.source_point;
         let ref p = self.dest_point;
 
@@ -240,25 +240,26 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
             t: self.simulator.get_clock()
         };
 
-        let distance = (( (q.x - p.x)^2 + (q.y - p.y)^2 + (q.z - p.z)^2 ) as f64).sqrt();
+        let distance = (( ((q.x - p.x)^2) + ((q.y - p.y)^2) + ((q.z - p.z)^2) ) as f64).sqrt();
 
-        let dest_point = MinkowskiPoint {
+        let _dest_point = MinkowskiPoint {
             x: p.x,
             y: p.y,
             z: p.z,
             t: source_point.t + ( distance as u64 * self.simulator.speed_of_light ) + 1 // add 1 to ensure nothing is instant
         };
 
-        let evt = SimEvent {
-            _source_point: source_point,
-            dest_point: dest_point,
-            from_slabref: from_slabref,
-
-            dest_slab: self.dest.clone(),
-            buffer: PacketBuffer
-        };
-
-        self.simulator.add_event( evt );
-        future::result(Ok(()))
+        unimplemented!();
+//        let evt = SimEvent {
+//            _source_point: source_point,
+//            dest_point,
+//            from_slabref,
+//
+//            dest_slab: self.dest.clone(),
+//            buffer: PacketBuffer
+//        };
+//
+//        self.simulator.add_event( evt );
+        //future::result(Ok(()))
     }
 }

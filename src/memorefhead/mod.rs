@@ -268,7 +268,7 @@ impl MemoRefHead {
         
         for memoref in head.iter(){
             // TODO: update head iter to be a stream
-            let memo = slab.get_memo(memoref.clone()).wait().unwrap();
+            let memo = slab.get_memo(memoref.clone(), true ).wait().unwrap();
 
             if let MemoBody::FullyMaterialized { .. } = memo.body {
                 //
@@ -363,7 +363,7 @@ impl Iterator for CausalMemoIter {
         if let Some(memoref) = self.queue.pop_front() {
             // this is wrong - Will result in G, E, F, C, D, B, A
 
-            match self.slab.get_memo( memoref.clone() ).wait() {
+            match self.slab.get_memo( memoref.clone(), true ).wait() {
                 Ok(memo) => {
                     self.queue.append(&mut memo.get_parent_head().to_vecdeque());
                     return Some(Ok(memo));
@@ -372,6 +372,6 @@ impl Iterator for CausalMemoIter {
             }
         }
 
-        return None;
+        None
     }
 }

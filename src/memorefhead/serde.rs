@@ -45,7 +45,7 @@ impl<'a> DeserializeSeed for MemoRefHeadSeed<'a> {
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where D: Deserializer
     {
-        const MRH_VARIANTS: &'static [&'static str] = &[
+        const MRH_VARIANTS: &[&str] = &[
             "Null",
             "Anonymous",
             "Subject"
@@ -65,13 +65,11 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
         where V: EnumVisitor
     {
 
-        let foo = match try!(visitor.visit_variant()) {
+        match try!(visitor.visit_variant()) {
             (MRHVariant::Null,       variant) => variant.visit_newtype_seed(MRHNullSeed{}),
             (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
-        };
-        
-        foo
+        }
     }
 }
 
@@ -157,7 +155,7 @@ impl<'a> Visitor for MRHSubjectSeed<'a> {
         where Visitor: MapVisitor,
     {
         let mut head : Option<Vec<MemoRef>> = None;
-        let mut subject_id : SubjectId = None;
+        let mut subject_id : Option<SubjectId> = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 's' => subject_id = Some(visitor.visit_value()?),

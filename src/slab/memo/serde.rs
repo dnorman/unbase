@@ -3,7 +3,7 @@ use memorefhead::serde::*;
 use slab::prelude::memoref_serde::MemoPeerSeed;
 
 use slab::prelude::*;
-use slab::slabref::serde::SlabRefSeed;
+//use slab::slabref::serde::SlabRefSeed;
 use util::serde::*;
 
 use std::fmt;
@@ -86,11 +86,12 @@ impl StatefulSerialize for MemoBody {
                 sv.serialize_field("l", &SerializeWrapper(peerlist,helper) )?;
                 sv.end()
             }
-            MemoRequest( ref memo_ids, ref slabref ) =>{
-                let mut sv = serializer.serialize_struct_variant("MemoBody", 7, "MemoRequest", 2)?;
-                sv.serialize_field("i", memo_ids )?;
-                sv.serialize_field("s", &SerializeWrapper(slabref, helper))?;
-                sv.end()
+            MemoRequest( ref _memorefs, ref _slabref ) =>{
+                let mut _sv = serializer.serialize_struct_variant("MemoBody", 7, "MemoRequest", 2)?;
+//                sv.serialize_field("i", memorefs )?;
+//                sv.serialize_field("s", &SerializeWrapper(slabref, helper))?;
+//                sv.end()
+                unimplemented!()
             }
         }
 
@@ -121,7 +122,7 @@ pub struct MemoSeed<'a> {
     pub dest_slab: &'a LocalSlabHandle,
     pub origin_slabref: &'a SlabRef,
     pub from_presence: SlabPresence,
-    pub peerlist: MemoPeerList
+    pub peerset: MemoPeerSet,
 }
 
 impl<'a> DeserializeSeed for MemoSeed<'a> {
@@ -143,26 +144,26 @@ impl<'a> Visitor for MemoSeed<'a>{
     fn visit_seq<V> (self, mut visitor: V) -> Result<Self::Value, V::Error>
         where V: SeqVisitor
     {
-        let id: MemoId = match visitor.visit()? {
+        let _id: MemoId = match visitor.visit()? {
             Some(value) => value,
             None => {
                return Err(DeError::invalid_length(0, &self));
             }
        };
-       let subject_id: SubjectId = match visitor.visit()? {
+       let _subject_id: SubjectId = match visitor.visit()? {
             Some(value) => value,
             None => {
                return Err(DeError::invalid_length(1, &self));
             }
        };
-       let body: MemoBody = match visitor.visit_seed(MemoBodySeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
+       let _body: MemoBody = match visitor.visit_seed(MemoBodySeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
             Some(value) => value,
             None => {
                return Err(DeError::invalid_length(2, &self));
             }
        };
 
-       let parents: MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
+       let _parents: MemoRefHead = match visitor.visit_seed(MemoRefHeadSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
@@ -170,13 +171,13 @@ impl<'a> Visitor for MemoSeed<'a>{
        };
 
         // TODO1 
-        self.memosender.send( DeserializedMemo{ id, subject_id, parents, body, origin_slabref: self.origin_slabref, peerlist: &self.peerlist } ).wait();
-        //println!("SERDE calling reconstitute_memo");
+//        self.memosender.send( DeserializedMemo{ id, subject_id, parents, body, origin_slabref: self.origin_slabref, peerlist: &self.peerset } ).wait();
+//        //println!("SERDE calling reconstitute_memo");
+//
+//        let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerset).0;
+unimplemented!()
 
-        let _memo = self.dest_slab.reconstitute_memo(id, subject_id, parents, body, self.origin_slabref, &self.peerlist ).0;
-
-
-        Ok(())
+//        Ok(())
     }
 }
 
@@ -198,7 +199,7 @@ impl<'a> DeserializeSeed for MemoBodySeed<'a> {
         where D: Deserializer
     {
 
-        const MEMOBODY_VARIANTS: &'static [&'static str] = &[
+        const MEMOBODY_VARIANTS: &[&str] = &[
             "SlabPresence",
             "Relation",
             "Edge",
@@ -252,25 +253,26 @@ impl<'a> Visitor for MBMemoRequestSeed<'a> {
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("MemoBody::MemoRequest")
     }
-    fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+    fn visit_map<V>(self, mut _visitor: V) -> Result<Self::Value, V::Error>
        where V: MapVisitor
     {
-        let mut memo_ids : Option<Vec<MemoId>> = None;
-        let mut slabref  : Option<SlabRef> = None;
-        while let Some(key) = visitor.visit_key()? {
-            match key {
-                'i' => memo_ids = visitor.visit_value()?,
-                's' => slabref  = Some(visitor.visit_value_seed(SlabRefSeed{ dest_slab: self.dest_slab })?),
-                _   => {}
-            }
-        }
-
-        if memo_ids.is_some() && slabref.is_some() {
-
-            Ok(MemoBody::MemoRequest( memo_ids.unwrap(), slabref.unwrap() ))
-        }else{
-            Err(DeError::invalid_length(0, &self))
-        }
+        unimplemented!();
+//        let mut memo_ids : Option<Vec<MemoId>> = None;
+//        let mut slabref  : Option<SlabRef> = None;
+//        while let Some(key) = visitor.visit_key()? {
+//            match key {
+//                'i' => memo_ids = visitor.visit_value()?,
+//                's' => slabref  = Some(visitor.visit_value_seed(SlabRefSeed{ dest_slab: self.dest_slab })?),
+//                _   => {}
+//            }
+//        }
+//
+//        if memo_ids.is_some() && slabref.is_some() {
+//
+//            Ok(MemoBody::MemoRequest( memo_ids.unwrap(), slabref.unwrap() ))
+//        }else{
+//            Err(DeError::invalid_length(0, &self))
+//        }
     }
 }
 
@@ -286,7 +288,7 @@ impl<'a> DeserializeSeed for RelationSetSeed<'a> {
     }
 }
 
-impl<'a> Visitor for RelationSetSeed<'a> {
+impl<'a> Visitor for RelationSetSeed<'a> { // TODO - kill relations off entirely in favor of edges
     type Value = RelationSet;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -296,14 +298,14 @@ impl<'a> Visitor for RelationSetSeed<'a> {
     fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
         where Visitor: MapVisitor,
     {
-        let mut values : HashMap<RelationSlotId,SubjectId> = HashMap::new();
+        let mut values : HashMap<RelationSlotId,Option<SubjectId>> = HashMap::new();
 
         let _ = self.dest_slab;
         let _ = self.origin_slabref;
 
         while let Some(slot) = visitor.visit_key()? {
-             let maybe_subject_id = visitor.visit_value()?;
-             values.insert(slot, maybe_subject_id);
+             let subject_id: SubjectId = visitor.visit_value()?;
+             values.insert(slot, Some(subject_id));
         }
 
         Ok(RelationSet(values))
@@ -439,23 +441,23 @@ impl<'a> Visitor for MBPeeringSeed<'a> {
         where Visitor: MapVisitor,
     {
         let mut memo_ids : Option<MemoId> = None;
-        let mut subject_id: SubjectId = None;
-        let mut peerlist   : Option<MemoPeerList> = None;
+        let mut subject_id: Option<SubjectId> = None;
+        let mut peerset   : Option<MemoPeerSet> = None;
         while let Some(key) = visitor.visit_key()? {
             match key {
                 'i' => memo_ids  = visitor.visit_value()?,
                 'j' => subject_id = visitor.visit_value()?,
-                'l' => peerlist  = Some(MemoPeerList::new(visitor.visit_value_seed(VecSeed(MemoPeerSeed{ dest_slab: self.dest_slab }))?)),
+                'l' => peerset  = Some(MemoPeerSet::new(visitor.visit_value_seed(VecSeed(MemoPeerSeed{ dest_slab: self.dest_slab }))?)),
                 _   => {}
             }
         }
 
-        if memo_ids.is_some() && subject_id.is_some() && peerlist.is_some() {
+        if memo_ids.is_some() && subject_id.is_some() && peerset.is_some() {
 
             Ok(MemoBody::Peering(
                 memo_ids.unwrap(),
                 subject_id.unwrap(),
-                peerlist.unwrap() ))
+                peerset.unwrap() ))
         }else{
             Err(DeError::invalid_length(0, &self))
         }

@@ -12,6 +12,7 @@ pub enum Error{
 #[derive(PartialEq, Debug)]
 pub enum RetrieveError {
     NotFound,
+    NotFoundLocally,
     NotFoundByDeadline,
     AccessDenied,
     InvalidMemoRefHead,

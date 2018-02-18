@@ -33,27 +33,24 @@ pub trait Slab {
 
 
 use std::sync::Arc;
-use futures::sync::oneshot;
 
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::counter::SlabCounter;
-use self::dispatcher::Dispatch;
-
 
 /// The actual identifier for a slab Storable
 pub type SlabId = u32;
 
-/// SlabRef is how we refer to a slab
+/// `SlabRef` is how we refer to a slab
 /// The intent is to possibly convert this to an arc, or some other pointer in the future, rather than copying the full identifier all over the place
-/// One should only be able to get a SlabRef from a Slab, because it's in charge of storing Slab IDs.
+/// One should only be able to get a `SlabRef` from a Slab, because it's in charge of storing Slab IDs.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SlabRef {
     owning_slab_id: SlabId,
     slab_id: SlabId
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub enum SlabAnticipatedLifetime {
     Ephmeral,
     Session,
@@ -62,9 +59,9 @@ pub enum SlabAnticipatedLifetime {
     Unknown,
 }
 
-/// SlabPresence is the latest info on how to reach a slab, and what sort of approximate behavior to expect from it.
+/// `SlabPresence` is the latest info on how to reach a slab, and what sort of approximate behavior to expect from it.
 /// (Storable)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, Ord, PartialOrd)]
 pub struct SlabPresence {
     pub slab_id: SlabId,
     pub addresses: Vec<TransportAddress>,
@@ -110,6 +107,9 @@ impl PartialEq for SlabPresence {
 }
 
 impl SlabRef {
+    pub fn hack ( slab_id: SlabId, owning_slab_id: SlabId ) -> Self {
+        SlabRef{ slab_id, owning_slab_id }
+    }
     pub fn slab_id(&self) -> SlabId {
         self.slab_id
     }
@@ -147,7 +147,7 @@ impl PartialEq for SlabRef {
 }
 
 impl SlabPresence {
-    pub fn get_transmitter (&self, net: &Network) -> Option<Transmitter> {
+    pub fn get_transmitter (&self, _net: &Network) -> Option<Transmitter> {
 
         unimplemented!()
         // use network::TransmitterArgs;

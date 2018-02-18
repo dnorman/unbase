@@ -53,7 +53,8 @@ impl SubjectId {
         use self::SubjectType::*;
         match self.stype {
             IndexNode => format!("I{}", self.id),
-            Record    => format!("R{}", self.id)
+            Record    => format!("R{}", self.id),
+            Anonymous => "ANON".to_string(),
         }
     }
     pub fn is_some(&self) -> bool {
@@ -70,7 +71,7 @@ impl SubjectId {
             false
         }
     }
-    pub fn ok<E>(&self) -> Option<&Self> {
+    pub fn ok(self) -> Option<SubjectId> {
         if let SubjectType::Anonymous = self.stype {
             None
         }else{
@@ -128,14 +129,18 @@ impl Subject {
     }
     /// Notify whomever needs to know that a new subject has been created
     fn update_referents (&self, context: &Context) -> Result<(),Error> {
+        use self::SubjectType::*;
         match self.id.stype {
-            SubjectType::IndexNode => {
+            IndexNode => {
                 let head = self.head.read().unwrap();
                 context.apply_head( &*head )?;
             },
-            SubjectType::Record    => {
+            Record    => {
                 // TODO: Consider whether this should accept head instead of subject
                 context.insert_into_root_index( self.id, &self )?;
+            }
+            Anonymous => {
+                //
             }
         }
 
@@ -274,7 +279,7 @@ impl Subject {
     //     head.apply( &context.get_resident_subject_head(self.id), &context.slab );
     //     head
     // }
-    pub fn get_head_memorefs ( &self, slab: &LocalSlabHandle ) -> Vec<MemoRef> {
+    pub fn get_head_memorefs ( &self, _slab: &LocalSlabHandle ) -> Vec<MemoRef> {
         //println!("# Subject({}).get_all_memorefs()",self.id);
         self.get_head().to_vec()
         //.causal_memo_iter( &slab ).map(|m| m.expect("Memo retrieval error. TODO: Update to use Result<..,Error>") ).collect()

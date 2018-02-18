@@ -27,8 +27,8 @@ pub enum TransmitterArgs<'a>{
 impl<'a> TransmitterArgs<'a>{
     pub fn get_slabref (&self) -> SlabRef {
         match self {
-            &TransmitterArgs::Local(slab)  => slab.slabref.clone(),
-            &TransmitterArgs::Remote(ref id,_) => *id.clone(),
+            &TransmitterArgs::Local(ref handle)     => handle.slabref.clone(),
+            &TransmitterArgs::Remote(ref slabref,_) => (*slabref).clone(),
         }
     }
 }
@@ -79,8 +79,7 @@ impl Transmitter {
         use self::TransmitterInternal::*;
         match self.internal {
             Local(ref handle) => {
-                handle.put_memo(memo, peerset, from_slabref)
-                //tx.send((from.clone(),memoref)).expect("local transmitter send")
+                Box::new(handle.put_memo(memo, peerset, from_slabref).map(|_| ()))
             }
             Dynamic(ref tx) => {
                 Box::new( tx.send(memo, peerset, from_slabref) )

@@ -97,7 +97,8 @@ impl Network {
         if let Some(handle) = self.localslabhandles.read().unwrap().iter().find(|s| s.slabref == slabref) {
             return Some(handle.clone());
         }
-        return None;
+
+        None
     }
     fn get_representative_slab(&self) -> Option<LocalSlabHandle> {
         for handle in self.localslabhandles.read().unwrap().iter() {
@@ -105,7 +106,7 @@ impl Network {
                 return Some(handle.clone());
             }
         }
-        return None;
+        None
     }
     pub fn get_all_local_slab_handles(&self) -> Vec<LocalSlabHandle> {
         // TODO: convert this into a iter generator that automatically expunges missing slabs.
@@ -128,14 +129,14 @@ impl Network {
     }
     pub fn get_transmitter(&self, args: TransmitterArgs) -> Option<Transmitter> {
         for transport in self.transports.read().unwrap().iter() {
-            if let Some(transmitter) = transport.make_transmitter(args) {
+            if let Some(transmitter) = transport.make_transmitter(&args) {
                 return Some(transmitter);
             }
         }
         None
     }
     pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Vec<TransportAddress> {
-        let addresses = Vec::new();
+        let mut addresses = Vec::new();
 
         for transport in self.transports.read().unwrap().iter() {
             addresses.push( transport.get_return_address(address) )
@@ -147,7 +148,7 @@ impl Network {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
-            self.localslabhandles.write().unwrap().insert(0, new_slab);
+            self.localslabhandles.write().unwrap().insert(0, new_slab.clone());
         }
 
         for prev_slab in self.get_all_local_slab_handles() {
@@ -159,7 +160,7 @@ impl Network {
         // Remove the deregistered slab so get_representative_slab doesn't return it
         {
             let mut slabhandles = self.localslabhandles.write().expect("slabs write lock");
-            if let Some(removed_sh) = slabhandles.iter()
+            if let Some(_) = slabhandles.iter()
                 .position(|s| s.slabref == slabref)
                 .map(|e| slabhandles.remove(e)) {
                     // Does anyone care if we succeeded in removing the slabhandle from our list?
@@ -172,18 +173,24 @@ impl Network {
         // If the deregistered slab is the one that's holding the root_index_seed
         // then we need to move it to a different slab
 
+        let mut maybe_seed = self.root_index_seed.write().expect("root_index_seed write lock");
 
-        if let seed @ Some((ref seed_mrh, ref seed_slabhandle)) = *self.root_index_seed.write().expect("root_index_seed write lock") {
+        let mut take= false;
+
+        if let Some((ref mut seed_mrh, ref mut seed_slabhandle)) = *maybe_seed {
             if seed_slabhandle.slabref == slabref {
                 if let Some(new_slab) = self.get_representative_slab() {
-
                     // Clone our old MRH under the newly selected slab
                     *seed_mrh = seed_mrh.clone_for_slab(&seed_slabhandle, &new_slab, false);
                     *seed_slabhandle = new_slab;
-                }else{
-                    seed.take();
+                } else {
+                    take = true;
                 }
             }
+        }
+
+        if take {
+            maybe_seed.take();
         }
     }
     pub fn get_root_index_seed(&self, slab: &LocalSlabHandle) -> MemoRefHead {
