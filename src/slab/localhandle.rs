@@ -53,7 +53,7 @@ impl LocalSlabHandle {
         self.storage.put_memo(memo, peerset, from_slabref)
     }
     pub fn put_slab_presence(&self, presence: SlabPresence ) {
-        self.storage.put_slab_presence(presence).wait();
+        self.storage.put_slab_presence(presence).wait().unwrap();
     }
     pub fn get_peerset(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<MemoPeerSet, Error> {
         self.storage.get_peerset(memoref, maybe_dest_slabref).wait()

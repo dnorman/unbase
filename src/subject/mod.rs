@@ -85,7 +85,7 @@ impl SubjectId {
             Ok(self)
         }
     }
-    pub fn unwrap(&self) -> &Self {
+    pub fn unwrap(self) -> Self {
         if let SubjectType::Anonymous = self.stype {
             panic!("Subject is Anonymous")
         }else{
@@ -115,7 +115,7 @@ impl Subject {
 
         let memoref = slab.new_memo_basic_noparent(
                 id,
-                MemoBody::FullyMaterialized {v: vals, r: RelationSet::empty(), e: EdgeSet::empty(), t: stype.clone() }
+                MemoBody::FullyMaterialized {v: vals, r: RelationSet::empty(), e: EdgeSet::empty(), t: stype }
             );
         let head = memoref.to_head();
 
@@ -137,7 +137,7 @@ impl Subject {
             },
             Record    => {
                 // TODO: Consider whether this should accept head instead of subject
-                context.insert_into_root_index( self.id, &self )?;
+                context.insert_into_root_index( self.id, self )?;
             }
             Anonymous => {
                 //

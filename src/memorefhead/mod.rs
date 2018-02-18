@@ -182,7 +182,7 @@ impl MemoRefHead {
                 match *other {
                     MemoRefHead::Null             => Ok(false),
                     MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
-                        if head.len() == 0 || other_head.len() == 0 {
+                        if head.is_empty() || other_head.is_empty() {
                             return Ok(false) // searching for positive descendency, not merely non-ascendency
                         }
                         for memoref in head.iter(){
@@ -222,23 +222,23 @@ impl MemoRefHead {
     pub fn to_vec (&self) -> Vec<MemoRef> {
         match *self {
             MemoRefHead::Null => vec![],
-            MemoRefHead::Anonymous { ref head, .. } => head.clone(),
-            MemoRefHead::Subject{  ref head, .. }   => head.clone()
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => head.clone()
         }
     }
     pub fn to_vecdeque (&self) -> VecDeque<MemoRef> {
         match *self {
             MemoRefHead::Null       => VecDeque::new(),
-            MemoRefHead::Anonymous { ref head, .. } => VecDeque::from(head.clone()),
-            MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
         }
     }
     pub fn len (&self) -> usize {
         match *self {
             MemoRefHead::Null       =>  0,
-            MemoRefHead::Anonymous { ref head, .. } => head.len(),
-            MemoRefHead::Subject{  ref head, .. }   => head.len()
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => head.len()
         }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     pub fn iter (&self) -> slice::Iter<MemoRef> {
 
@@ -247,12 +247,11 @@ impl MemoRefHead {
 
         match *self {
             MemoRefHead::Null                    => EMPTY.iter(), // HACK
-            MemoRefHead::Anonymous{ ref head }   => head.iter(),
-            MemoRefHead::Subject{ ref head, .. } => head.iter()
+            MemoRefHead::Anonymous{ ref head } | MemoRefHead::Subject{ ref head, .. } => head.iter()
         }
     }
     pub fn causal_memo_iter(&self, slab: &LocalSlabHandle ) -> CausalMemoIter {
-        CausalMemoIter::from_head( &self, slab )
+        CausalMemoIter::from_head( self, slab )
     }
     pub fn is_fully_materialized(&self, slab: &LocalSlabHandle ) -> bool {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
@@ -262,8 +261,7 @@ impl MemoRefHead {
             MemoRefHead::Null       => {
                 return true;
             },
-            MemoRefHead::Anonymous { ref head, .. } => head,
-            MemoRefHead::Subject{  ref head, .. } => head
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. } => head
         };
         
         for memoref in head.iter(){

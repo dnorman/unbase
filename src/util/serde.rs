@@ -93,11 +93,11 @@ impl<T> StatefulSerialize for Option<T>
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        match self {
-            &Some(ref v) =>{
+        match *self {
+            Some(ref v) =>{
                 serializer.serialize_some( &SerializeWrapper( v, helper ) )
             }
-            &None => {
+            None => {
                 serializer.serialize_none()
             }
         }
