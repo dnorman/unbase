@@ -92,7 +92,7 @@ impl DispatcherInner{
                 for channel in o.remove() {
                     // we don't care if it worked or not.
                     // if the channel is closed, we're scrubbing it anyway
-                    channel.send(Ok(memo.clone()));
+                    channel.send(Ok(memo.clone())).unwrap();
                 }
             },
             Entry::Vacant(_) => {}

@@ -17,7 +17,7 @@ pub struct SubjectHandle {
 impl SubjectHandle{
     pub fn new ( context: &Context, vals: HashMap<String, String> ) -> Result<SubjectHandle,Error> {
 
-        let subject = Subject::new(&context, SubjectType::Record, vals )?;
+        let subject = Subject::new(context, SubjectType::Record, vals )?;
 
         let handle = SubjectHandle{
             id: subject.id,

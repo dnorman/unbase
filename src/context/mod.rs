@@ -139,7 +139,7 @@ impl Context{
     /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met
     pub (crate) fn get_subject_with_head(&self,  mut head: MemoRefHead)  -> Result<Subject, Error> {
 
-        if head.len() == 0 {
+        if head.is_empty() {
             return Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead));
         }
 

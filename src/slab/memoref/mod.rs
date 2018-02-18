@@ -1,7 +1,7 @@
 pub mod serde;
 
 use subject::SubjectId;
-use slab::{self, storage::StorageCore, prelude::*};
+use slab::{self, prelude::*};
 use memorefhead::MemoRefHead;
 use error::Error;
 
@@ -53,15 +53,14 @@ pub struct MemoRef {
 // }
 
 impl MemoRef {
-    pub fn new <C> (core: &C, memo_id: MemoId, subject_id: SubjectId) -> Self 
-        where C: StorageCore {
-            MemoRef{
-                memo_id,
-                subject_id,
+    pub fn new (owning_slab_id: &slab::SlabId, memo_id: MemoId, subject_id: SubjectId) -> Self {
+        MemoRef{
+            memo_id,
+            subject_id,
 
-                #[cfg(debug_assertions)]
-                owning_slab_id: core.slab_id()
-            }
+            #[cfg(debug_assertions)]
+            owning_slab_id: owning_slab_id.clone()
+        }
     }
     pub fn memo_id (&self) -> MemoId {
         self.memo_id.clone()

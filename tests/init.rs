@@ -60,7 +60,7 @@ fn init_local_multi() {
     //thread::sleep( time::Duration::from_millis(5000) );
 
     // We should have zero slabs resident at this point
-    //assert!( net.get_all_local_slabs().len() == 0, "not all slabs have cleaned up" );
+    //assert!( net.get_all_local_slabs().is_empty(), "not all slabs have cleaned up" );
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn avoid_unnecessary_chatter() {
         assert!( slab_b.count_of_memos_reduntantly_received() == 0, "Redundant memos received" );
     }
 
-    assert!( net.get_all_local_slabs().len() == 0 );
+    assert!( net.get_all_local_slabs().is_empty() );
 }
 
 /*

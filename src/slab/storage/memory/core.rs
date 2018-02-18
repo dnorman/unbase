@@ -94,60 +94,75 @@ impl StorageCoreInterface for MemoryCore {
     fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
+        let request_peers: Vec<SlabRef>;
+
         match self.memo_storage.get(&memoref.memo_id()) {
-            Some(carrier) => {
-                match carrier.memo {
-                    Some(ref memo) => {
-                        Box::new(future::result(Ok(memo.clone())))
-                    },
-                    None       =>  {
-                        if !allow_remote {
-                            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFoundLocally))))
-                        }
-                        let (tx,rx) = oneshot::channel::<Result<Memo,Error>>();
-
-                        // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
-                        self.dispatcher_tx.unbounded_send( Dispatch::WaitForMemo{ memoref: memoref.clone(), tx } );
-
-                        // Send the request
-
-                        let peers = carrier.peerset.list.iter().take(5);
-                        let mut returns: Vec<SlabPresence> = peers.clone().map(|p| p.slabref.return_presence()).collect();
-                        returns.sort();
-                        returns.dedup();
-
-                        let request_memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
-
-                        let request_memo = Memo {
-                            id:    request_memo_id,
-                            owning_slabref: self.get_slabref(),
-                            subject_id: SubjectId::anonymous(),
-                            parents: MemoRefHead::Null,
-                            body: MemoBody::MemoRequest( vec![memoref.clone()], returns )
-                        };
-
-
-                        let _send = self.put_memo(request_memo, MemoPeerSet::empty(), self.get_slabref()).and_then(|request_memoref|{
-                            let mut sends = Vec::new();
-                            for peerstate in peers {
-                                sends.push( self.send_memo(peerstate.slabref.clone(), request_memoref.clone()) );
-                            }
-                            future::select_ok(sends)
-                        });
-                        let _ = rx;
-                        unimplemented!()
-
-                       // Box::new( send );//.and_then(|send| rx ))
-                    }
+            Some(&MemoCarrier{ memo: Some(ref memo), ..}) => {
+                return Box::new(future::result(Ok(memo.clone())))
+            },
+            Some(&MemoCarrier{ ref peerset, ..  }) => {
+                if !allow_remote {
+                    return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFoundLocally))))
                 }
-            }
+
+                // Send the request
+                request_peers = peerset.list.iter().filter(|ps| ps.status == MemoPeerStatus::Resident)
+                    .take(5).map(|ps| ps.slabref.clone() ).collect();
+
+                if request_peers.is_empty() {
+                    return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::InsufficientPeering))))
+                    // TODO: should probably undergo a more agressive search process – querying the index for instance
+                }
+            },
             None => {
                 // IN THEORY we shouldn't get here if there are outstanding memorefs
                 // In actuality it will be fairly likely to happen, and will require a remediation strategy
-                Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
+                return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
             }
         }
-        
+
+
+        let (tx, rx) = oneshot::channel::<Result<Memo, Error>>();
+
+        // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
+        self.dispatcher_tx.unbounded_send(Dispatch::WaitForMemo { memoref: memoref.clone(), tx }).unwrap();
+
+        let mut return_presences: Vec<SlabPresence> = request_peers.iter().map(|p| p.return_presence()).collect();
+        return_presences.sort();
+        return_presences.dedup();
+
+        let request_memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
+
+        let request_memo = Memo {
+            id: request_memo_id,
+            owning_slabref: self.get_slabref(),
+            subject_id: SubjectId::anonymous(),
+            parents: MemoRefHead::Null,
+            body: MemoBody::MemoRequest(vec![memoref.clone()], return_presences)
+        };
+
+        let my_slabref = self.get_slabref();
+        let _sends = self.put_memo(request_memo, MemoPeerSet::empty(), my_slabref)
+            .and_then(|request_memoref| {
+                let mut sends = Vec::new();
+                for peer in request_peers {
+                    sends.push(self.send_memo(peer, request_memoref.clone()));
+                }
+                future::select_ok(sends)
+            });
+
+        // TODO: Add timeout and retries
+
+        let rx = //sends.and_then(move |_| {
+            rx.then(|response| {
+                match response {
+                    Err(_)      => Err(Error::RetrieveError(RetrieveError::SlabError)), // oneshot Error=Canceled
+                    Ok(result)  => result
+                }
+            });
+        //});
+
+        Box::new(rx)
     }
     fn send_memo (&mut self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
@@ -160,17 +175,23 @@ impl StorageCoreInterface for MemoryCore {
         //       we could just spray out to all transmitters for a given slab, but making this a vec introduces other complexity, because we'd have to prune the list rather than just overwriting
 
         // TODO: update transmitter to return a future?
+
+        let send_memo;
+        let send_peerset;
         if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()){
-            match self.get_transmitter( &slabref ) {
-                    Ok(transmitter) => {
-                        transmitter.send( memo.clone(), peerset.clone(), self.get_slabref() )
-                    },
-                    Err(e) => Box::new(future::result(Err(e)))
-                }
-                ;
-                unimplemented!()
+            send_memo = memo.clone();
+            send_peerset = peerset.clone();
         }else{
-            Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
+            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
+        }
+
+        let my_slabref = self.get_slabref();
+
+        match self.get_transmitter( &slabref ) {
+            Ok(transmitter) => {
+                transmitter.send( send_memo, send_peerset, my_slabref )
+            },
+            Err(e) => Box::new(future::result(Err(e)))
         }
     }
     fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
@@ -179,7 +200,7 @@ impl StorageCoreInterface for MemoryCore {
         use std::collections::hash_map::Entry::*;
         let memoref = match self.memo_storage.entry(memo.id) {
             Vacant(e)   => {
-                let mr = MemoRef::new(self, memo.id.clone(), memo.subject_id.clone());
+                let mr = MemoRef::new(&self.slab_id, memo.id.clone(), memo.subject_id.clone());
                 e.insert(MemoCarrier{
                     memoref: mr.clone(),
                     memo: Some(memo.clone()),
@@ -198,7 +219,7 @@ impl StorageCoreInterface for MemoryCore {
             }
         };
 
-        self.dispatcher_tx.unbounded_send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref});
+        self.dispatcher_tx.unbounded_send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref}).unwrap();
 
         Box::new(future::result(Ok(memoref)))
     }
@@ -248,8 +269,8 @@ impl StorageCoreInterface for MemoryCore {
         use std::mem;
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
-            Occupied(e) => {
-                for p in e.get().iter_mut(){
+            Occupied(mut e) => {
+                for p in e.get_mut().iter_mut(){
                     if p == &presence {
                         mem::replace( p, presence ); // Update anticipated liftime
                         break;

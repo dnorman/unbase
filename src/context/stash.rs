@@ -123,7 +123,7 @@ impl Stash {
 
         loop {
             // Get the head and editcount for this specific subject id.
-            let mut item : ItemEditGuard = self.get_head_for_edit(*subject_id);
+            let mut item : ItemEditGuard = self.get_head_for_edit(subject_id);
 
             if ! item.apply_head(apply_head, slab)? {
                 return Ok(item.get_head().clone())
