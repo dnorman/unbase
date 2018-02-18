@@ -25,13 +25,16 @@ impl MemoPeerSet {
             list,
         }
     }
+    pub fn empty () -> Self {
+        MemoPeerSet{ list: vec![] }
+    }
     pub fn clone(&self) -> Self {
         MemoPeerSet{
             list: self.list.clone(),
         }
     }
     pub fn slabrefs(&self) -> Vec<SlabRef> {
-        self.list.iter().map(|p| p.slabref).collect()
+        self.list.iter().map(|p| p.slabref.clone()).collect()
     }
     pub fn apply_peerstate(&mut self, peerstate: MemoPeerState) -> bool {
         // assert!(self.owning_slab_id == peer.slabref.owning_slab_id, "apply_peer for dissimilar owning_slab_id peer" );
@@ -52,7 +55,7 @@ impl MemoPeerSet {
         peerlist.push(peerstate);
         true
     }
-    pub fn apply_peerset ( &self, apply_peerset: &MemoPeerSet ) -> bool {
+    pub fn apply_peerset ( &mut self, apply_peerset: MemoPeerSet ) -> bool {
 
         let mut acted = false;
         for peerstate in apply_peerset.list {
@@ -78,7 +81,7 @@ impl MemoPeerSet {
 impl MemoPeerState {
     pub fn clone_for_slab(&self, to_slab: &LocalSlabHandle) -> Self {
         MemoPeerState{
-            status: self.status,
+            status: self.status.clone(),
             slabref: self.slabref.clone_for_slab(to_slab)
         }
     }

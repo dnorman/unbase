@@ -9,7 +9,7 @@ use error::*;
 use subject::{SubjectId,SubjectType,SUBJECT_MAX_RELATIONS};
 use std::mem;
 
-/// Stash of Subject MemoRefHeads which must be considered for state projection
+/// Stash of Subject `MemoRefHeads` which must be considered for state projection
 #[derive(Default)]
 pub (in super) struct Stash{
     inner: Arc<Mutex<StashInner>>
@@ -123,7 +123,7 @@ impl Stash {
 
         loop {
             // Get the head and editcount for this specific subject id.
-            let mut item : ItemEditGuard = self.get_head_for_edit(subject_id);
+            let mut item : ItemEditGuard = self.get_head_for_edit(*subject_id);
 
             if ! item.apply_head(apply_head, slab)? {
                 return Ok(item.get_head().clone())
@@ -361,7 +361,8 @@ impl ItemEditGuard{
         self.links = Some(self.head.project_all_edge_links_including_empties(slab)); // May block here due to projection memoref traversal
 
         self.did_edit = true;
-        return Ok(true);
+
+        Ok(true)
     }
     fn try_save (mut self) -> Result<Option<(MemoRefHead,Vec<EdgeLink>)>,()> {
         if !self.did_edit {
@@ -403,10 +404,11 @@ impl ItemEditGuard{
         // IMPORTANT - because we consume self, drop will run after we return, ths calling decrement_item
         //             which is crucial for the evaluation of item removal in the case that we
         //             just set head to MemoRefHead::Null (essentially the same as unsetting)
-        return Ok(Some((
+
+        Ok(Some((
             mem::replace(&mut self.head,MemoRefHead::Null),
             mem::replace(&mut self.links,None).unwrap()
-        )));
+        )))
     }
 }
 impl Drop for ItemEditGuard{
@@ -432,11 +434,11 @@ impl StashIterator {
     }
 }
 
-/// Rudimentary MemoRefHead iterator. It operates under the assumptions that:
+/// Rudimentary `MemoRefHead` iterator. It operates under the assumptions that:
 /// 1. The contents of the stash may change mid-iteration
-/// 2. We do not wish to visit two MemoRefHeads bearing the same subject_id twice
+/// 2. We do not wish to visit two `MemoRefHead`s bearing the same `subject_id` twice
 /// It's possible however that there are some circumstances where we may want to violate #2,
-/// for instance if the MemoRefHead for subject X is advanced, but we are mid iteration and
+/// for instance if the `MemoRefHead` for subject X is advanced, but we are mid iteration and
 /// have already issued an item for subject X. This may be a pertinent modality for some use cases.
 impl Iterator for StashIterator{
     type Item = MemoRefHead;

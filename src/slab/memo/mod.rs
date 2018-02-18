@@ -12,6 +12,7 @@ use futures::future;
 use subject::{SubjectId,SubjectType};
 use slab::prelude::*;
 use memorefhead::MemoRefHead;
+use network::buffer::MemoBuffer;
 use error::*;
 
 //pub type MemoId = [u8; 32];
@@ -41,7 +42,7 @@ pub enum MemoBody{
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,SubjectId,MemoPeerSet),
-    MemoRequest(Vec<MemoRef>,SlabPresence)
+    MemoRequest(Vec<MemoRef>,Vec<SlabPresence>)
 }
 
 
@@ -68,6 +69,9 @@ impl fmt::Debug for Memo{
 }
 
 impl Memo {
+    pub fn buffer (&self) -> MemoBuffer {
+        unimplemented!()
+    }
     pub fn get_parent_head (&self) -> MemoRefHead {
         self.parents.clone()
     }
@@ -103,13 +107,13 @@ impl Memo {
     }
     pub fn does_peering (&self) -> bool {
         match self.body {
-            MemoBody::MemoRequest(_,_) => {
+            MemoBody::MemoRequest(..) => {
                 false
             }
-            MemoBody::Peering(_,_,_) => {
+            MemoBody::Peering(..) => {
                 false
             }
-            MemoBody::SlabPresence{p:_, r:_} => {
+            MemoBody::SlabPresence{..} => {
                 false
             }
             _ => {
@@ -134,17 +138,18 @@ impl Memo {
             match parent.descends(&memoref,slab).wait() {
                 Ok(true)  => return Box::new(future::result(Ok(true))),
                 Ok(false) => continue,
-                Err(e)    => Box::new(future::result(Err(e)))
+                Err(e)    => return Box::new(future::result(Err(e)))
             };
         }
-        return Box::new(future::result(Ok(false)));
+
+        Box::new(future::result(Ok(false)))
     }
     pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
         debug_assert!(self.owning_slabref == from_slab.slabref, "Memo clone_for_slab owning slab should be identical");
 
         let memo = Memo{
             id:             self.id,
-            owning_slabref: to_slab.slabref,
+            owning_slabref: to_slab.slabref.clone(),
             subject_id:     self.subject_id,
             parents:        self.parents.clone_for_slab(from_slab, to_slab, false),
             body:           self.body.clone_for_slab(from_slab, to_slab)

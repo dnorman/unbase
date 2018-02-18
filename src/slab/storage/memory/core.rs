@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{future, Future, prelude::*, sync::{mpsc,oneshot}};
+use futures::{future, Future, sync::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
-use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface, StorageMemoRetrieval}};
+use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface}};
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 use error::*;
@@ -58,11 +58,12 @@ impl MemoryCore {
             slab_id: self.slab_id
         }
     }
-    fn get_transmitter(&self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
+    fn get_transmitter(&mut self, slabref: &SlabRef) -> Result<&Transmitter,Error> {
         use std::collections::hash_map::Entry::*;
         match self.slab_transmitters.entry(slabref.slab_id()) {
-            Occupied(t) => {
-                Ok(t.get())
+            Occupied(_t) => {
+                //Ok((*t.get()).clone()) // TODO - figure out if there's a way to do this with a guard
+                unimplemented!()
             },
             Vacant(t) => {
                 //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
@@ -90,46 +91,53 @@ impl StorageCore for MemoryCore {
 }
 
 impl StorageCoreInterface for MemoryCore {
-    fn get_memo ( &self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>> {
+    fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
-        // QUESTION: is it sensible to interrogate the memoref for the memo itself? I'm starting to doubt it
-        // if let Some(memo) = memoref.get_memo_if_resident(){
-        //     return Box::new(future::result(Ok(Some(memo))));
-        // }
-        use slab::storage::StorageMemoRetrieval::*;
         match self.memo_storage.get(&memoref.memo_id()) {
             Some(carrier) => {
                 match carrier.memo {
-                    Some(memo) => {
-                        Box::new(future::result(Ok(Found(memo.clone()))))
+                    Some(ref memo) => {
+                        Box::new(future::result(Ok(memo.clone())))
                     },
                     None       =>  {
+                        if !allow_remote {
+                            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFoundLocally))))
+                        }
                         let (tx,rx) = oneshot::channel::<Result<Memo,Error>>();
 
                         // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
-                        self.dispatcher_tx.unbounded_send( Dispatch::WaitForMemo{ memoref, tx } );
+                        self.dispatcher_tx.unbounded_send( Dispatch::WaitForMemo{ memoref: memoref.clone(), tx } );
 
                         // Send the request
-                        for peerstate in carrier.peerset.list.iter().take(5) {
-                            let memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
-                            let memo = Memo {
-                                id:    memo_id,
-                                owning_slabref: self.get_slabref(),
-                                subject_id: SubjectId::anonymous(),
-                                parents: MemoRefHead::Null,
-                                body: MemoBody::MemoRequest( vec![memoref.clone()], peerstate.slabref.return_presence() )
-                            };
+                        let peers = carrier.peerset.list.iter().take(5);
+                        let mut returns: Vec<SlabPresence> = peers.clone().map(|p| p.slabref.return_presence()).collect();
+                        returns.sort();
+                        returns.dedup();
 
-                            self.put_memo(memo, vec![], self.get_slabref()).and_then(|memoref|{
-                                // TODO1 - left off here
+                        let request_memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
-                                rx
-                            })
-                        }
+                        let request_memo = Memo {
+                            id:    request_memo_id,
+                            owning_slabref: self.get_slabref(),
+                            subject_id: SubjectId::anonymous(),
+                            parents: MemoRefHead::Null,
+                            body: MemoBody::MemoRequest( vec![memoref.clone()], returns )
+                        };
 
-                        Box::new(future::result(Ok(Remote(carrier.peerset.clone()))))
+
+                        let _send = self.put_memo(request_memo, MemoPeerSet::empty(), self.get_slabref()).and_then(|request_memoref|{
+                            let mut sends = Vec::new();
+                            for peerstate in peers {
+                                sends.push( self.send_memo(peerstate.slabref.clone(), request_memoref.clone()) );
+                            }
+                            future::select_ok(sends)
+                        });
+                        let _ = rx;
+                        unimplemented!()
+
+                       // Box::new( send );//.and_then(|send| rx ))
                     }
                 }
             }
@@ -141,7 +149,7 @@ impl StorageCoreInterface for MemoryCore {
         }
         
     }
-    fn send_memo ( &self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    fn send_memo (&mut self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -165,7 +173,7 @@ impl StorageCoreInterface for MemoryCore {
             Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))))
         }
     }
-    fn put_memo(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
+    fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
 
         self.counter.increment_memos_received();
         use std::collections::hash_map::Entry::*;
@@ -179,13 +187,13 @@ impl StorageCoreInterface for MemoryCore {
                 });
                 mr
             }
-            Occupied(e) => {
-                let mut carrier = e.get();
+            Occupied(mut e) => {
+                let mut carrier = e.get_mut();
                 if carrier.memo.is_some(){
                     self.counter.increment_memos_redundantly_received()
                 }
                 carrier.memo = Some(memo.clone());
-                carrier.peerset.apply_peerset( &peerset );
+                carrier.peerset.apply_peerset( peerset );
                 carrier.memoref.clone()
             }
         };
@@ -236,7 +244,7 @@ impl StorageCoreInterface for MemoryCore {
 
     //     (memoref, had_memoref)
     // }
-    fn put_slab_presence(&self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
+    fn put_slab_presence(&mut self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
         use std::mem;
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
@@ -256,7 +264,7 @@ impl StorageCoreInterface for MemoryCore {
         // TODO: update transmitter?
         Box::new(future::result(Ok( () )))
     }
-    fn get_peerset (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=MemoPeerSet, Error=Error>> {
+    fn get_peerset (&mut self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=MemoPeerSet, Error=Error>> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
         if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){

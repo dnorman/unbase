@@ -1,13 +1,13 @@
 use super::*;
 use util::serde::*;
 
-impl StatefulSerialize for MemoPeerList {
+impl StatefulSerialize for MemoPeerSet {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
 
         let mut seq = serializer.serialize_seq(None)?;
-        for memopeer in self.iter() {
+        for memopeer in self.list.iter() {
             // don't tell the receiving slab that they have it.
             // They know they have it
             if &memopeer.slabref.slab_id != helper.dest_slab_id {
@@ -19,26 +19,27 @@ impl StatefulSerialize for MemoPeerList {
 }
 
 //             [      [  [[]],     "Resident" ]  ]
-// MemoPeerList^  Peer^  ^Slabref  ^Status
+// MemoPeerSet^  Peer^  ^Slabref  ^Status
 
 impl StatefulSerialize for MemoRef {
-    fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S, _helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        use super::MemoRefPtr::*;
-
-        let mut seq = serializer.serialize_seq(Some(4))?;
-        seq.serialize_element(&self.id)?;
-        seq.serialize_element(&self.subject_id)?;
-        seq.serialize_element(&match &*self.ptr.read().unwrap() {
-            &Remote      => false,
-            &Resident(_) => true
-        })?;
-
-        // QUESTION: Should we be using memoref.get_peerlist_for_peer instead of has_memo?
-        //           What about relayed memos which Slab A requests from B but actually receives from C?
-        seq.serialize_element( &SerializeWrapper(&*self.peerlist.read().unwrap(), helper) )?;
-        seq.end()
+        unimplemented!()
+//        use super::MemoRefPtr::*;
+//
+//        let mut seq = serializer.serialize_seq(Some(4))?;
+//        seq.serialize_element(&self.id)?;
+//        seq.serialize_element(&self.subject_id)?;
+//        seq.serialize_element(&match &*self.ptr.read().unwrap() {
+//            &Remote      => false,
+//            &Resident(_) => true
+//        })?;
+//
+//        // QUESTION: Should we be using memoref.get_peerlist_for_peer instead of has_memo?
+//        //           What about relayed memos which Slab A requests from B but actually receives from C?
+//        seq.serialize_element( &SerializeWrapper(&*self.peerlist.read().unwrap(), helper) )?;
+//        seq.end()
     }
 }
 
@@ -66,13 +67,14 @@ impl StatefulSerialize for MemoRef {
 }*/
 
 impl StatefulSerialize for MemoPeerState {
-    fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S, _helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        let mut seq = serializer.serialize_seq(Some(2))?;
-        seq.serialize_element(&SerializeWrapper(&self.slabref, helper))?;
-        seq.serialize_element(&self.status)?;
-        seq.end()
+//        let mut seq = serializer.serialize_seq(Some(2))?;
+//        seq.serialize_element(&SerializeWrapper(&self.slabref, helper))?;
+//        seq.serialize_element(&self.status)?;
+//        seq.end()
+        unimplemented!()
     }
 }
 
@@ -133,7 +135,7 @@ impl<'a> Visitor for MemoRefSeed<'a> {
             }
         });
 
-        Ok(self.dest_slab.assert_memoref(memo_id, subject_id, MemoPeerList::new(peers), None).0 )
+        Ok(self.dest_slab.assert_memoref(memo_id, subject_id, MemoPeerSet::new(peers), None).0 )
     }
 }
 
@@ -155,25 +157,26 @@ impl<'a> Visitor for MemoPeerSeed<'a> {
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("struct MemoPeer")
     }
-    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+    fn visit_seq<V>(self, mut _visitor: V) -> Result<Self::Value, V::Error>
        where V: SeqVisitor
     {
-        let slabref: SlabRef = match visitor.visit_seed( SlabRefSeed{ dest_slab: self.dest_slab })? {
-            Some(value) => value,
-            None => {
-                return Err(DeError::invalid_length(0, &self));
-            }
-        };
-        let status: MemoPeerStatus = match visitor.visit()? {
-           Some(value) => value,
-           None => {
-               return Err(DeError::invalid_length(1, &self));
-           }
-        };
-
-       Ok(MemoPeerState{
-           slabref: slabref,
-           status: status
-       })
+        unimplemented!();
+//        let slabref: SlabRef = match visitor.visit_seed( SlabRefSeed{ dest_slab: self.dest_slab })? {
+//            Some(value) => value,
+//            None => {
+//                return Err(DeError::invalid_length(0, &self));
+//            }
+//        };
+//        let status: MemoPeerStatus = match visitor.visit()? {
+//           Some(value) => value,
+//           None => {
+//               return Err(DeError::invalid_length(1, &self));
+//           }
+//        };
+//
+//       Ok(MemoPeerState{
+//           slabref: slabref,
+//           status: status
+//       })
     }
 }

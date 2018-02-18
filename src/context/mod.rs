@@ -1,6 +1,6 @@
 pub mod stash;
 
-use subject::{Subject,SubjectId,SubjectType};
+use subject::{Subject,SubjectId};
 use subjecthandle::SubjectHandle;
 use network::Network;
 use memorefhead::*;
@@ -149,7 +149,7 @@ impl Context{
         }
         
         let subject = Subject::reconstitute(&self, head)?;
-        return Ok(subject);
+        Ok(subject)
 
     }
     pub (crate) fn get_subject_handle_with_head (&self, head: MemoRefHead)  -> Result<SubjectHandle, Error> {
@@ -185,7 +185,7 @@ impl Context{
     pub fn hack_send_context(&self, other: &Self) -> usize {
         self.compact().expect("compact");
 
-        let from_slabref = self.slab.slabref.clone_for_slab(&other.slab);
+        let _from_slabref = self.slab.slabref.clone_for_slab(&other.slab);
 
         let mut memoref_count = 0;
 
@@ -198,11 +198,12 @@ impl Context{
         memoref_count
     }
     pub fn get_relevant_subject_head(&self, subject_id: SubjectId) -> Result<MemoRefHead, Error> {
-        match subject_id {
-            SubjectId{ stype: SubjectType::IndexNode,.. } => {
+        use subject::SubjectType::*;
+        match subject_id.stype {
+            IndexNode => {
                 Ok(self.stash.get_head(subject_id).clone())
             },
-            SubjectId{ stype: SubjectType::Record, .. } => {
+            Record => {
                 // TODO: figure out a way to noop here in the case that the SubjectHead in question
                 //       was pulled against a sufficiently identical context stash state.
                 //       Perhaps stash edit increment? how can we get this to be really granular?
@@ -211,6 +212,9 @@ impl Context{
                     Some(mrh) => Ok(mrh),
                     None      => Ok(MemoRefHead::Null)
                 }
+            },
+            Anonymous => {
+                Ok(MemoRefHead::Null)
             }
         }
     }

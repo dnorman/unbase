@@ -40,8 +40,8 @@ impl CoreThreadInner{
         use slab::storage::LocalSlabRequest::*;
 
         // NFI how to do match statements which return different futures
-        if let GetMemo{ memoref } = request {
-            return Box::new( self.core.get_memo(memoref).then(|r| {
+        if let GetMemo{ memoref, allow_remote } = request {
+            return Box::new( self.core.get_memo(memoref, allow_remote).then(|r| {
                 match r {
                     Ok(maybe_memo)  => responder.send(Ok(LocalSlabResponse::GetMemo( maybe_memo ) )),
                     Err(e)          => responder.send(Err(e))
@@ -62,7 +62,17 @@ impl CoreThreadInner{
         if let SendMemo {to_slabref, memoref} = request{
             return Box::new(self.core.send_memo(to_slabref, memoref).then(|r| {
                 match r {
-                    Ok(r)  => responder.send(Ok(LocalSlabResponse::SendMemo( () ) )),
+                    Ok(_)  => responder.send(Ok(LocalSlabResponse::SendMemo( () ) )),
+                    Err(e) => responder.send(Err(e))
+                };
+                Ok(())
+            }))
+        }
+
+        if let GetPeerSet {memoref, maybe_dest_slabref } = request{
+            return Box::new(self.core.get_peerset(memoref, maybe_dest_slabref).then(|r| {
+                match r {
+                    Ok(r)  => responder.send(Ok(LocalSlabResponse::GetPeerSet( r ) )),
                     Err(e) => responder.send(Err(e))
                 };
                 Ok(())

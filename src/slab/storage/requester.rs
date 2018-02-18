@@ -1,4 +1,4 @@
-use futures::{future, Stream, Future, sync::oneshot};
+use futures::{future, Future, sync::oneshot};
 use super::*;
 use error::*;
 
@@ -13,7 +13,7 @@ impl StorageRequester{
 
         Box::new( c.then(|r|{
             match r{
-                Err(e) => {
+                Err(_) => {
                     // The oneshot channel can fail if the sender goes away
                     future::result(Err(Error::LocalSlab(LocalSlabError::Unreachable)))
                 }
@@ -24,10 +24,10 @@ impl StorageRequester{
             }
         }))
     }
-    pub fn get_memo(&self, memoref: MemoRef ) -> Box<Future<Item=StorageMemoRetrieval, Error=Error>>{
-        Box::new( self.call(LocalSlabRequest::GetMemo{ memoref } ).and_then(|r| {
-            if let LocalSlabResponse::GetMemo(retrieval) = r {
-                return Ok(retrieval)
+    pub fn get_memo(&self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
+        Box::new( self.call(LocalSlabRequest::GetMemo{ memoref, allow_remote } ).and_then(|r| {
+            if let LocalSlabResponse::GetMemo(memo) = r {
+                return Ok(memo)
             }else{
                 panic!("Invalid return type");
             }
@@ -60,7 +60,7 @@ impl StorageRequester{
             }
         }))
     }
-    pub fn get_peerset (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerState>, Error=Error>>{
+    pub fn get_peerset (&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=MemoPeerSet, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetPeerSet{ memoref, maybe_dest_slabref } ).and_then(|r| {
             if let LocalSlabResponse::GetPeerSet(peerset) = r {
                 return Ok(peerset)

@@ -14,9 +14,9 @@ impl Transport for LocalDirect {
     fn is_local (&self) -> bool {
         true
     }
-    fn make_transmitter (&self, args: TransmitterArgs ) -> Option<Transmitter> {
-        if let TransmitterArgs::Local(rcv_slab) = args {
-            Some(Transmitter::new_local(rcv_slab))
+    fn make_transmitter (&self, args: &TransmitterArgs ) -> Option<Transmitter> {
+        if let &TransmitterArgs::Local(ref rcv_slab) = args {
+            Some(Transmitter::new_local((*rcv_slab).clone()))
         }else{
             None
         }
