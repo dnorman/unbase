@@ -1,7 +1,6 @@
 /* Memo
  * A memo is an immutable message.
 */
-pub mod serde;
 pub mod peerstate;
 
 use std::collections::HashMap;
@@ -12,7 +11,7 @@ use futures::future;
 use subject::{SubjectId,SubjectType};
 use slab::prelude::*;
 use memorefhead::MemoRefHead;
-use network::buffer::MemoBuffer;
+use buffer::MemoBuffer;
 use error::*;
 
 //pub type MemoId = [u8; 32];
@@ -69,8 +68,8 @@ impl fmt::Debug for Memo{
 }
 
 impl Memo {
-    pub fn buffer (&self) -> MemoBuffer {
-        unimplemented!()
+    pub fn serialize (&self, slab: &LocalSlabHandle) -> MemoBuffer {
+        MemoBuffer::from_memo(self, slab)
     }
     pub fn get_parent_head (&self) -> MemoRefHead {
         self.parents.clone()

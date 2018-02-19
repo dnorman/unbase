@@ -1,10 +1,12 @@
-use super::*;
-use memorefhead::serde::*;
-use slab::prelude::memoref_serde::MemoPeerSeed;
+use std::collections::HashMap;
 
+use super::*;
+use super::memoref::MemoPeerSeed;
+use super::memorefhead::*;
+use memorefhead::MemoRefHead;
 use slab::prelude::*;
 //use slab::slabref::serde::SlabRefSeed;
-use util::serde::*;
+use self::util::*;
 
 use std::fmt;
 use serde::*;

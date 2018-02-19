@@ -3,7 +3,7 @@ use std::thread;
 use std::str;
 use futures::future;
 use futures::prelude::*;
-use network::buffer::{Packet,PacketBuffer};
+use buffer::{Packet,PacketBuffer,BufferReceiver};
 
 use super::*;
 use std::sync::mpsc;
@@ -14,7 +14,6 @@ use error::*;
 // use std::collections::BTreeMap;
 //use std::time;
 
-use serde_json;
 use subject::SubjectId;// {serialize as bin_serialize, deserialize as bin_deserialize};
 
 #[derive(Clone)]
@@ -26,7 +25,7 @@ struct TransportUDPInternal {
     socket: Arc<UdpSocket>,
     tx_thread: Option<thread::JoinHandle<()>>,
     rx_thread: Option<thread::JoinHandle<()>>,
-    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,PacketBuffer)>>>>>,
+    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>>,
     network: Option<WeakNetwork>,
     address: TransportAddressUDP
 }
@@ -208,7 +207,7 @@ impl Transport for TransportUDP {
     fn is_local (&self) -> bool {
         false
     }
-    fn bind_network(&self, net: &Network) {
+    fn bind_network(&mut self, net: &Network) {
 
         let mut shared = self.shared.lock().unwrap();
         if let Some(_) = (*shared).rx_thread {
@@ -218,35 +217,17 @@ impl Transport for TransportUDP {
         let rx_socket = shared.socket.clone();
         //let dispatcher = TransportUDPDispatcher::new(net.clone());
 
-        let net_weak = net.weak();
+
+        let receiver = BufferReceiver::new(net);
+
         let rx_handle : thread::JoinHandle<()> = thread::spawn(move || {
             let mut buf = [0; 0x1_0000];
 
-            while let Ok((amt, _src)) = rx_socket.recv_from(&mut buf) {
+            while let Ok((amt, src)) = rx_socket.recv_from(&mut buf) {
+                let source_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
 
-                if let Some(_net) = net_weak.upgrade() {
-
-                    //TODO: create a protocol encode/decode module and abstract away the serde stuff
-                    //ouch, my brain - I Think I finally understand ser::de::DeserializeSeed
-                    // println!("DESERIALIZE          {}", String::from_utf8(buf.to_vec()).unwrap());
-                    let mut _deserializer = serde_json::Deserializer::from_slice(&buf[0..amt]);
-
-//                    let packet_seed : PacketSeed = PacketSeed{
-//                        net: &net,
-//                        source_address: TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() })
-//                    };
-//
-//                    match packet_seed.deserialize(&mut deserializer) {
-//                        Ok(()) => {
-//                            // PacketSeed actually does everything
-//                        },
-//                        Err(e) =>{
-//                            println!("DESERIALIZE ERROR {}", e);
-//                        }
-//                    }
-                    unimplemented!();
-                    //println!("DESERIALIZE COMPLETE {}", String::from_utf8(buf.to_vec()).unwrap());
-                }
+                let buffer = PacketBuffer(&buf[0..amt]);
+                receiver.receive(buffer);
             };
         });
 
@@ -255,7 +236,7 @@ impl Transport for TransportUDP {
 
     }
 
-    fn unbind_network(&self, _net: &Network) {
+    fn unbind_network(&mut self, _net: &Network) {
         /*,
         let mut shared = self.shared.lock().unwrap();
         shared.tx_thread = None;
@@ -307,8 +288,8 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
 
         let _buf = Packet {
             to_slab_id: self.slab_id,
-            from_slabref,
-            memo: memo.buffer(),
+            from_slab_id: from_slabref.slab_id(),
+            memo: memo,
             peerset,
         }.buffer();
 

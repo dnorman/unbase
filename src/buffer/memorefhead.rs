@@ -1,8 +1,12 @@
-use slab::prelude::*;
-use slab::prelude::memoref_serde::*;
-use util::serde::*;
 use serde::ser::*;
 use serde::de::*;
+use std::fmt;
+
+use slab::prelude::*;
+use memorefhead::MemoRefHead;
+
+use super::memoref::*;
+use super::util::*;
 use super::*;
 
 impl StatefulSerialize for MemoRefHead {
