@@ -61,6 +61,7 @@ pub mod index;
 pub mod memorefhead;
 pub mod util;
 pub mod subjecthandle;
+pub mod buffer;
 
 // #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 // pub mod executor_std;

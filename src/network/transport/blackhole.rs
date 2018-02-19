@@ -18,8 +18,8 @@ impl Transport for Blackhole {
         Some(Transmitter::new_blackhole(args.get_slabref()))
     }
 
-    fn bind_network(&self, _net: &Network) {}
-    fn unbind_network(&self, _net: &Network) {}
+    fn bind_network(&mut self, _net: &Network) {}
+    fn unbind_network(&mut self, _net: &Network) {}
 
     fn get_return_address  ( &self, _address: &TransportAddress ) -> TransportAddress {
         TransportAddress::Blackhole

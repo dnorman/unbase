@@ -1,10 +1,10 @@
 #![feature(proc_macro, conservative_impl_trait, generators)]
-extern crate futures_await as futures;
+extern crate futures;
 use futures::stream::Stream;
 
 
 extern crate unbase;
-use unbase::{Network,SubjectHandle};
+use unbase::{Network,SubjectHandle,Slab};
 use std::{thread,time};
 
 /// This example is a rudimentary interaction between two remote nodes
@@ -18,7 +18,8 @@ fn main() {
         let net1 = Network::create_new_system();
         let udp1 = unbase::network::transport::TransportUDP::new( "127.0.0.1:12001".to_string() );
         net1.add_transport( Box::new(udp1) );
-        let context_a = unbase::Slab::new(&net1).create_context();
+        let slab_a = unbase::slab::storage::Memory::new(&net1);
+        let context_a = slab_a.create_context();
 
         println!("A - Sending Initial Ping");
         let rec_a1 = SubjectHandle::new_kv(&context_a, "action", "Ping").unwrap();
@@ -51,7 +52,7 @@ fn main() {
         let udp2 = unbase::network::transport::TransportUDP::new("127.0.0.1:12002".to_string());
         net2.add_transport( Box::new(udp2.clone()) );
 
-        let context_b = unbase::Slab::new(&net2).create_context();
+        let context_b = unbase::slab::storage::Memory::new(&net2).create_context();
 
         udp2.seed_address_from_string( "127.0.0.1:12001".to_string() );
 
@@ -59,7 +60,7 @@ fn main() {
         context_b.root_index_wait( 1000 ).unwrap();
 
         println!("B - Searching for Ping record...");
-        let rec_b1 = context_b.fetch_kv_wait( "action", "Ping", 10000 ).unwrap(); 
+        let rec_b1 = context_b.fetch_kv_wait( "action", "Ping", 10_000 ).unwrap();
         println!("B - Found Ping record.");
 
         let mut pongs = 0;

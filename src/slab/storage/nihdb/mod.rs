@@ -4,12 +4,12 @@ use std::thread;
 
 use context::*;
 use network::{Network};
-use slab::Slab;
+use slab::{self,Slab};
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 
 pub struct NIHDB{
-    slabref: SlabRef,
+    slab_id: slab::SlabId,
     worker_thread: thread::JoinHandle<()>,
     counters: SlabCounter,
     my_handle: LocalSlabHandle,
@@ -18,11 +18,15 @@ pub struct NIHDB{
 }
 
 impl Slab for NIHDB {
+    fn slab_id (&self) -> slab::SlabId{
+        self.slab_id.clone()
+    }
     fn get_handle (&self) -> LocalSlabHandle {
         self.my_handle.clone()
     }
     fn get_slabref (&self) -> SlabRef {
-        self.slabref.clone()
+       //self.slabref.clone()
+        unimplemented!()
     }
     fn get_net (&self) -> Network {
         self.net.clone()

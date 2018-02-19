@@ -1,11 +1,12 @@
 extern crate unbase;
 use unbase::SubjectHandle;
+use unbase::Slab;
 
 #[test]
 fn basic_record_retrieval() {
 
     let net = unbase::Network::create_new_system();
-    let slab_a = unbase::slab::Memory::new(&net);
+    let slab_a = unbase::slab::storage::Memory::new(&net);
     let context_a = slab_a.create_context();
 
     let record_id;
@@ -28,7 +29,7 @@ fn basic_record_retrieval_simulator() {
     let simulator = unbase::network::transport::Simulator::new();
     net.add_transport( Box::new(simulator.clone()) );
 
-    let slab_a = unbase::Slab::new(&net);
+    let slab_a = unbase::slab::storage::Memory::new(&net);
     let context_a = slab_a.create_context();
 
     let record_id;

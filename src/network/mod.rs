@@ -3,7 +3,6 @@ extern crate linked_hash_map;
 mod transmitter;
 
 pub mod transport;
-pub mod buffer;
 
 use slab;
 pub use slab::prelude::*;
@@ -72,7 +71,7 @@ impl Network {
         WeakNetwork(Arc::downgrade(&self.0))
     }
 
-    pub fn add_transport(&self, transport: Box<Transport + Send + Sync>) {
+    pub fn add_transport(&self, mut transport: Box<Transport + Send + Sync>) {
         if transport.is_local() {
             // Can only have one is_local transport at a time. Filter out any other local transports when adding this one
             let mut transports = self.transports.write().unwrap();
@@ -92,6 +91,13 @@ impl Network {
         *next_slab_id += 1;
 
         id
+    }
+    pub fn get_local_slab_handle_by_id(&self, slab_id: &slab::SlabId) -> Option<LocalSlabHandle> {
+        if let Some(handle) = self.localslabhandles.read().unwrap().iter().find(|s| s.slabref.slab_id == *slab_id) {
+            return Some(handle.clone());
+        }
+
+        None
     }
     pub fn get_local_slab_handle(&self, slabref: SlabRef) -> Option<LocalSlabHandle> {
         if let Some(handle) = self.localslabhandles.read().unwrap().iter().find(|s| s.slabref == slabref) {

@@ -1,10 +1,12 @@
 #![feature(proc_macro, conservative_impl_trait, generators)]
+#![allow(double_parens)]
+
 
 extern crate unbase;
-extern crate futures_await as futures;
+extern crate futures;
 
 use std::thread;
-use unbase::SubjectHandle;
+use unbase::{SubjectHandle, Slab};
 use futures::stream::Stream;
 use std::sync::{Arc,Mutex};
 
@@ -15,8 +17,8 @@ fn eventual_basic() {
     let mut simulator = unbase::network::transport::Simulator::new();
     net.add_transport( Box::new(simulator.clone()) );
 
-    let context_a = unbase::Slab::new(&net).create_context();
-    let context_b = unbase::Slab::new(&net).create_context();
+    let context_a = unbase::slab::storage::Memory::new(&net).create_context();
+    let context_b = unbase::slab::storage::Memory::new(&net).create_context();
 
     let rec_a1 = SubjectHandle::new_kv(&context_a, "animal_sound", "Moo").expect("Subject A1");
     let record_id = rec_a1.id;
@@ -49,16 +51,16 @@ fn eventual_detail() {
     
     simulator.metronome(10);
 
-    let slab_a = unbase::Slab::new(&net);
-    let slab_b = unbase::Slab::new(&net);
-    let slab_c = unbase::Slab::new(&net);
+    let slab_a = unbase::slab::storage::Memory::new(&net);
+    let slab_b = unbase::slab::storage::Memory::new(&net);
+    let slab_c = unbase::slab::storage::Memory::new(&net);
 
 
     simulator.wait_ticks(3);
 
-    assert!(slab_a.id == 0, "Slab A ID shoud be 0");
-    assert!(slab_b.id == 1, "Slab B ID shoud be 1");
-    assert!(slab_c.id == 2, "Slab C ID shoud be 2");
+    assert!(slab_a.slab_id() == 0, "Slab A ID shoud be 0");
+    assert!(slab_b.slab_id() == 1, "Slab B ID shoud be 1");
+    assert!(slab_c.slab_id() == 2, "Slab C ID shoud be 2");
 
     assert!(slab_a.peer_slab_count() == 2, "Slab A Should know two peers" );
     assert!(slab_b.peer_slab_count() == 2, "Slab B Should know two peers" );
@@ -89,6 +91,7 @@ fn eventual_detail() {
 
     assert!(context_b.get_subject_by_id( record_id ).unwrap().is_none(), "new subject should not yet have conveyed to slab B");
     assert!(context_c.get_subject_by_id( record_id ).unwrap().is_none(), "new subject should not yet have conveyed to slab C");
+
     assert_eq!(
         (
             context_a.get_resident_subject_head_memo_ids(root_index_subject.id).len(),

@@ -1,7 +1,6 @@
-mod serde;
 mod common_structs;
-mod memo;
-mod memoref;
+pub (crate) mod memo;
+pub (crate) mod memoref;
 mod counter;
 mod localhandle;
 mod dispatcher;
@@ -17,14 +16,13 @@ pub mod prelude {
     pub use slab::common_structs::*;
     pub use slab::memoref::MemoRef;
     pub use slab::memo::{MemoId,Memo,MemoBody};
-    pub use slab::memoref::serde as memoref_serde;
-    pub use slab::memo::serde as memo_serde;
     pub use slab::{SlabAnticipatedLifetime,SlabPresence};
     pub use slab::memo::peerstate::{MemoPeerSet,MemoPeerState,MemoPeerStatus};
 }
 
 /// Slab is the storage engine
 pub trait Slab {
+    fn slab_id(&self)        -> SlabId;
     fn get_handle (&self)    -> LocalSlabHandle;
     fn get_slabref (&self)   -> self::SlabRef;
     fn get_net (&self)       -> network::Network;
@@ -47,7 +45,7 @@ pub type SlabId = u32;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SlabRef {
     owning_slab_id: SlabId,
-    slab_id: SlabId
+    pub slab_id: SlabId
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]

@@ -10,8 +10,8 @@ use futures::future;
 use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
-use network;
-use network::buffer::Packet;
+//use network;
+//use network::buffer::Packet;
 use error::*;
 
 
@@ -31,32 +31,33 @@ pub struct MinkowskiPoint {
 struct SimEvent {
     _source_point: MinkowskiPoint,
     dest_point:    MinkowskiPoint,
-    from_slabref:  SlabRef,
     dest_slab:     LocalSlabHandle,
-    buffer:        network::buffer::PacketBuffer,
+
+    memo:          Memo,
+    peerset:       MemoPeerSet,
+    from_presence: SlabPresence,
+
 }
 
 impl SimEvent {
     pub fn deliver (self) {
         //println!("# SimEvent.deliver" );
 
-        // let memo = &self.memoref.get_memo_if_resident().unwrap();
-        // println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
-        //     &self.from_slabref.slab_id,
-        //     &to_slab.id,
-        //     &self.memoref.id,
-        //     &self.memoref.subject_id,
-        //     &memo.body,
-        //     &memo.parents.memo_ids(),
-        //     &self.memoref.peerlist.read().unwrap().slab_ids()
-        // );
+//         println!("Simulator.deliver FROM {} TO {} -> {}({:?}): {:?} {:?} {:?}",
+//             &self.from_slab_id,
+//             &to_slab.id,
+//             &self.memoref.id,
+//             &self.memoref.subject_id,
+//             &memo.body,
+//             &memo.parents.memo_ids(),
+//             &self.memoref.peerlist.read().unwrap().slab_ids()
+//         );
 
-        // Can't do clone_for_slab here because we need to serialize and deserialize
-        //self.memoref.clone_for_slab( &self.from_slab, &self.dest_slab, true );
-        // we all have to learn to deal with loss sometime
+        //self.buffer.deserialize_to_slabhandle(self.dest_slab, &from_address);
 
-//        let from_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
-//        self.buffer.deserialize_to_slabhandle(self.dest_slab, &from_address);
+//        let from_slabref = dest_slab.put_slab_presence(self.from_presence);
+//
+//        self.dest_slab.put_memo(self.memo, self.peerset, from_slabref)
         unimplemented!()
     }
 }
@@ -75,6 +76,7 @@ pub struct Simulator {
     speed_of_light: u64,
     wait_clock: u64,
     run: Arc<Mutex<bool>>,
+    //receiver: Option<BufferReceiver>,
 }
 struct SimulatorInternal {
     clock: u64,
@@ -92,7 +94,7 @@ impl Simulator {
                     queue: Vec::new()
                 }
             )),
-            wait_clock: 0
+            wait_clock: 0,
         }
     }
 
@@ -207,8 +209,12 @@ impl Transport for Simulator {
         }
 
     }
-    fn bind_network(&self, _net: &Network) {}
-    fn unbind_network(&self, _net: &Network) {}
+    fn bind_network(&mut self, _net: &Network) {
+//        self.receiver = Some(BufferReceiver::new(net))
+    }
+    fn unbind_network(&mut self, _net: &Network) {
+//        self.receiver = None;
+    }
     fn get_return_address  ( &self, address: &TransportAddress ) -> TransportAddress {
         if let TransportAddress::Local = *address {
             TransportAddress::Local
@@ -217,9 +223,6 @@ impl Transport for Simulator {
         }
     }
 }
-
-
-
 
 
 pub struct SimulatorTransmitter{
@@ -249,24 +252,25 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
             z: p.z,
             t: source_point.t + ( distance as u64 * self.simulator.speed_of_light ) + 1 // add 1 to ensure nothing is instant
         };
-
-        let buffer = Packet{
-            to_slab_id: self.dest.slab_id(),
-            from_slabref: from_slabref.clone(),
-            memo: memo.buffer(),
-            peerset
-        }.buffer();
-
-        let evt = SimEvent {
-            _source_point: source_point,
-            dest_point,
-            from_slabref,
-
-            dest_slab: self.dest.clone(),
-            buffer
-        };
-
-        self.simulator.add_event( evt );
-        future::result(Ok(()))
+//
+//        let buffer = Packet{
+//            to_slabref: &self.dest.slabref,
+//            from_slabref: &from_slabref,
+//            memo: memo.buffer(),
+//            peerset
+//        }.buffer();
+//
+//        let evt = SimEvent {
+//            _source_point: source_point,
+//            dest_point,
+//            from_slabref,
+//
+//            dest_slab: self.dest.clone(),
+//            buffer
+//        };
+//
+//        self.simulator.add_event( evt );
+//        future::result(Ok(()))
+        unimplemented!()
     }
 }

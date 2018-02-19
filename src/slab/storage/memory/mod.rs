@@ -31,6 +31,9 @@ pub struct Memory{
 }
 
 impl Slab for Memory {
+    fn slab_id (&self) -> slab::SlabId{
+        self.slab_id.clone()
+    }
     fn get_handle (&self) -> LocalSlabHandle {
         LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.storage_requester.clone() )
     }

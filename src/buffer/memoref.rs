@@ -1,5 +1,10 @@
-use super::*;
-use util::serde::*;
+use std::fmt;
+
+use slab::prelude::*;
+use subject::*;
+use slab::memoref::*;
+use super::util::*;
+use slab::memo::peerstate::*;
 
 impl StatefulSerialize for MemoPeerSet {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>

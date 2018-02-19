@@ -1,5 +1,3 @@
-pub mod serde;
-
 use subject::SubjectId;
 use slab::{self, prelude::*};
 use memorefhead::MemoRefHead;
@@ -15,42 +13,6 @@ pub struct MemoRef {
     pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
     pub subject_id:     SubjectId,
 }
-
-//#[derive(Clone)]
-//pub struct MemoRef(pub Arc<MemoRefInner>);
-
-// impl Deref for MemoRef {
-//     type Target = MemoRefInner;
-//     fn deref(&self) -> &MemoRefInner {
-//         &*self.0
-//     }
-// }
-
-// pub struct MemoRefInner {
-//     pub memo_id:        MemoId,
-//     pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
-//     pub subject_id:     SubjectId,
-//     //TODO1 - remove this: pub peerlist: RwLock<MemoPeerList>,
-//     //pub ptr:            RwLock<MemoRefPtr>,
-// }
-
-// pub enum MemoRefPtr {
-//     // /// Memo is in memory now, right here in fact
-//     // Resident(Arc<Memo>),
-//     /// Memo Is stored on the local slab which owns this memoref, you'll need to look it up
-//     Local,
-//     /// Is stored on a remote slab
-//     Remote
-// }
-
-// impl MemoRefPtr {
-//     fn to_peering_status (&self) -> MemoPeerStatus {
-//         match self {
-//             &MemoRefPtr::Resident(_) => MemoPeerStatus::Resident,
-//             &MemoRefPtr::Remote      => MemoPeerStatus::Participating
-//         }
-//     }
-// }
 
 impl MemoRef {
     pub fn new (owning_slab_id: &slab::SlabId, memo_id: MemoId, subject_id: SubjectId) -> Self {

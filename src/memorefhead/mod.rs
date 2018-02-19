@@ -1,4 +1,3 @@
-pub mod serde;
 mod projection;
 
 use slab::prelude::*;
