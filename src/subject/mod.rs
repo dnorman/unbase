@@ -115,7 +115,7 @@ impl Subject {
 
         let memoref = slab.new_memo_basic_noparent(
                 id,
-                MemoBody::FullyMaterialized {v: vals, r: RelationSet::empty(), e: EdgeSet::empty(), t: stype }
+                MemoBody::FullyMaterialized {v: vals, e: EdgeSet::empty(), t: stype }
             );
         let head = memoref.to_head();
 
@@ -220,26 +220,6 @@ impl Subject {
         self.update_referents( context )?;
 
         Ok(true)
-    }
-    pub fn set_relation (&self, context: &Context, key: RelationSlotId, relation: &Self) -> Result<(),Error> {
-        //println!("# Subject({}).set_relation({}, {})", &self.id, key, relation.id);
-        let mut relationset = RelationSet::empty();
-        relationset.insert( key, relation.id );
-
-        let slab = &context.slab;
-        {
-            let mut head = self.head.write().unwrap();
-
-            let memoref = slab.new_memo(
-                self.id,
-                head.clone(),
-                MemoBody::Relation(relationset)
-            );
-
-            head.apply_memoref(&memoref, &slab)?;
-        };
-
-        self.update_referents( context )
     }
     pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),Error>{
         //println!("# Subject({}).set_edge({}, {})", &self.id, key, relation.id);

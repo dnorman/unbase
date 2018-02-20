@@ -27,24 +27,23 @@ impl StatefulSerialize for MemoPeerSet {
 // MemoPeerSet^  Peer^  ^Slabref  ^Status
 
 impl StatefulSerialize for MemoRef {
-    fn serialize<S>(&self, _serializer: S, _helper: &SerializeHelper) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        unimplemented!()
-//        use super::MemoRefPtr::*;
-//
-//        let mut seq = serializer.serialize_seq(Some(4))?;
-//        seq.serialize_element(&self.id)?;
-//        seq.serialize_element(&self.subject_id)?;
-//        seq.serialize_element(&match &*self.ptr.read().unwrap() {
-//            &Remote      => false,
-//            &Resident(_) => true
-//        })?;
-//
-//        // QUESTION: Should we be using memoref.get_peerlist_for_peer instead of has_memo?
-//        //           What about relayed memos which Slab A requests from B but actually receives from C?
-//        seq.serialize_element( &SerializeWrapper(&*self.peerlist.read().unwrap(), helper) )?;
-//        seq.end()
+
+        let mut seq = serializer.serialize_seq(Some(4))?;
+
+        seq.serialize_element(&self.id)?;
+        seq.serialize_element(&self.subject_id)?;
+        seq.serialize_element(&match &*self.ptr.read().unwrap() {
+            &Remote      => false,
+            &Resident(_) => true
+        })?;
+
+        // QUESTION: Should we be using memoref.get_peerlist_for_peer instead of has_memo?
+        //           What about relayed memos which Slab A requests from B but actually receives from C?
+        seq.serialize_element( &SerializeWrapper(&*self.peerlist.read().unwrap(), helper) )?;
+        seq.end()
     }
 }
 

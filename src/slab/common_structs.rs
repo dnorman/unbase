@@ -5,45 +5,6 @@ use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
-pub type RelationSlotId = u8;
-
-#[derive(Clone, Debug, Serialize)]
-pub struct RelationSet(pub HashMap<RelationSlotId, Option<SubjectId>>);
-
-impl RelationSet {
-    pub fn clone_for_slab(&self, _to_slab: &LocalSlabHandle) -> Self {
-
-        self.clone()
-        // let new = self.0
-        //     .iter()
-        //     .map(|(slot_id, &subject_id)| {
-        //         (*slot_id, subject_id)
-        //     })
-        //     .collect();
-
-        // RelationSet(new)
-    }
-    pub fn empty() -> Self {
-        RelationSet(HashMap::new())
-    }
-    pub fn single(slot_id: RelationSlotId, subject_id: SubjectId) -> Self {
-        let mut hashmap = HashMap::new();
-        hashmap.insert(slot_id, Some(subject_id));
-        RelationSet(hashmap)
-    }
-    pub fn insert(&mut self, slot_id: RelationSlotId, subject_id: SubjectId) {
-        self.0.insert(slot_id, Some(subject_id));
-    }
-}
-
-impl Deref for RelationSet {
-    type Target = HashMap<RelationSlotId, Option<SubjectId>>;
-    fn deref(&self) -> &HashMap<RelationSlotId, Option<SubjectId>> {
-        &self.0
-    }
-}
-
-
 // TODO: convert EdgeSet to use Vec<EdgeLink> - no need for a hashmap I think.
 // Can use a sorted vec + binary search
 #[derive(Clone,Debug)]

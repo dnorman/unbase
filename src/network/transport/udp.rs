@@ -3,7 +3,7 @@ use std::thread;
 use std::str;
 use futures::future;
 use futures::prelude::*;
-use buffer::{Packet,PacketBuffer,BufferReceiver};
+use buffer::NetworkBuffer;
 
 use super::*;
 use std::sync::mpsc;
@@ -218,16 +218,14 @@ impl Transport for TransportUDP {
         //let dispatcher = TransportUDPDispatcher::new(net.clone());
 
 
-        let receiver = BufferReceiver::new(net);
-
         let rx_handle : thread::JoinHandle<()> = thread::spawn(move || {
             let mut buf = [0; 0x1_0000];
 
             while let Ok((amt, src)) = rx_socket.recv_from(&mut buf) {
                 let source_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
 
-                let buffer = PacketBuffer(&buf[0..amt]);
-                receiver.receive(buffer);
+                let buffer = NetworkBuffer::from_vec(&buf[0..amt]);
+                buffer.sink(receiver);
             };
         });
 

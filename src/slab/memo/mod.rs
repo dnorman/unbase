@@ -35,7 +35,6 @@ pub struct Memo {
 #[derive(Clone, Debug)]
 pub enum MemoBody{
     SlabPresence{ p: SlabPresence, r: MemoRefHead }, // TODO: split out root_index_seed conveyance to another memobody type
-    Relation(RelationSet),
     Edge(EdgeSet),
     Edit(HashMap<String, String>),
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
