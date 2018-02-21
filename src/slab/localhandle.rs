@@ -60,8 +60,8 @@ impl LocalSlabHandle {
             slab_id: presence.slab_id
         }
     }
-    pub fn get_peerset(&self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Result<MemoPeerSet, Error> {
-        self.storage.get_peerset(memoref, maybe_dest_slabref).wait()
+    pub fn get_peerset(&self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
+        self.storage.get_peerset(memorefs, maybe_dest_slabref).wait()
     }
 
     pub fn slab_id(&self) -> slab::SlabId {
