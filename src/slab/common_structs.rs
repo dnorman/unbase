@@ -5,6 +5,8 @@ use slab::prelude::*;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 
+pub type RelationSlotId = u8;
+
 // TODO: convert EdgeSet to use Vec<EdgeLink> - no need for a hashmap I think.
 // Can use a sorted vec + binary search
 #[derive(Clone,Debug)]

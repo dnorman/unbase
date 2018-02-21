@@ -281,7 +281,7 @@ impl Context{
             }
         }
 
-        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), r: RelationSet::empty(), e: edgeset, t: subject_id.stype };
+        let memobody = MemoBody::FullyMaterialized { v: HashMap::new(), e: edgeset, t: subject_id.stype };
         let head = self.slab.new_memo_basic_noparent(subject_id, memobody).to_head();
 
         self.apply_head(&head).expect("apply head")

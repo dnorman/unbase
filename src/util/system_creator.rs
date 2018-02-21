@@ -16,7 +16,6 @@ impl SystemCreator {
             slab.generate_subject_id(SubjectType::IndexNode),
             MemoBody::FullyMaterialized {
                 v: values,
-                r: RelationSet::empty(),
                 e: EdgeSet::empty(),
                 t: SubjectType::IndexNode
             }

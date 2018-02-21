@@ -1,3 +1,4 @@
+use serde_json;
 
 #[derive(PartialEq, Debug)]
 pub enum Error{
@@ -7,6 +8,7 @@ pub enum Error{
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
     LocalSlab(LocalSlabError),
+    Serde(serde_json::Error),
 }
 
 #[derive(PartialEq, Debug)]
