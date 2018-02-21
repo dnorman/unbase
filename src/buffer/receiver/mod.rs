@@ -1,3 +1,6 @@
+use slab::{self,prelude::*};
+use buffer::NetworkBuffer;
+use network::{Network, WeakNetwork, TransportAddress};
 
 pub (crate) trait BufferReceiver {
     fn receive(&self, buffer: NetworkBuffer, source_address: &TransportAddress );
@@ -8,9 +11,9 @@ pub (crate) struct NetworkReceiver {
     net: WeakNetwork
 }
 
-impl BufferReceiver{
-    pub fn new ( net: &Network ){
-        BufferReceiver{
+impl NetworkReceiver{
+    pub fn new ( net: &Network ) -> NetworkReceiver{
+        NetworkReceiver{
             slabs: Vec::new(),
             net: net.weak()
         }
@@ -55,21 +58,6 @@ impl BufferReceiver{
 
 impl BufferReceiver for NetworkReceiver{
     fn receive(&self, buffer: NetworkBuffer, source_address: &TransportAddress ) {
-
-        let mut deserializer = serde_json::Deserializer::from_slice(&buffer.0);
-
-        let packet_seed: PacketSeed = PacketSeed {
-            receiver: &self,
-            source_address
-        };
-
-        match packet_seed.deserialize(&mut deserializer) {
-            Ok(()) => {
-                // PacketSeed actually does everything
-            },
-            Err(e) => {
-                println!("DESERIALIZE ERROR {}", e);
-            }
-        }
+        unimplemented!()
     }
 }

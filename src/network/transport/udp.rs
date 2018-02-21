@@ -3,7 +3,7 @@ use std::thread;
 use std::str;
 use futures::future;
 use futures::prelude::*;
-use buffer::NetworkBuffer;
+use buffer::{NetworkBuffer,receiver::NetworkReceiver};
 
 use super::*;
 use std::sync::mpsc;
@@ -25,7 +25,7 @@ struct TransportUDPInternal {
     socket: Arc<UdpSocket>,
     tx_thread: Option<thread::JoinHandle<()>>,
     rx_thread: Option<thread::JoinHandle<()>>,
-    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>>,
+    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,NetworkBuffer)>>>>>,
     network: Option<WeakNetwork>,
     address: TransportAddressUDP
 }
@@ -101,9 +101,9 @@ impl TransportUDP {
         }
     }
 
-    fn setup_tx_thread (socket: Arc<UdpSocket>, inbound_address: TransportAddressUDP ) -> (thread::JoinHandle<()>,mpsc::Sender<(TransportAddressUDP, PacketBuffer)>){
+    fn setup_tx_thread (socket: Arc<UdpSocket>, inbound_address: TransportAddressUDP ) -> (thread::JoinHandle<()>,mpsc::Sender<(TransportAddressUDP, NetworkBuffer)>){
 
-        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP,PacketBuffer)>();
+        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP,NetworkBuffer)>();
 
         let tx_thread : thread::JoinHandle<()> = thread::spawn(move || {
 
@@ -111,7 +111,7 @@ impl TransportUDP {
             //let mut buf = [0; 65536];
             while let Ok((to_address, buf)) = rx_channel.recv() {
                 //HACK: we're trusting that each memo is smaller than 64k
-                socket.send_to(&buf.0, &to_address.address).expect("Failed to send");
+                socket.send_to(&buf.to_vec(), &to_address.address).expect("Failed to send");
                 //println!("SENT UDP PACKET ({}) {}", &to_address.address, &String::from_utf8(b).unwrap());
             }
     });
@@ -215,8 +215,7 @@ impl Transport for TransportUDP {
         }
 
         let rx_socket = shared.socket.clone();
-        //let dispatcher = TransportUDPDispatcher::new(net.clone());
-
+        let receiver = NetworkReceiver::new(net);
 
         let rx_handle : thread::JoinHandle<()> = thread::spawn(move || {
             let mut buf = [0; 0x1_0000];
@@ -224,8 +223,8 @@ impl Transport for TransportUDP {
             while let Ok((amt, src)) = rx_socket.recv_from(&mut buf) {
                 let source_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
 
-                let buffer = NetworkBuffer::from_vec(&buf[0..amt]);
-                buffer.sink(receiver);
+                let buffer = NetworkBuffer::from_slice(&buf[0..amt]);
+                buffer.extract_to(receiver);
             };
         });
 
@@ -278,30 +277,27 @@ pub struct TransmitterUDP{
     pub slab_id: slab::SlabId,
     address: TransportAddressUDP,
     // HACK HACK HACK - lose the Arc<Mutex<>> here by making transmitter Send, but not Sync
-    tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,PacketBuffer)>>>>
+    tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,NetworkBuffer)>>>>
 }
 impl DynamicDispatchTransmitter for TransmitterUDP {
     fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
         //println!("TransmitterUDP.send({:?},{:?})", from, memoref);
 
-        let _buf = Packet {
-            to_slab_id: self.slab_id,
-            from_slab_id: from_slabref.slab_id(),
-            memo: memo,
-            peerset,
-        }.buffer();
+        let buf = NetworkBuffer::single(memo,peerset,from_slabref);
 
-        //println!("UDP QUEUE FOR SEND {:?}", &packet);
+//        let _buf = Packet {
+//            to_slab_id: self.slab_id,
+//            from_slab_id: from_slabref.slab_id(),
+//            memo: memo,
+//            peerset,
+//        }.buffer();
 
-        //use util::serde::SerializeHelper;
-        //let helper = SerializeHelper{ transmitter: self };
-        //wrapper = SerializeWrapper<Packet>
-//        let b = serde_json::to_vec(&packet).expect("serde_json::to_vec");
 //        println!("UDP QUEUE FOR SEND SERIALIZED {}", String::from_utf8(b).unwrap() );
 
         //TODO: Convert this to use a tokio-shared-udp-socket or tokio_kcp
-//        let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
-//        tx_channel.send((self.address.clone(), buf)).unwrap();
+        let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
+        tx_channel.send((self.address.clone(), buf.to_vec())).unwrap();
+
         future::result(Ok(()))
     }
 }

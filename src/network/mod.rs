@@ -106,7 +106,7 @@ impl Network {
 
         None
     }
-    fn get_representative_slab(&self) -> Option<LocalSlabHandle> {
+    pub (crate) fn get_representative_slab(&self) -> Option<LocalSlabHandle> {
         for handle in self.localslabhandles.read().unwrap().iter() {
             if handle.is_live() {
                 return Some(handle.clone());
