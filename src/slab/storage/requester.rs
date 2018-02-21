@@ -60,6 +60,15 @@ impl StorageRequester{
             }
         }))
     }
+    pub fn get_slabpresence (&self, slabrefs: Vec<SlabRef>) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>>{
+        Box::new( self.call(LocalSlabRequest::GetSlabPresence{ slabrefs } ).and_then(|r| {
+            if let LocalSlabResponse::GetSlabPresence(presences) = r {
+                return Ok(presences)
+            }else{
+                panic!("Invalid return type");
+            }
+        }))
+    }
     pub fn get_peerset (&self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetPeerSet{ memorefs, maybe_dest_slabref } ).and_then(|r| {
             if let LocalSlabResponse::GetPeerSet(peersets) = r {

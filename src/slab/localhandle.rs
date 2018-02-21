@@ -60,6 +60,10 @@ impl LocalSlabHandle {
             slab_id: presence.slab_id
         }
     }
+
+    pub fn get_slab_presence(&self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
+        self.storage.get_slab_presence(slabrefs).wait()
+    }
     pub fn get_peerset(&self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
         self.storage.get_peerset(memorefs, maybe_dest_slabref).wait()
     }
