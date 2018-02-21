@@ -44,16 +44,18 @@ pub enum LocalSlabRequest {
     PutMemo { memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef },
     SendMemo { to_slabref: SlabRef, memoref: MemoRef },
     RemotizeMemoIds{ memo_ids: Vec<MemoId> },
+    GetSlabPresence { slabrefs: Vec<SlabRef> },
     PutSlabPresence { presence: SlabPresence },
-    GetPeerSet { memoref: MemoRef, maybe_dest_slabref: Option<SlabRef> },
+    GetPeerSet { memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef> },
 }
 pub enum LocalSlabResponse {
     GetMemo( Memo ),
     PutMemo ( MemoRef ),
     SendMemo ( () ),
     RemotizeMemoIds( () ),
+    GetSlabPresence( Vec<SlabPresence> ),
     PutSlabPresence( () ),
-    GetPeerSet( MemoPeerSet ),
+    GetPeerSet( Vec<MemoPeerSet> ),
 }
 
 type LocalSlabRequestAndResponder = (LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>);

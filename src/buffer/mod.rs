@@ -1,3 +1,9 @@
+
+//! Buffer Structs, used for intermediate/compact representations
+//!
+//! Uses offsets inside a given Buffer to more compactly represent data rather than via duplication.
+//! This is being processed in memory for now, but it's designed to be a streamed later
+
 pub mod receiver;
 
 use std::collections::HashMap;
@@ -13,65 +19,77 @@ use slab::{self,prelude::*};
 use self::receiver::BufferReceiver;
 
 #[derive(Serialize,Deserialize)]
-pub struct NetworkBuffer{
-    subject: Vec<SubjectId>,
-    slabref: Vec<SlabRefBuffer>,
-    slabpresence: Vec<SlabPresenceBuffer>,
-    memoref: Vec<MemoRefBuffer>,
-    memo: Vec<MemoBuffer>
+pub struct NetworkBuffer {
+    segments: Vec<NetBufSegment>,
+
+    #[serde(skip)]
+    memoref_accum: Vec<MemoRef>,
+    #[serde(skip)]
+    slabref_accum: Vec<SlabRef>,
+};
+
+pub enum NetBuffSegment {
+    Subject(SubjectId),
+    SlabRef(SlabId),
+    MemoRef(MemoRefBuffer),
+    Memo(MemoBuffer),
+    SlabPresence(SlabPresenceBuffer),
+    MemoPeerState(MemoPeerStateBuffer),
 }
 
-type SubjectOffset = u16;
-type SlabPresenceOffset = u16;
-type MemoRefOffset = u16;
+    type SubjectOffset = u16;
+    type SlabPresenceOffset = u16;
+    type MemoRefOffset = u16;
 
-/// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
-#[derive(Serialize,Deserialize)]
-struct MemoRefBuffer( MemoId, SubjectOffset, Vec<MemoPeerStateBuffer>);
+    /// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
+    #[derive(Serialize
+},Deserialize)]
+struct MemoRefBuffer( MemoId, SubjectOffset );
 
 #[derive(Serialize,Deserialize)]
 pub struct MemoBuffer( MemoRefOffset, Vec<MemoRefOffset>, MemoBodyBuffer );
 
 #[derive(Serialize,Deserialize)]
 enum MemoBodyBuffer {
-    SlabPresence{ p: SlabPresenceOffset, r: Vec<MemoRefOffset> }, // TODO: split out root_index_seed conveyance to another memobody type
+    SlabPresence{ p: SlabPresenceBuffer, r: Vec<MemoRefOffset> }, // TODO: split out root_index_seed conveyance to another memobody type
     Edge(EdgeSetBuffer),
     Edit(HashMap<String, String>),
     FullyMaterialized     { v: HashMap<String, String>, e: EdgeSetBuffer },
     PartiallyMaterialized { v: HashMap<String, String>, e: EdgeSetBuffer },
     Peering(MemoRefOffset,Vec<MemoPeerStateBuffer>),
-    MemoRequest(Vec<MemoRefOffset>,Vec<SlabPresenceOffset>)
+    MemoRequest(Vec<MemoRefOffset>,Vec<SlabRefOffset>)
 }
 
 struct SlabRefBuffer {
     pub slab_id: SlabId,
 }
-// TODO: detangle slabref vs slabpresence. We should always express a presence for a slabref.
-// TODO: The only question is: should we represent slabref separately from slabpresence? Probably not
+
 #[derive(Serialize,Deserialize)]
 type SlabPresenceBuffer = SlabPresence;
 
 #[derive(Serialize,Deserialize)]
-struct MemoPeerStateBuffer {
+struct MemoPeerStateBuffer (
     slab: SlabPresenceOffset,
     status: MemoPeerStatus
-}
+)
 
 pub struct EdgeSetBuffer (pub HashMap<RelationSlotId, Vec<MemoRefOffset>>);
 
 
 impl NetworkBuffer{
-    pub fn single(memo: Memo, from_slab: &LocalSlabHandle ) -> Self {
+    pub fn new(memos: Vec<Memo>, from_slab: &LocalSlabHandle ) -> Self {
 
-        let mut netbuf = NetworkBuffer {
-            subject:      Vec::new(),
-            slabpresence: Vec::new(),
-            memoref:      Vec::new(),
-            memo:         Vec::new(),
+        let mut netbuf = NetworkBuffer{
+            segments: Vec::with_capacity(memos.len() * 4),
+            slabref_accum = Vec::new(),
+            memoref_accum = Vec::new(),
         };
 
-        netbuf.add_memo(memo);
-        netbuf.peerify(from_slab);
+        for memo in memos {
+            netbuf.add_memo(memo);
+        }
+
+        from_slab.get
 
         netbuf
     }
@@ -91,7 +109,7 @@ impl NetworkBuffer{
         let body = match memo.body {
             MemoBody::SlabPresence{ p, r } => {
                 MemoBodyBuffer::SlabPresence {
-                    p: self.add_slabpresence(p),
+                    p,
                     r: r.iter().map(|mr| self.add_memoref(mr.memo_id, self.add_subject(mr.subject_id))).collect(), // Assuming parents are the same subject_id as child
                 }
             },
@@ -113,10 +131,10 @@ impl NetworkBuffer{
                     peerset.list.into_iter().map(|ps| self.add_peerstate(ps) )
                 )
             },
-            MemoBody::MemoRequest(memorefs, presences) =>{
+            MemoBody::MemoRequest(memorefs, slabrefs) =>{
                 MemoBodyBuffer::MemoRequest(
                     memorefs.into_iter().map(|mr| self.add_memoref(mr.memo_id, self.add_subject(mr.subject_id))).collect(),
-                    presences.into_iter().map(|p| self.add_slabpresence(p) ).collect()
+                    slabrefs.into_iter().map(|r| self.add_slabref(r) ).collect()
                 )
             }
         };
@@ -152,10 +170,10 @@ impl NetworkBuffer{
         } as MemoRefOffset
     }
     fn add_peerstate(&mut self, peerstate: MemoPeerState ) -> MemoPeerStateBuffer {
-        MemoPeerStateBuffer {
+        MemoPeerStateBuffer(
             self.add_slabpresence(),
             peerstate.status
-        }
+        )
     }
     fn add_slabpresence(&mut self, presence: SlabPresence) -> SlabPresenceOffset {
         match self.slabpresence.iter().rposition(presence) {
