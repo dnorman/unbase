@@ -23,10 +23,12 @@ pub struct NetworkBuffer {
     segments: Vec<NetBufSegment>,
 
     #[serde(skip)]
-    memoref_accum: Vec<MemoRef>,
+    memoref_accum: Vec<(SegmentId,MemoRef)>,
     #[serde(skip)]
     slabref_accum: Vec<SlabRef>,
-};
+    #[serde(skip)]
+    slabref_offset_accum: Vec<SegmentId>,
+}
 
 pub enum NetBuffSegment {
     Subject(SubjectId),
@@ -37,13 +39,12 @@ pub enum NetBuffSegment {
     MemoPeerState(MemoPeerStateBuffer),
 }
 
-    type SubjectOffset = u16;
-    type SlabPresenceOffset = u16;
-    type MemoRefOffset = u16;
+type SegmentId = u16;
+type MemoRefOffset = SegmentId;
+type SlabRefOffset = SegmentId;
 
-    /// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
-    #[derive(Serialize
-},Deserialize)]
+/// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
+#[derive(Serialize,Deserialize)]
 struct MemoRefBuffer( MemoId, SubjectOffset );
 
 #[derive(Serialize,Deserialize)]
@@ -65,13 +66,14 @@ struct SlabRefBuffer {
 }
 
 #[derive(Serialize,Deserialize)]
-type SlabPresenceBuffer = SlabPresence;
+struct SlabPresenceBuffer (SlabRefOffset, Vec<TransportAddress>, SlabAnticipatedLifetime);
 
 #[derive(Serialize,Deserialize)]
-struct MemoPeerStateBuffer (
-    slab: SlabPresenceOffset,
-    status: MemoPeerStatus
-)
+struct MemoPeerStateBuffer(
+    MemoRefOffset,
+    SlabRefOffset,
+    MemoPeerStatus
+);
 
 pub struct EdgeSetBuffer (pub HashMap<RelationSlotId, Vec<MemoRefOffset>>);
 
@@ -81,15 +83,25 @@ impl NetworkBuffer{
 
         let mut netbuf = NetworkBuffer{
             segments: Vec::with_capacity(memos.len() * 4),
-            slabref_accum = Vec::new(),
-            memoref_accum = Vec::new(),
+            slabref_accum: Some(Vec::new()),
+            slabref_offset_accum: Some(Vec::new()),
+            memoref_accum: Vec::new(),
         };
 
         for memo in memos {
             netbuf.add_memo(memo);
         }
 
-        from_slab.get
+        let slabref_offset_accum = netbuf.slabref_offset_accum.take().unwrap();
+
+        from_slab.get_slab_presence( netbuf.slabref_accum.take().unwrap() ).and_then(move |r|{
+            for (presence,offset_id) in r.into_iter().zip( slabref_offset_accum ) {
+                //TODO: figure out how to run from_slab.get_peerstate(memorefs) apply the outcomes to netbuf, and return it
+                //TODO: rework this to be a streaming API ( chunked of course )
+            }
+        }).and_then(|netbuf| {
+
+        });
 
         netbuf
     }
@@ -97,10 +109,10 @@ impl NetworkBuffer{
         match self.subject.iter().rposition(&subject_id) {
             Some(i) => i,
             None =>{
-                self.subject.push(subject_id);
-                self.subject.len() - 1
+                self.segments.push(subject_id);
+                self.segments.len() - 1
             }
-        } as SubjectOffset
+        }
     }
     fn add_memo(&mut self, memo: Memo ) {
         // QUESTION: Should we dedup memos here?
@@ -156,18 +168,19 @@ impl NetworkBuffer{
         }
         MemoBodyBuffer::Edge(e)
     }
-    fn add_memoref (&mut self, memo_id: MemoId, subj_offset: SubjectOffset) -> MemoRefOffset {
+    fn add_memoref (&mut self, memoref: MemoRef, subj_offset: SubjectOffset) -> MemoRefOffset {
         match self.memo.iter().rposition(&memo_id) {
             Some(i) => i,
             None =>{
                 self.memoref.push(MemoRefBuffer(
-                    memo_id,
-                    subj_offset,
-                    vec![],
+                    memoref.memo_id,
+                    subj_offset
                 ));
-                self.memoref.len() - 1
+                let i = self.memoref.len() - 1;
+
+                self.memoref_accum.push((i,memoref));
             }
-        } as MemoRefOffset
+        }
     }
     fn add_peerstate(&mut self, peerstate: MemoPeerState ) -> MemoPeerStateBuffer {
         MemoPeerStateBuffer(
@@ -175,14 +188,32 @@ impl NetworkBuffer{
             peerstate.status
         )
     }
-    fn add_slabpresence(&mut self, presence: SlabPresence) -> SlabPresenceOffset {
-        match self.slabpresence.iter().rposition(presence) {
-            Some(i) => i,
-            None =>{
-                self.slabpresence.push(presence);
-                self.slabpresence.len() - 1
+    fn add_slabref(&mut self, slabref: SlabRef) -> SlabRefOffset {
+
+        match self.slabref_accum.binary_search_by(|x| x.1.cmp(&slabref) ){
+            Ok(i) => {
+                self.slabref_offset_accum[i]
             }
-        } as SlabPresenceOffset
+            Err(i) =>{
+                self.segments.push(NetBuffSegment::SlabRef(slabref.slab_id));
+                let offset_id = self.slabpresence.len() - 1;
+
+                self.slabref_accum.insert(i, slabref);
+                self.slabref_offset_accum.insert(i, offset_id);
+
+                offset_id
+            }
+        }
+//        //TODO: change this to binary_search_by ?
+//        match self.slabref_accum.iter().find_by(presence) {
+//            Some(s) => s.0,
+//            None =>{
+//
+//            }
+//        } as SlabPresenceOffset
+    }
+    fn add_slabpresence(&mut self, presence: SlabPresence, slabref_offset: SlabRefOffset) -> SlabPresenceOffset {
+        self.segments.push(NetBuffSegment::SlabPresence(SlabPresenceBuffer(slabref_offset, presence.addresses, presence.lifetime)));
     }
     pub fn from_slice(slice: &[u8]) -> Result<Self,Error> {
         serde_json::from_slice(slice).map_err(|e| Error::Serde(e))

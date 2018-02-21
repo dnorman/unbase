@@ -31,7 +31,7 @@ pub struct MemoryCore {
     // Arguably it's simpler to store presence and transmitters togethere here, given that this is a
     // no-serialization slab, However I am intentionally keeping these separate from transmitters
     // for illustrative purpose
-    slab_presence_storage: HashMap<slab::SlabId, Vec<SlabPresence>>, 
+    slab_presence_storage: HashMap<slab::SlabId, SlabPresence>,
     memo_storage: HashMap<MemoId,MemoCarrier>,
 }
 
@@ -265,27 +265,40 @@ impl StorageCoreInterface for MemoryCore {
 
     //     (memoref, had_memoref)
     // }
+    fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef> ) -> Box<Future<Item=Vec<Option<SlabPresence>>, Error=Error>> {
+
+        let mut out = Vec::with_capacity(slabrefs.len());
+
+        for slabref in slabrefs {
+            match self.slab_presence_storage.get(&slabref.slab_id) {
+                Some(presence) => {
+                    out.push(Some(presence));
+                }
+                None => {
+                    out.push(None)
+                }
+            };
+        }
+
+        // TODO: update transmitter?
+        Box::new(future::result(Ok( out )))
+    }
     fn put_slab_presence(&mut self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
         use std::mem;
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
             Occupied(mut e) => {
-                for p in e.get_mut().iter_mut(){
-                    if p == &presence {
-                        mem::replace( p, presence ); // Update anticipated liftime
-                        break;
-                    }
-                }
+                e.insert(presence); // TODO: apply new presence to previous one
             },
             Vacant(e) => {
-                e.insert(vec![presence]);
+                e.insert(presence);
             }
         };
 
         // TODO: update transmitter?
         Box::new(future::result(Ok( () )))
     }
-    fn get_peerset (&mut self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=MemoPeerSet, Error=Error>> {
+    fn get_peerset (&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
         if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){
