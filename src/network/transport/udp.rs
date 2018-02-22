@@ -280,10 +280,10 @@ pub struct TransmitterUDP{
     tx_channel: Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,NetworkBuffer)>>>>
 }
 impl DynamicDispatchTransmitter for TransmitterUDP {
-    fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
+    fn send (&self, buffer: NetworkBuffer) -> future::FutureResult<(), Error> {
         //println!("TransmitterUDP.send({:?},{:?})", from, memoref);
 
-        let buf = NetworkBuffer::single(memo,peerset,from_slabref);
+        //let buf = NetworkBuffer::single(memo,peerset,from_slabref);
 
 //        let _buf = Packet {
 //            to_slab_id: self.slab_id,
@@ -296,7 +296,7 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
 
         //TODO: Convert this to use a tokio-shared-udp-socket or tokio_kcp
         let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
-        tx_channel.send((self.address.clone(), buf.to_vec())).unwrap();
+        tx_channel.send((self.address.clone(), buffer.to_vec())).unwrap();
 
         future::result(Ok(()))
     }

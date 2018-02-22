@@ -32,7 +32,7 @@ struct DispatcherInner{
 }
 
 impl Dispatcher{
-    pub fn new ( net: Network, storage: StorageRequester, _counter: Arc<SlabCounter> ) -> Dispatcher {
+    pub fn new ( net: Network, storage: impl StorageCoreInterface, _counter: Arc<SlabCounter> ) -> Dispatcher {
 
         let (tx,rx) = mpsc::unbounded::<Dispatch>();
 
