@@ -9,7 +9,7 @@ use futures::prelude::*;
 use futures::future;
 
 use subject::{SubjectId,SubjectType};
-use slab::prelude::*;
+use slab::{self, prelude::*};
 use memorefhead::MemoRefHead;
 //use buffer::MemoBuffer;
 use error::*;
@@ -33,7 +33,7 @@ pub struct Memo {
 
 #[derive(Clone, Debug)]
 pub enum MemoBody{
-    SlabPresence{ p: SlabPresence, r: MemoRefHead }, // TODO: split out root_index_seed conveyance to another memobody type
+    SlabPresence{ s: slab::SlabId, p: SlabPresence, r: MemoRefHead }, // TODO: split out root_index_seed conveyance to another memobody type
     Edge(EdgeSet),
     Edit(HashMap<String, String>),
     FullyMaterialized     { v: HashMap<String, String>, e: EdgeSet, t: SubjectType },
