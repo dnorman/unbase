@@ -239,9 +239,45 @@ impl NetworkBuffer{
         serde_json::from_slice(slice).map_err(|e| Error::Serde(e))
     }
     pub fn to_vec(&self) -> Vec<u8> {
+        serde_json::to_vec(self)
+    }
+    pub fn extract(self, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>>{
+        let segments = self.segments;
+        for segment in segments.iter() {
+            match segment {
+                NetbufSegment::Subject(subject_id) => {},
+                NetbufSegment::SlabRef(_) => {},
+                NetbufSegment::MemoRef(MemoRefBuffer{}) => {},
+                NetbufSegment::Memo(memobuf) => {
+                    memobuf.extract(&segments, receiver)
+                },
+                NetbufSegment::SlabPresence(_) => {},
+                NetbufSegment::MemoPeerState(_) => {},
+            }
+        }
+//       receiver.put_memo()
         unimplemented!()
     }
-    fn extract_to( receiver: impl BufferReceiver ){
-        unimplemented!()
+}
+
+impl MemoBuffer {
+    fn extract (&self, &segments: Vec<NetbufSegment>, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>> {
+
+        if let MemoBuffer( mr_seg_id, parent_mr_seg_ids, bodybuf ) = self {
+            if let (ref memo_id,ref subject_id) =
+            // TODO 1: LEFT OFF HERE
+
+        if let Some(MemoRefBuffer(memo_id, subj_seg_id)) = segments.get(mr_seg_id) {
+            if let Some(subject_id @ SubjectId) = segments.get(subj_seg_id)
+            Memo{
+                id: memo_id,
+                subject_id: subject_id,
+                parents: (),
+                body: bodybuf,
+            }
+            receiver.put_memo()
+        }
+
+    }
     }
 }

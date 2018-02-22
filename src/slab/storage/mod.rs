@@ -25,9 +25,9 @@ pub trait StorageCoreInterface {
     fn get_peerset (&mut self, memoref: MemoRef, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=MemoPeerSet, Error=Error>>;
 }
 
-// pub trait StorageInterfaceClone {
-//     fn clone(&self) -> Box<StorageInterfaceClone>;
-// }
+pub trait StorageInterfaceClone : StorageCoreInterface {
+    fn clone(&self) -> Box<StorageInterfaceClone>;
+}
 
 // #[cfg(any(feature="single_threaded", all(target_arch = "wasm32", target_os = "unknown")))]
 //pub trait StorageInterface : StorageCoreInterface {}
