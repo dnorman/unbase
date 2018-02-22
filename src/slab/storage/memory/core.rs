@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{future, Future, sync::{mpsc,oneshot}}; //prelude::*,
+use futures::{future, stream, Future, sync::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
 use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface}};
@@ -142,29 +142,27 @@ impl StorageCoreInterface for MemoryCore {
         };
 
         let my_slabref = self.get_slabref();
-        let _sends = self.put_memo(request_memo, MemoPeerSet::empty(), my_slabref)
+
+        let send = self.put_memo(request_memo, MemoPeerSet::empty(), my_slabref)
             .and_then(|request_memoref| {
                 let mut sends = Vec::new();
-                for peer in request_peers {
-                    sends.push(self.send_memo(peer, request_memoref.clone()));
-                }
-                future::select_ok(sends)
+
+                self.send_memos(&request_peers, &[request_memoref])
             });
 
         // TODO: Add timeout and retries
-
-        let rx = //sends.and_then(move |_| {
+        let rx = send.and_then(move |_| {
             rx.then(|response| {
                 match response {
                     Err(_)      => Err(Error::RetrieveError(RetrieveError::SlabError)), // oneshot Error=Canceled
                     Ok(result)  => result
                 }
             });
-        //});
+        });
 
         Box::new(rx)
     }
-    fn send_memo (&mut self, slabref: SlabRef, memoref: MemoRef ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: Vec<MemoRef> ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -176,23 +174,38 @@ impl StorageCoreInterface for MemoryCore {
 
         // TODO: update transmitter to return a future?
 
-        let send_memo;
-        let send_peerset;
-        if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()){
-            send_memo = memo.clone();
-            send_peerset = peerset.clone();
-        }else{
-            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
+
+        let mut netbuff = NetworkBuffer::new();
+
+        for memoref in memorefs {
+            if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
+                netbuff.add_memo_and_peerset(memo, peerset)
+            }
         }
+
+        netbuff.populate_slabpresence(|slabref| {
+            self.slab_presence_storage.get(*slabref.slab_id).clone()
+        })
+
+//        let send_memo;
+//        let send_peerset;
+//        if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()){
+//            send_memo = memo.clone();
+//            send_peerset = peerset.clone();
+//        }else{
+//            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
+//        }
 
         let my_slabref = self.get_slabref();
 
-        match self.get_transmitter( &slabref ) {
-            Ok(transmitter) => {
-                transmitter.send( send_memo, send_peerset, my_slabref )
-            },
-            Err(e) => Box::new(future::result(Err(e)))
-        }
+        stream::iter_ok::<_, ()>(slabrefs).for_each(|slabref| {
+            match self.get_transmitter(&slabref) {
+                Ok(transmitter) => {
+                    transmitter.send(send_memo, send_peerset, my_slabref)
+                },
+                Err(e) => Box::new(future::result(Err(e)))
+            }
+        })
     }
     fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
 
@@ -301,30 +314,35 @@ impl StorageCoreInterface for MemoryCore {
     fn get_peerset (&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
-        if let Some(carrier) = self.memo_storage.get( &memoref.memo_id() ){
+        let mut peersets = Vec::new();
+        for memoref in memorefs {
+            if let Some(carrier) = self.memo_storage.get(&memoref.memo_id()) {
+                let mut peerset: MemoPeerSet =
+                    if let Some(dest_slabref) = maybe_dest_slabref {
+                        // Tell the peer about all other presences except for ones belonging to them
+                        // we don't need to tell them they have it. They know, they were there :)
+                        carrier.peerset.for_slabref(&dest_slabref)
+                    } else {
+                        carrier.peerset.clone()
+                    };
 
-            let mut peerset : MemoPeerSet =
-                if let Some(dest_slabref) = maybe_dest_slabref {
-                    // Tell the peer about all other presences except for ones belonging to them
-                    // we don't need to tell them they have it. They know, they were there :)
-                    carrier.peerset.for_slabref(&dest_slabref)
-                }else{
-                    carrier.peerset.clone()
+                let my_status = match carrier.memo {
+                    Some(_) => MemoPeerStatus::Resident,
+                    None => MemoPeerStatus::Participating,
                 };
 
-            let my_status = match carrier.memo {
-                Some(_) => MemoPeerStatus::Resident,
-                None    => MemoPeerStatus::Participating,
-            };
-
-            peerset.apply_peerstate(MemoPeerState{
-                slabref: self.get_slabref(),
-                status: my_status
-            });
-            Box::new(future::result(Ok(peerset)))
-        }else{
-            Box::new(future::result(Ok(MemoPeerSet::new(vec![]))))
+                peerset.apply_peerstate(MemoPeerState {
+                    slabref: self.get_slabref(),
+                    status: my_status
+                });
+                peersets.push(peerset);
+            } else {
+                peersets.push( MemoPeerSet::empty() )
+            }
         }
+
+
+        Box::new(future::result(Ok(peersets)))
 
     }
 }

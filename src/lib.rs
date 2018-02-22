@@ -41,7 +41,6 @@
 extern crate futures;
 extern crate tokio;
 extern crate core;
-extern crate linked_hash_map;
 extern crate itertools;
 extern crate nihdb;
 

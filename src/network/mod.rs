@@ -1,5 +1,3 @@
-extern crate linked_hash_map;
-
 mod transmitter;
 
 pub mod transport;
