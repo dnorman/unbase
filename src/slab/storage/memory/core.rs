@@ -3,6 +3,7 @@ use std::sync::Arc;
 use futures::{future, stream, Future, sync::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
+use buffer::NetworkBuffer;
 use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface}};
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
@@ -175,17 +176,26 @@ impl StorageCoreInterface for MemoryCore {
         // TODO: update transmitter to return a future?
 
 
-        let mut netbuff = NetworkBuffer::new();
+        let mut netbuf = NetworkBuffer::new();
 
         for memoref in memorefs {
-            if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
-                netbuff.add_memo_and_peerset(memo, peerset)
+            if let Some(&MemoCarrier{ memoref: &MemoRef, memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
+                netbuf.add_memoref_peerset_and_memo(memoref, peerset, memo)
             }
         }
 
-        netbuff.populate_slabpresence(|slabref| {
+        netbuf.populate_memopeersets(|memoref| {
+            if let Some(&MemoCarrier{ ref peerset, .. }) = self.memo_storage.get( &memoref.memo_id() ) {
+                peerset.clone()
+            }else{
+                MemoPeerSet::empty()
+            }
+        });
+        netbuf.populate_slabpresences(|slabref| {
             self.slab_presence_storage.get(*slabref.slab_id).clone()
-        })
+        });
+
+        debug_assert_eq!(netbuf.is_fully_populated(), true);
 
 //        let send_memo;
 //        let send_peerset;
@@ -201,7 +211,7 @@ impl StorageCoreInterface for MemoryCore {
         stream::iter_ok::<_, ()>(slabrefs).for_each(|slabref| {
             match self.get_transmitter(&slabref) {
                 Ok(transmitter) => {
-                    transmitter.send(send_memo, send_peerset, my_slabref)
+                    transmitter.send(netbuf.clone())
                 },
                 Err(e) => Box::new(future::result(Err(e)))
             }

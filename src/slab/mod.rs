@@ -61,7 +61,6 @@ pub enum SlabAnticipatedLifetime {
 /// (Storable)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Ord, PartialOrd)]
 pub struct SlabPresence {
-    pub slab_id: SlabId, // TODO: Consider removing SlabId from slabpresence. This will require some additional thought about SlabPresence MemoBodies though
     pub addresses: Vec<TransportAddress>,
     pub lifetime: SlabAnticipatedLifetime,
 }
