@@ -80,7 +80,7 @@ impl Transmitter {
         use self::TransmitterInternal::*;
         match self.internal {
             Local(ref handle) => {
-                Box::new(handle.put_memo(memo, peerset, from_slabref).map(|_| ()))
+                buf.extract( handle )
             }
             Dynamic(ref tx) => {
                 Box::new( tx.send(buf) )
