@@ -22,7 +22,7 @@ use std::fmt;
 #[derive(Clone)]
 pub struct Context(Arc<ContextInner>);
 
-pub struct ContextInner {
+pub (crate) struct ContextInner {
     pub slab: LocalSlabHandle,
     pub root_index: RwLock<Option<Arc<IndexFixed>>>,
     net: Network,

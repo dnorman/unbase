@@ -29,7 +29,7 @@ fn eventual_basic() {
     simulator.metronome(10);
     simulator.wait_ticks(2);
 
-    let rec_b1 = context_b.get_subject_by_id( record_id ).unwrap();
+    let rec_b1 = context_b.get_subject_by_id( record_id ).unwrap
     assert!(rec_b1.is_some(), "new subject should now have conveyed to slab B");
 
     let rec_b1 = rec_b1.unwrap();

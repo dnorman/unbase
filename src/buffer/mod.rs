@@ -281,7 +281,7 @@ impl MemoBuffer {
             let memo_subj_seg_id;
             if let Some(MemoRefBuffer(ref memo_id, ref subj_seg_id)) = segments.get(mr_seg_id) {
                 my_memo_id = memo_id.clone();
-                my_subj_seg_id = subj_seg_id;
+                memo_subj_seg_id = subj_seg_id;
 
                 if let Some(subject_id @ SubjectId) = segments.get(subj_seg_id) {
                     my_subject_id = subject_id;

@@ -307,7 +307,6 @@ impl StorageCoreInterface for MemoryCore {
         Box::new(future::result(Ok( out )))
     }
     fn put_slab_presence(&mut self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
-        use std::mem;
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
             Occupied(mut e) => {

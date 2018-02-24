@@ -11,7 +11,7 @@ use super::*;
 use std::sync::{Arc,Mutex};
 use itertools::partition;
 //use network;
-//use network::buffer::Packet;
+use buffer::NetworkBuffer;
 use error::*;
 
 
@@ -33,9 +33,7 @@ struct SimEvent {
     dest_point:    MinkowskiPoint,
     dest_slab:     LocalSlabHandle,
 
-    memo:          Memo,
-    peerset:       MemoPeerSet,
-    from_presence: SlabPresence,
+    netbuf: NetworkBuffer,
 
 }
 
@@ -233,7 +231,7 @@ pub struct SimulatorTransmitter{
 }
 
 impl DynamicDispatchTransmitter for SimulatorTransmitter {
-    fn send (&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef) -> future::FutureResult<(), Error> {
+    fn send (&self, netbuf: NetworkBuffer) -> future::FutureResult<(), Error> {
         let ref q = self.source_point;
         let ref p = self.dest_point;
 
@@ -252,22 +250,15 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
             z: p.z,
             t: source_point.t + ( distance as u64 * self.simulator.speed_of_light ) + 1 // add 1 to ensure nothing is instant
         };
-//
-//        let buffer = Packet{
-//            to_slabref: &self.dest.slabref,
-//            from_slabref: &from_slabref,
-//            memo: memo.buffer(),
-//            peerset
-//        }.buffer();
-//
-//        let evt = SimEvent {
-//            _source_point: source_point,
-//            dest_point,
-//            from_slabref,
-//
-//            dest_slab: self.dest.clone(),
-//            buffer
-//        };
+
+        let evt = SimEvent {
+            _source_point: source_point,
+            dest_point,
+            from_slabref,
+
+            dest_slab: self.dest.clone(),
+            netbuf
+        };
 //
 //        self.simulator.add_event( evt );
 //        future::result(Ok(()))

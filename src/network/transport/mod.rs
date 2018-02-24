@@ -22,11 +22,11 @@ pub enum TransportAddress{
     Simulator,
     Local,
     UDP(TransportAddressUDP),
-    UDT,
-    WebRTP,
-    SCMP,
-    Bluetooth,
-    ShamefulTCP // SHAME! SHAME! SHAME! ( yes, I _really_ want to discourage people from using TCP )
+//    UDT,
+//    WebRTP,
+//    SCMP,
+//    Bluetooth,
+//    ShamefulTCP // SHAME! SHAME! SHAME! ( yes, I _really_ want to discourage people from using TCP )
 }
 
 pub trait Transport {
@@ -41,11 +41,11 @@ impl TransportAddress {
     pub fn to_string (&self) -> String {
 
         use self::TransportAddress::*;
-        match self {
-            &Simulator   => "Simulator".to_string(),
-            &Local       => "Local".to_string(),
-            &UDP(ref a)  => a.to_string(),
-            _            => "UNKNOWN".to_string(),
+        match *self {
+            Simulator   => "Simulator".to_string(),
+            Local       => "Local".to_string(),
+            UDP(ref a)  => a.to_string(),
+            _            => "UNKNOWN".to_string(), // TODO
         }
     }
     pub fn is_local (&self) -> bool {
