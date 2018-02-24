@@ -8,7 +8,12 @@ pub enum Error{
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
     LocalSlab(LocalSlabError),
+    Buffer(BufferError),
     Serde(serde_json::Error),
+}
+
+pub enum BufferError{
+    DecodeFailed
 }
 
 #[derive(PartialEq, Debug)]

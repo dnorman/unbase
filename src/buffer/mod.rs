@@ -9,8 +9,10 @@ pub mod receiver;
 use serde_derive;
 use std::collections::HashMap;
 use serde_json;
-pub use serde::ser::Serialize;
-pub use serde::de::Deserialize;
+use serde::ser::Serialize;
+use serde::de::Deserialize;
+use std::mem;
+use futures::{future, stream, prelude::*};
 
 use error::*;
 use network::TransportAddress;
@@ -38,7 +40,6 @@ pub enum NetbufSegment {
     MemoRef(MemoRefBuffer),
     Memo(MemoBuffer),
     SlabPresence(SlabPresenceBuffer),
-    MemoPeerState(MemoPeerStateBuffer),
 }
 
 type SegmentId = u16;
@@ -48,7 +49,7 @@ type SubjectOffset = SegmentId;
 
 /// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
 #[derive(Serialize,Deserialize)]
-struct MemoRefBuffer( MemoId, SubjectOffset );
+struct MemoRefBuffer( MemoId, Option<Vec<MemoPeerStateBuffer>>, SubjectOffset );
 
 #[derive(Serialize,Deserialize)]
 pub struct MemoBuffer( MemoRefOffset, Vec<MemoRefOffset>, MemoBodyBuffer );
@@ -73,7 +74,6 @@ struct SlabPresenceBuffer (SlabRefOffset, Vec<TransportAddress>, SlabAnticipated
 
 #[derive(Serialize,Deserialize)]
 struct MemoPeerStateBuffer(
-    MemoRefOffset,
     SlabRefOffset,
     MemoPeerStatus
 );
@@ -83,7 +83,7 @@ pub struct EdgeSetBuffer (pub HashMap<RelationSlotId, Vec<MemoRefOffset>>);
 
 impl NetworkBuffer{
     pub fn new() -> Self {
-        let len = memos.len();
+        let len = 1;
         NetworkBuffer{
             segments: Vec::with_capacity( 8 + (len * 6) ),  // Memo + Self memoref+peerset + Parent Memoref+peerset + Subject + Slabref + SlabPresence
             memoref_offsets: Vec::with_capacity( len * 2), // Most memorefs have one parent
@@ -118,7 +118,7 @@ impl NetworkBuffer{
                 let memoref_offset = self.add_memoref(mr.memo_id, self.add_subject(mr.subject_id));
                 MemoBodyBuffer::Peering(
                     memoref_offset,
-                    peerset.list.iter().map(|ps| self.add_peerstate(memoref_offset, ps) )
+                    peerset.list.iter().map(|ps| self.make_peerstate(memoref_offset, ps) )
                 )
             },
             MemoBody::MemoRequest(memorefs, slabrefs) =>{
@@ -143,16 +143,26 @@ impl NetworkBuffer{
         for (seg_id,memoref,added_peerset) in self.memoref_offsets.drain(..) {
 
             if added_peerset == false {
-                for peerstate in f(memoref).list.iter(){
-                    self.add_peerstate(seg_id, peerstate);
+
+                let peerstates = f(memoref).list.iter().map(|peerstate| {
+                    MemoPeerStateBuffer(
+                        self.add_slabref(&peerstate.slabref),
+                        peerstate.status.clone()
+                    )
+                }).collect();
+
+                if let Some(MemoRefBuffer{ref peerstates}) = self.segments.get(seg_id) {
+                    *peerstates = Some(peerstates);
+                    mem::replace(added_peerset, true);
                 }
             }
         }
     }
     pub fn populate_slabpresences<F> (&mut self, f: F ) where F: FnMut(&MemoRef) -> MemoPeerSet {
-        for offset in self.memoref_offsets.drain(..) {
+        for offset in self.slabref_offsets.drain(..) {
             if offset.2 == false { // did we already add the peerstate?
-                self.add_peerstate(f.0, f(offset.1));
+                //self.add_slabpresence(f.0, f(offset.1));
+                unimplemented!()
             }
         }
     }
@@ -169,18 +179,22 @@ impl NetworkBuffer{
             }
         }
     }
-    fn add_memoref_and_peerset (&mut self, memoref: &MemoRef, subj_offset: SubjectOffset, peerset: &MemoPeerSet) -> SegmentId {
+    fn add_memoref_and_peerset (&mut self, memoref: &MemoRef, subj_offset: SubjectOffset, peerset: &MemoPeerSet) -> (SegmentId,Vec<SegmentId>) {
         match self.memoref_offsets.binary_search_by(|x| x.1.cmp(memoref) ){
             Ok(i) => {
                 self.memoref_offsets[i].0
             }
             Err(i) =>{
-                self.segments.push(NetbufSegment::MemoRef(MemoRefBuffer(memoref.memo_id.clone(), subj_offset)));
-                let seg_id = self.segments.len() - 1;
 
-                for peerstate in peerset.list.iter(){
-                    self.add_peerstate(seg_id, peerstate);
-                }
+                let memopeer_states = peerset.list.iter().map(|peerstate| {
+                    MemoPeerStateBuffer(
+                        self.add_slabref(&peerstate.slabref ),
+                        peerstate.status
+                    )
+                }).collect();
+
+                self.segments.push(NetbufSegment::MemoRef(MemoRefBuffer(memoref.memo_id.clone(), Some(memopeer_states), subj_offset)));
+                let seg_id = self.segments.len() - 1;
 
                 self.memoref_offsets.insert(i,(seg_id, memoref.clone(),true));
                 seg_id
@@ -193,7 +207,7 @@ impl NetworkBuffer{
                 self.memoref_offsets[i].0
             }
             Err(i) =>{
-                self.segments.push(NetbufSegment::MemoRef(MemoRefBuffer(memoref.memo_id.clone(), subj_offset)));
+                self.segments.push(NetbufSegment::MemoRef(MemoRefBuffer(memoref.memo_id.clone(), None,subj_offset)));
                 let seg_id = self.segments.len() - 1;
 
                 self.memoref_offsets.insert(i,(seg_id, memoref.clone(), false));
@@ -202,16 +216,9 @@ impl NetworkBuffer{
             }
         }
     }
-    fn add_peerstate(&mut self, memoref_offset: MemoRefOffset, peerstate: &MemoPeerState ) -> MemoPeerStateBuffer {
-        MemoPeerStateBuffer(
-            memoref_offset,
-            self.add_slabref( &peerstate.slabref ),
-            peerstate.status.clone()
-        )
-    }
     fn add_edge(&mut self, e: EdgeSet) -> EdgeSetBuffer {
         let mut e = HashMap::new();
-        for (slot_id,mrh) in edgeset {
+        for (slot_id,mrh) in e {
             e.insert( slot_id, mrh.map(|mr| self.add_memoref(mr.memo_id, self.add_subject(mr.subject_id))).collect() );
         }
         MemoBodyBuffer::Edge(e)
@@ -232,7 +239,7 @@ impl NetworkBuffer{
             }
         }
     }
-    fn add_slabpresence(&mut self, presence: SlabPresence, slabref_offset: SlabRefOffset) -> SlabPresenceOffset {
+    fn add_slabpresence(&mut self, presence: SlabPresence, slabref_offset: SlabRefOffset) -> SegmentId {
         self.segments.push(NetbufSegment::SlabPresence(SlabPresenceBuffer(slabref_offset, presence.addresses, presence.lifetime)));
     }
     pub fn from_slice(slice: &[u8]) -> Result<Self,Error> {
@@ -261,23 +268,47 @@ impl NetworkBuffer{
 }
 
 impl MemoBuffer {
-    fn extract (&self, &segments: Vec<NetbufSegment>, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>> {
+    fn extract (self, &segments: Vec<NetbufSegment>, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>> {
+
+
+        // TODO 1: LEFT OFF HERE
+
+        let my_memo_id;
+        let my_subject_id;
 
         if let MemoBuffer( mr_seg_id, parent_mr_seg_ids, bodybuf ) = self {
-            if let (ref memo_id,ref subject_id) =
-            // TODO 1: LEFT OFF HERE
+            let my_memo_id;
+            let memo_subj_seg_id;
+            if let Some(MemoRefBuffer(ref memo_id, ref subj_seg_id)) = segments.get(mr_seg_id) {
+                my_memo_id = memo_id.clone();
+                my_subj_seg_id = subj_seg_id;
 
-        if let Some(MemoRefBuffer(memo_id, subj_seg_id)) = segments.get(mr_seg_id) {
-            if let Some(subject_id @ SubjectId) = segments.get(subj_seg_id)
-            Memo{
-                id: memo_id,
-                subject_id: subject_id,
-                parents: (),
-                body: bodybuf,
+                if let Some(subject_id @ SubjectId) = segments.get(subj_seg_id) {
+                    my_subject_id = subject_id;
+                }else {
+                    return future::result(Err(Error::Buffer(BufferError::DecodeFailed)))
+                }
+            }else {
+                return future::result(Err(Error::Buffer(BufferError::DecodeFailed)))
             }
-            receiver.put_memo()
+
+            stream::iter_ok::<_, ()>(parent_mr_seg_ids).map(|parent_mr_seg_id|{
+                if let Some(MemoRefBuffer(ref parent_memo_id, ref parent_subj_seg_id)) = segments.get(parent_mr_seg_id) {
+                    debug_assert_eq!(parent_subj_seg_id, memo_subj_seg_id );
+                    receiver.put_memoref(parent_memo_id, my_subject_id)
+                }
+            }).collect().and_then(|parent_memorefs| {
+                let memo = Memo {
+                    id: my_memo_id,
+                    subject_id: my_subject_id,
+                    parents: parent_memorefs,
+                    body: bodybuf,
+                };
+                receiver.put_memo(memo, MemoPeerSet::empty(), )
+            })
+        }else {
+            return future::result(Err(Error::Buffer(BufferError::DecodeFailed)))
         }
 
-    }
     }
 }
