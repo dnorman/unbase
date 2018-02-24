@@ -176,15 +176,6 @@ impl Subject {
         self.head.write().unwrap().apply( &chead, &context.slab )?;
         self.head.read().unwrap().project_value(&context.slab, key)
     }
-    pub fn get_relation ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
-        //println!("# Subject({}).get_relation({})",self.id,key);
-        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
-
-        match self.head.read().unwrap().project_relation(&context.slab, key)? {
-            Some(subject_id) => context.get_subject(subject_id),
-            None             => Ok(None),
-        }
-    }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
         match self.get_edge_head(context,key)? {
             Some(head) => {

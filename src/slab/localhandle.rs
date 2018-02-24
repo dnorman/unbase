@@ -7,6 +7,7 @@ use std::fmt;
 use network;
 use slab;
 use slab::storage::StorageRequester;
+use slab::storage::StorageCoreInterface;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
 use error::*;

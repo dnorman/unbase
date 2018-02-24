@@ -143,27 +143,6 @@ impl MemoRefHead {
 
         Err(Error::RetrieveError(RetrieveError::MemoLineageError))
     }
-    pub fn project_relation ( &self, slab: &LocalSlabHandle, key: RelationSlotId ) -> Result<Option<SubjectId>, Error> {
-
-        for memo in self.causal_memo_iter( &slab ) {
-
-            if let Some((relations,materialized)) = memo?.get_relations(){
-                //println!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}", memo.id, memo.get_parent_head(), relations );
-                if let Some(maybe_subject_id) = relations.get(&key) {
-                    return match *maybe_subject_id {
-                        Some(subject_id) => Ok(Some(subject_id)),
-                        None                 => Ok(None)
-                    };
-                }else if materialized {
-                    //println!("\n# \t\\ Not Found (materialized)" );
-                    return Ok(None);
-                }
-            }
-        }
-
-        //println!("\n# \t\\ Not Found" );
-        Err(Error::RetrieveError(RetrieveError::MemoLineageError))
-    }    
     pub fn project_edge ( &self, slab: &LocalSlabHandle, key: RelationSlotId ) -> Result<Option<Self>, Error> {
         for memo in self.causal_memo_iter( &slab ) {
 

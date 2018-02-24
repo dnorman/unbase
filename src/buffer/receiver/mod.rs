@@ -21,7 +21,7 @@ impl NetworkReceiver{
     pub fn get_local_slab_handle_by_id <'a> (&'a mut self, slab_id: &slab::SlabId) -> Option<&'a LocalSlabHandle> {
         match self.slabs.binary_search_by(|s| s.slab_id.cmp(slab_id) ){
             Ok(i) => {
-                Some(self.slabs[i])
+                Some(&self.slabs[i])
             }
             Err(i) =>{
                 if let Some(net) = self.net.upgrade() {
@@ -35,7 +35,7 @@ impl NetworkReceiver{
         }
     }
     pub fn get_representative_slab<'a> (&'a mut self) -> Option<&'a LocalSlabHandle> {
-        for handle in self.localslabhandles.iter() {
+        for handle in self.slabs.iter() {
             if handle.is_live() {
                 return Some(&handle);
             }
@@ -44,14 +44,17 @@ impl NetworkReceiver{
             if let Some(slab) = net.get_representative_slab() {
                 match self.slabs.binary_search_by(|s| s.slab_id.cmp(&slab.slab_id) ){
                     Ok(i) => {
-                        Some(self.slabs[i]) // really shouldn't ever hit this
+                        return Some(&self.slabs[i]); // really shouldn't ever hit this
                     }
                     Err(i) =>{
-                        Some(self.slabs.insert(i,slab))
+                        self.slabs.insert(i, slab);
+                        return Some(&self.slabs[i]);
                     }
                 }
             }
         }
+        // TODO: Double check this logic -- just got it to compile
+        return None;
     }
 }
 

@@ -59,8 +59,8 @@ impl CoreThreadInner{
             }))
         }
 
-        if let SendMemo {to_slabref, memoref} = request{
-            return Box::new(self.core.send_memo(to_slabref, memoref).then(|r| {
+        if let SendMemo {to_slabrefs, memorefs} = request{
+            return Box::new(self.core.send_memos(&to_slabrefs, &memorefs).then(|r| {
                 match r {
                     Ok(_)  => responder.send(Ok(LocalSlabResponse::SendMemo( () ) )),
                     Err(e) => responder.send(Err(e))
@@ -69,8 +69,8 @@ impl CoreThreadInner{
             }))
         }
 
-        if let GetPeerSet {memoref, maybe_dest_slabref } = request{
-            return Box::new(self.core.get_peerset(memoref, maybe_dest_slabref).then(|r| {
+        if let GetPeerSet {memorefs, maybe_dest_slabref } = request{
+            return Box::new(self.core.get_peerset(memorefs, maybe_dest_slabref).then(|r| {
                 match r {
                     Ok(r)  => responder.send(Ok(LocalSlabResponse::GetPeerSet( r ) )),
                     Err(e) => responder.send(Err(e))

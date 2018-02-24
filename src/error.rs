@@ -1,6 +1,6 @@
 use serde_json;
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub enum Error{
     RetrieveError(RetrieveError),
     WriteError(WriteError),
@@ -12,6 +12,7 @@ pub enum Error{
     Serde(serde_json::Error),
 }
 
+#[derive(Debug)]
 pub enum BufferError{
     DecodeFailed
 }

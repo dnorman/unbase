@@ -6,7 +6,7 @@ use error::Error;
 use std::fmt;
 use futures::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialOrd, Ord)]
 pub struct MemoRef {
     pub memo_id:        MemoId,
     #[cfg(debug_assertions)]
@@ -87,12 +87,13 @@ impl MemoRef {
         //     memo.descends(memoref,slab)
         // }))
     }
+    // TODO: Remove _include_memo.
     pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{
         debug_assert_eq!(from_slab.slab_id, self.owning_slab_id,       "Cannot clone foreign MemoRef");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
 
         // Because our from_slabref is already owned by the destination slab, there is no need to do peerlist.clone_for_slab
-        let _peerlist = from_slab.get_peerset(self.clone(), Some(to_slab.slabref.clone()));
+        let _peerlist = from_slab.get_peerset(vec![self.clone()], Some(to_slab.slabref.clone()));
         //println!("Slab({}).Memoref.clone_for_slab({}) C -> {:?}", self.owning_slab_id, self.id, peerlist);
 
         unimplemented!()

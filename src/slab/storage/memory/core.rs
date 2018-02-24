@@ -9,6 +9,8 @@ use subject::SubjectId;
 use memorefhead::MemoRefHead;
 use error::*;
 use slab::dispatcher::Dispatch;
+use futures::Stream;
+
 
 struct MemoCarrier{
     memoref:  MemoRef,
@@ -70,13 +72,11 @@ impl MemoryCore {
                 //let new_trans = self.net.get_transmitter( &args ).expect("put_slabref net.get_transmitter");
                 //let return_address = self.net.get_return_address( &new_presence.address ).expect("return address not found");
 
-                if let Some(presences) = self.slab_presence_storage.get(&slabref.slab_id()) {
-                    for presence in presences.iter() {
-                        if let Some(transmitter) = presence.get_transmitter( &self.net ){
-                            return Ok(t.insert(transmitter));
-                        }else{
-                            return Err(Error::TransmitError(TransmitError::InvalidTransmitter))
-                        }
+                if let Some(presence) = self.slab_presence_storage.get(&slabref.slab_id()) {
+                    if let Some(transmitter) = presence.get_transmitter( &self.net ){
+                        return Ok(t.insert(transmitter));
+                    }else{
+                        return Err(Error::TransmitError(TransmitError::InvalidTransmitter))
                     }
                 }
 
@@ -139,14 +139,15 @@ impl StorageCoreInterface for MemoryCore {
             owning_slabref: self.get_slabref(),
             subject_id: SubjectId::anonymous(),
             parents: MemoRefHead::Null,
-            body: MemoBody::MemoRequest(vec![memoref.clone()], return_presences)
+            // TODO: Make MemoRequest use return_presences?
+            body: MemoBody::MemoRequest(vec![memoref.clone()], request_peers)
         };
 
         let my_slabref = self.get_slabref();
 
         let send = self.put_memo(request_memo, MemoPeerSet::empty(), my_slabref)
             .and_then(|request_memoref| {
-                let mut sends = Vec::new();
+                // let mut sends = Vec::new();  // TODO: Remove commented line
 
                 self.send_memos(&request_peers, &[request_memoref])
             });
@@ -158,12 +159,12 @@ impl StorageCoreInterface for MemoryCore {
                     Err(_)      => Err(Error::RetrieveError(RetrieveError::SlabError)), // oneshot Error=Canceled
                     Ok(result)  => result
                 }
-            });
+            })
         });
 
         Box::new(rx)
     }
-    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: Vec<MemoRef> ) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: &[MemoRef]) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -179,7 +180,7 @@ impl StorageCoreInterface for MemoryCore {
         let mut netbuf = NetworkBuffer::new();
 
         for memoref in memorefs {
-            if let Some(&MemoCarrier{ memoref: &MemoRef, memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
+            if let Some(&MemoCarrier{ memoref: ref memoref, memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
                 netbuf.add_memoref_peerset_and_memo(memoref, peerset, memo)
             }
         }
@@ -192,7 +193,9 @@ impl StorageCoreInterface for MemoryCore {
             }
         });
         netbuf.populate_slabpresences(|slabref| {
-            self.slab_presence_storage.get(*slabref.slab_id).clone()
+            // TODO: Implement this _and_ populate_slabpresences
+            unimplemented!()
+            // self.slab_presence_storage.get(*slabref.slab_id).clone()
         });
 
         debug_assert_eq!(netbuf.is_fully_populated(), true);
@@ -246,6 +249,12 @@ impl StorageCoreInterface for MemoryCore {
 
         Box::new(future::result(Ok(memoref)))
     }
+    fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
+        // TODO:
+        unimplemented!()
+    }
+
+
         // fn assert_memoref( &self, memo_id: MemoId, subject_id: SubjectId, peerlist: MemoPeerList, maybe_memo: Option<Memo>) -> (MemoRef, bool){
 
 
@@ -288,17 +297,20 @@ impl StorageCoreInterface for MemoryCore {
 
     //     (memoref, had_memoref)
     // }
-    fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef> ) -> Box<Future<Item=Vec<Option<SlabPresence>>, Error=Error>> {
+    fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef> ) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>> {
 
         let mut out = Vec::with_capacity(slabrefs.len());
 
         for slabref in slabrefs {
             match self.slab_presence_storage.get(&slabref.slab_id) {
                 Some(presence) => {
-                    out.push(Some(presence));
+                    unimplemented!()
+                    // TODO: Change get_slab_presence interface to return an Option<SlabPresence>.
+                    // out.push(Some(presence));
                 }
                 None => {
-                    out.push(None)
+                    unimplemented!()
+                    // out.push(None)
                 }
             };
         }

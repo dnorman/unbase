@@ -32,16 +32,16 @@ struct DispatcherInner{
 }
 
 impl Dispatcher{
-    pub fn new ( net: Network, storage: impl StorageCoreInterface, _counter: Arc<SlabCounter> ) -> Dispatcher {
+    pub fn new ( net: Network, storage: StorageRequester, _counter: Arc<SlabCounter> ) -> Dispatcher {
 
         let (tx,rx) = mpsc::unbounded::<Dispatch>();
 
         let mut inner = DispatcherInner{
+            storage,
             memo_wait_channels:    HashMap::new(),
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
             net, 
-            storage,
         };
 
         let worker_thread = thread::spawn(move || {
