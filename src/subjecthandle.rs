@@ -39,24 +39,8 @@ impl SubjectHandle{
     pub fn get_value ( &self, key: &str ) -> Option<String> {
         self.subject.get_value(&self.context, key).expect("Retrieval error. TODO: Convert to Result<..,Error>")
     }
-    pub fn get_relation ( &self, key: RelationSlotId ) -> Result<Option<SubjectHandle>, Error> {
-
-        match self.subject.get_relation(&self.context, key)?{
-        Some(rel_sub_subject) => {
-            Ok(Some(SubjectHandle{
-                id: rel_sub_subject.id,
-                context: self.context.clone(),
-                subject: rel_sub_subject
-            }))
-            },
-            None => Ok(None)
-        }
-    }
     pub fn set_value (&self, key: &str, value: &str) -> Result<bool,Error> {
         self.subject.set_value(&self.context, key, value)
-    }
-    pub fn set_relation (&self, key: RelationSlotId, relation: &Self) -> Result<(),Error> {
-        self.subject.set_relation(&self.context, key, &relation.subject)
     }
     pub fn head_memo_ids (&self) -> Vec<MemoId> {
         self.subject.get_head().memo_ids()

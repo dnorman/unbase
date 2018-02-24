@@ -45,8 +45,12 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
+        fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
+            // TODO: Implement
+            unimplemented!()
+        }
     fn send_memos ( &mut self, to_slabrefs: &[SlabRef], memorefs: &[MemoRef] ) -> Box<Future<Item=(), Error=Error>>{
-        Box::new( self.call(LocalSlabRequest::SendMemo{ to_slabrefs, memorefs } ).and_then(|r| {
+        Box::new( self.call(LocalSlabRequest::SendMemo{ to_slabrefs: to_slabrefs.to_vec(), memorefs: memorefs.to_vec() } ).and_then(|r| {
             if let LocalSlabResponse::SendMemo(_) = r {
                 return Ok(())
             }else{

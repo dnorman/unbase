@@ -153,8 +153,9 @@ impl MemoBody {
     fn clone_for_slab(&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle ) -> MemoBody {
 
         match self {
-            &MemoBody::SlabPresence{ ref p, ref r } => {
+            &MemoBody::SlabPresence{ ref s, ref p, ref r } => {
                 MemoBody::SlabPresence{
+                    s: *s,
                     p: p.clone(),
                     r: r.clone_for_slab(from_slab, to_slab, true),
 
@@ -178,8 +179,8 @@ impl MemoBody {
             &MemoBody::PartiallyMaterialized{ ref v,ref e, ref t } => {
                 MemoBody::PartiallyMaterialized{ v: v.clone(), e: e.clone_for_slab(from_slab, to_slab), t: t.clone() }
             }
-            &MemoBody::Peering(memo_id, subject_id, ref peerset) => {
-                MemoBody::Peering(memo_id,subject_id,peerset.clone_for_slab(to_slab))
+            &MemoBody::Peering(ref mr, ref peerset) => {
+                MemoBody::Peering(mr.clone_for_slab(from_slab, to_slab, true), peerset.clone_for_slab(to_slab))
             }
             &MemoBody::MemoRequest(ref memo_ids, ref slab_presence) =>{
                 MemoBody::MemoRequest(memo_ids.clone(), slab_presence.clone())

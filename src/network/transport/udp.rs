@@ -145,7 +145,7 @@ impl TransportUDP {
 
             let hello = slab.new_memo_basic_noparent(
                 SubjectId::anonymous(),
-                MemoBody::SlabPresence{ p: presence, r: net.get_root_index_seed(&slab) }
+                MemoBody::SlabPresence{ s: presence.slab_id, p: presence, r: net.get_root_index_seed(&slab) }
             );
 
             self.send_to_addr(
@@ -224,7 +224,8 @@ impl Transport for TransportUDP {
                 let source_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
 
                 let buffer = NetworkBuffer::from_slice(&buf[0..amt]);
-                buffer.extract_to(receiver);
+                unimplemented!() // TODO
+                // buffer.extract_to(receiver);
             };
         });
 
@@ -296,7 +297,7 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
 
         //TODO: Convert this to use a tokio-shared-udp-socket or tokio_kcp
         let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
-        tx_channel.send((self.address.clone(), buffer.to_vec())).unwrap();
+        tx_channel.send((self.address.clone(), buffer)).unwrap();
 
         future::result(Ok(()))
     }

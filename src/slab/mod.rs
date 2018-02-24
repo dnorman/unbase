@@ -42,7 +42,7 @@ pub type SlabId = u32;
 /// `SlabRef` is how we refer to a slab
 /// The intent is to possibly convert this to an arc, or some other pointer in the future, rather than copying the full identifier all over the place
 /// One should only be able to get a `SlabRef` from a Slab, because it's in charge of storing Slab IDs.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialOrd, Ord)]
 pub struct SlabRef {
     owning_slab_id: SlabId,
     pub slab_id: SlabId
@@ -61,6 +61,7 @@ pub enum SlabAnticipatedLifetime {
 /// (Storable)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Ord, PartialOrd)]
 pub struct SlabPresence {
+    pub slab_id: SlabId,
     pub addresses: Vec<TransportAddress>,
     pub lifetime: SlabAnticipatedLifetime,
 }

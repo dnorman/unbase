@@ -80,7 +80,9 @@ impl Transmitter {
         use self::TransmitterInternal::*;
         match self.internal {
             Local(ref handle) => {
-                buf.extract( handle )
+                // TODO: Implement.
+                unimplemented!()
+                // buf.extract( handle )
             }
             Dynamic(ref tx) => {
                 Box::new( tx.send(buf) )

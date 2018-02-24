@@ -254,7 +254,6 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
         let evt = SimEvent {
             _source_point: source_point,
             dest_point,
-            from_slabref,
 
             dest_slab: self.dest.clone(),
             netbuf
