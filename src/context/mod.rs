@@ -22,7 +22,7 @@ use std::fmt;
 #[derive(Clone)]
 pub struct Context(Arc<ContextInner>);
 
-pub (crate) struct ContextInner {
+pub struct ContextInner {
     pub slab: LocalSlabHandle,
     pub root_index: RwLock<Option<Arc<IndexFixed>>>,
     net: Network,
@@ -182,7 +182,7 @@ impl Context{
     // This is a temporary hack for testing purposes until such time as proper context exchange is enabled
     // QUESTION: should context exchanges be happening constantly, but often ignored? or requested? Probably the former,
     //           sent based on an interval and/or compaction ( which would also likely be based on an interval and/or present context size)
-    pub fn hack_send_context(&self, other: &Self) -> usize {
+    pub fn hack_send_context(&mut self, other: &Self) -> usize {
         self.compact().expect("compact");
 
         let _from_slabref = self.slab.slabref.clone_for_slab(&other.slab);
@@ -192,7 +192,7 @@ impl Context{
         for head in self.stash.iter() {
             memoref_count += head.len();
             println!("HACK SEND CONTEXT {} ({:?}) From {} to {}",  head.subject_id().unwrap(), head.memo_ids(), self.slab.slab_id(), other.slab.slab_id() );
-            other.apply_head(&head.clone_for_slab(&self.slab, &other.slab, false)).expect("apply head");
+            other.apply_head(&head.clone_for_slab(&mut self.slab, &other.slab, false)).expect("apply head");
         }
 
         memoref_count

@@ -24,7 +24,7 @@ pub enum EdgeLink{
 pub struct EdgeSet (pub HashMap<RelationSlotId, MemoRefHead>);
 
 impl EdgeSet {
-    pub fn clone_for_slab(&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle) -> Self {
+    pub fn clone_for_slab(&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle) -> Self {
         let new = self.0
             .iter()
             .map(|(slot_id, mrh)| {

@@ -23,6 +23,7 @@ pub enum RetrieveError {
     NotFoundLocally,
     NotFoundByDeadline,
     InsufficientPeering,
+    InsufficientPresence,
     AccessDenied,
     InvalidMemoRefHead,
     IndexNotInitialized,
