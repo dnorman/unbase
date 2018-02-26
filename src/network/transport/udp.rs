@@ -296,7 +296,8 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
 //        println!("UDP QUEUE FOR SEND SERIALIZED {}", String::from_utf8(b).unwrap() );
 
         //TODO: Convert this to use a tokio-shared-udp-socket or tokio_kcp
-        let tx_channel = *(self.tx_channel.lock().unwrap()).as_ref().unwrap();
+        let maybe_tx_channel = self.tx_channel.lock().unwrap();
+        let tx_channel = maybe_tx_channel.as_ref().unwrap();
         tx_channel.send((self.address.clone(), buffer)).unwrap();
 
         future::result(Ok(()))

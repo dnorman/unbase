@@ -54,7 +54,7 @@ impl NetworkReceiver{
             }
         }
         // TODO: Double check this logic -- just got it to compile
-        return None;
+        None
     }
 }
 

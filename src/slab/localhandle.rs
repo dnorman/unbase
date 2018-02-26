@@ -50,11 +50,11 @@ impl LocalSlabHandle {
         //     Err(Either::B((timeout_error, _get))) => Err(From::from(timeout_error)),
         // });
     }
-    pub fn put_memo(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
+    pub fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
         self.storage.put_memo(memo, peerset, from_slabref)
     }
-    pub fn put_slab_presence(&self, presence: SlabPresence ) -> SlabRef {
-        self.storage.put_slab_presence(presence).wait().unwrap();
+    pub fn put_slab_presence(&mut self, presence: SlabPresence ) -> SlabRef {
+        self.storage.put_slab_presence(presence.clone()).wait().unwrap();
 
         SlabRef{
             owning_slab_id: self.slab_id,
@@ -62,17 +62,17 @@ impl LocalSlabHandle {
         }
     }
 
-    pub fn get_slab_presence(&self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
+    pub fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
         self.storage.get_slab_presence(slabrefs).wait()
     }
-    pub fn get_peerset(&self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
+    pub fn get_peerset(&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
         self.storage.get_peerset(memorefs, maybe_dest_slabref).wait()
     }
 
     pub fn slab_id(&self) -> slab::SlabId {
         self.slab_id.clone()
     }
-    pub fn register_local_slabref(&self, peer_slab: &LocalSlabHandle) {
+    pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle) {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{

@@ -18,7 +18,7 @@ pub trait StorageCore {
 }
 
 pub trait StorageCoreInterface {
-    fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>;
+    fn get_memo <'a> ( &'a mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>;
     fn put_memo (&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>;
     fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>>;
     fn send_memos ( &mut self, slabrefs: &[SlabRef], memorefs: &[MemoRef] ) -> Box<Future<Item=(), Error=Error>>;
@@ -60,6 +60,11 @@ pub enum LocalSlabResponse {
     GetSlabPresence( Vec<SlabPresence> ),
     PutSlabPresence( () ),
     GetPeerSet( Vec<MemoPeerSet> ),
+}
+
+pub enum StorageMemoRetrieval {
+    Found(Memo),
+    Remote(MemoPeerSet)
 }
 
 type LocalSlabRequestAndResponder = (LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>);

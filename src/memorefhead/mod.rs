@@ -276,7 +276,7 @@ impl MemoRefHead {
 
         true
     }
-    pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
+    pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
         assert!(from_slab.slab_id != to_slab.slab_id(), "slab id should differ");
         match *self {
             MemoRefHead::Null                    => MemoRefHead::Null,

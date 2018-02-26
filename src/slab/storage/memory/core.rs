@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{future, stream, Future, sync::{mpsc,oneshot}}; //prelude::*,
+use futures::{self, future, Future, sync::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
 use buffer::NetworkBuffer;
@@ -92,7 +92,7 @@ impl StorageCore for MemoryCore {
 }
 
 impl StorageCoreInterface for MemoryCore {
-    fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
+    fn get_memo<'a> ( &'a mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         let request_peers: Vec<SlabRef>;
@@ -103,7 +103,7 @@ impl StorageCoreInterface for MemoryCore {
             },
             Some(&MemoCarrier{ ref peerset, ..  }) => {
                 if !allow_remote {
-                    return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFoundLocally))))
+                    return Box::new(future::result::<Memo,_>(Err(Error::RetrieveError(RetrieveError::NotFoundLocally))))
                 }
 
                 // Send the request
@@ -118,10 +118,9 @@ impl StorageCoreInterface for MemoryCore {
             None => {
                 // IN THEORY we shouldn't get here if there are outstanding memorefs
                 // In actuality it will be fairly likely to happen, and will require a remediation strategy
-                return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
+                return Box::new(future::result::<Memo, Error>(Err(Error::RetrieveError(RetrieveError::NotFound))));
             }
         }
-
 
         let (tx, rx) = oneshot::channel::<Result<Memo, Error>>();
 
@@ -134,37 +133,52 @@ impl StorageCoreInterface for MemoryCore {
 
         let request_memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
+        // directly Construct and send the request memo. We probably don't need to store it,
+        // and we definitely don't need to store it before sending it
+
         let request_memo = Memo {
             id: request_memo_id,
             owning_slabref: self.get_slabref(),
             subject_id: SubjectId::anonymous(),
             parents: MemoRefHead::Null,
             // TODO: Make MemoRequest use return_presences?
-            body: MemoBody::MemoRequest(vec![memoref.clone()], request_peers)
+            body: MemoBody::MemoRequest(vec![memoref.clone()], vec![self.get_slabref()])
         };
 
-        let my_slabref = self.get_slabref();
+        let memoref =  MemoRef::new(&self.slab_id, request_memo.id.clone(), request_memo.subject_id.clone());
 
-        let send = self.put_memo(request_memo, MemoPeerSet::empty(), my_slabref)
-            .and_then(|request_memoref| {
-                // let mut sends = Vec::new();  // TODO: Remove commented line
+        let peerset = MemoPeerSet::empty();
+        let mut netbuf = NetworkBuffer::new( self.get_slabref() );
 
-                self.send_memos(&request_peers, &[request_memoref])
-            });
+        netbuf.add_memoref_peerset_and_memo(&memoref, &peerset, &request_memo);
+        // We can cheat and avoid populating slab presences / memo peersets because we know there aren't any
+        // This may change in the future, but for now it's true
+        debug_assert_eq!(netbuf.is_fully_populated(), true);
 
-        // TODO: Add timeout and retries
-        let rx = send.and_then(move |_| {
-            rx.then(|response| {
+        let mut sends : Vec<_> = Vec::new();
+        for request_peer in request_peers {
+            if let Ok(transmitter) = self.get_transmitter(&request_peer) {
+                sends.push( transmitter.send(netbuf.clone() ) );
+            }
+        }
+
+        if sends.is_empty() {
+            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::InsufficientPresence))))
+        }
+
+        use futures::sync::oneshot::Canceled;
+        Box::new(futures::collect(sends).and_then( |_| {
+            rx.then(| response : Result<Result<Memo,Error>,Canceled> | {
                 match response {
-                    Err(_)      => Err(Error::RetrieveError(RetrieveError::SlabError)), // oneshot Error=Canceled
-                    Ok(result)  => result
+                    Err(_) => Err(Error::RetrieveError(RetrieveError::SlabError)), // oneshot Error=Canceled
+                    Ok(result) => result
                 }
             })
-        });
+        }))
 
-        Box::new(rx)
+        // TODO: Add timeout and retries
     }
-    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: &[MemoRef]) -> Box<Future<Item=(), Error=Error>> { //Box<Future<Item=LocalSlabResponse, Error=Error>>  {
+    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: &[MemoRef]) -> Box<Future<Item=(), Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -177,7 +191,7 @@ impl StorageCoreInterface for MemoryCore {
         // TODO: update transmitter to return a future?
 
 
-        let mut netbuf = NetworkBuffer::new();
+        let mut netbuf = NetworkBuffer::new( self.get_slabref() );
 
         for memoref in memorefs {
             if let Some(&MemoCarrier{ memoref: ref memoref, memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()) {
@@ -200,25 +214,20 @@ impl StorageCoreInterface for MemoryCore {
 
         debug_assert_eq!(netbuf.is_fully_populated(), true);
 
-//        let send_memo;
-//        let send_peerset;
-//        if let Some(&MemoCarrier{ memo: Some(ref memo), ref peerset, .. }) = self.memo_storage.get(&memoref.memo_id()){
-//            send_memo = memo.clone();
-//            send_peerset = peerset.clone();
-//        }else{
-//            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::NotFound))));
-//        }
-
         let my_slabref = self.get_slabref();
 
-        stream::iter_ok::<_, ()>(slabrefs).for_each(|slabref| {
-            match self.get_transmitter(&slabref) {
-                Ok(transmitter) => {
-                    transmitter.send(netbuf.clone())
-                },
-                Err(e) => Box::new(future::result(Err(e)))
+        let mut sends : Vec<_> = Vec::new();
+        for request_peer in slabrefs {
+            if let Ok(transmitter) = self.get_transmitter(&request_peer) {
+                sends.push( transmitter.send(netbuf.clone() ) );
             }
-        })
+        }
+
+        if sends.is_empty() {
+            return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::InsufficientPresence))))
+        }
+
+        Box::new(futures::collect(sends).map( |_| () ) )
     }
     fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
 
@@ -339,10 +348,10 @@ impl StorageCoreInterface for MemoryCore {
         for memoref in memorefs {
             if let Some(carrier) = self.memo_storage.get(&memoref.memo_id()) {
                 let mut peerset: MemoPeerSet =
-                    if let Some(dest_slabref) = maybe_dest_slabref {
+                    if let Some(ref dest_slabref) = maybe_dest_slabref {
                         // Tell the peer about all other presences except for ones belonging to them
                         // we don't need to tell them they have it. They know, they were there :)
-                        carrier.peerset.for_slabref(&dest_slabref)
+                        carrier.peerset.for_slabref(dest_slabref)
                     } else {
                         carrier.peerset.clone()
                     };

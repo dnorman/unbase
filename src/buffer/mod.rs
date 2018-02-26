@@ -6,12 +6,11 @@
 
 pub mod receiver;
 
-use serde_derive;
+//use serde_derive;
 use std::collections::HashMap;
 use serde_json;
-use serde::ser::Serialize;
-use serde::de::Deserialize;
-use std::mem;
+//use serde::ser::Serialize;
+//use serde::de::Deserialize;
 use futures::{future, stream, prelude::*};
 
 use error::*;
@@ -21,7 +20,7 @@ use slab::{self,prelude::*};
 use slab::storage::StorageCoreInterface;
 use itertools::Itertools;
 
-use self::receiver::BufferReceiver;
+//use self::receiver::BufferReceiver;
 
 // NOTE: Long run, probably don't want this cloneable.
 #[derive(Serialize,Deserialize,Clone)]
@@ -53,13 +52,13 @@ type SubjectOffset = SegmentId;
 
 /// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
 #[derive(Serialize,Deserialize,Clone)]
-struct MemoRefBuffer( MemoId, Option<Vec<MemoPeerStateBuffer>>, SubjectOffset );
+pub struct MemoRefBuffer( MemoId, Option<Vec<MemoPeerStateBuffer>>, SubjectOffset );
 
 #[derive(Serialize,Deserialize,Clone)]
 pub struct MemoBuffer( MemoRefOffset, Vec<MemoRefOffset>, MemoBodyBuffer );
 
 #[derive(Serialize,Deserialize,Clone)]
-enum MemoBodyBuffer {
+pub enum MemoBodyBuffer {
     SlabPresence{ p: SlabPresenceBuffer, r: Vec<MemoRefOffset> }, // TODO: split out root_index_seed conveyance to another memobody type
     Edge(EdgeSetBuffer),
     Edit(HashMap<String, String>),
@@ -69,15 +68,15 @@ enum MemoBodyBuffer {
     MemoRequest(Vec<MemoRefOffset>,Vec<SlabRefOffset>)
 }
 
-struct SlabRefBuffer {
+pub struct SlabRefBuffer {
     pub slab_id: slab::SlabId,
 }
 
 #[derive(Serialize,Deserialize,Clone)]
-struct SlabPresenceBuffer (SlabRefOffset, Vec<TransportAddress>, SlabAnticipatedLifetime);
+pub struct SlabPresenceBuffer (SlabRefOffset, Vec<TransportAddress>, SlabAnticipatedLifetime);
 
 #[derive(Serialize,Deserialize,Clone)]
-struct MemoPeerStateBuffer(
+pub struct MemoPeerStateBuffer(
     SlabRefOffset,
     MemoPeerStatus
 );
@@ -87,7 +86,7 @@ pub struct EdgeSetBuffer (pub HashMap<RelationSlotId, Vec<MemoRefOffset>>);
 
 
 impl NetworkBuffer{
-    pub fn new() -> Self {
+    pub fn new( from_slabref: SlabRef ) -> Self {
         let len = 1;
         NetworkBuffer{
             segments: Vec::with_capacity( 8 + (len * 6) ),  // Memo + Self memoref+peerset + Parent Memoref+peerset + Subject + Slabref + SlabPresence
@@ -99,7 +98,6 @@ impl NetworkBuffer{
     pub fn add_memoref_peerset_and_memo(&mut self, memoref: &MemoRef, peerset: &MemoPeerSet, memo: &Memo, ) {
         // QUESTION: Should we dedup memos here?
 
-        use slab::memo::MemoBody::*;
         let body = match memo.body {
             MemoBody::SlabPresence{ s, p, r } => {
                 // TODO: Don't ignore s?
@@ -287,55 +285,55 @@ impl NetworkBuffer{
 impl MemoBuffer {
     fn extract (self, segments: &Vec<NetbufSegment>, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>> {
 
+    // TODO 1: LEFT OFF HERE
 
-        // TODO 1: LEFT OFF HERE
+    let my_memo_id : MemoId;
+    let my_subject_id : SubjectId;
+
+    let mr_seg_id = self.0;
+    let parent_mr_seg_ids = self.1;
+    let bodybuf = self.2;
 
         let my_memo_id;
-        let my_subject_id : SubjectId;
+        let memo_subj_seg_id;
+        // TODO: Consider using middle field.
+        if let Some(&NetbufSegment::MemoRef(MemoRefBuffer(ref memo_id, _, ref subj_seg_id))) = segments.get(mr_seg_id as usize) {
+            my_memo_id = memo_id.clone();
+            memo_subj_seg_id = subj_seg_id;
 
-        if let MemoBuffer( mr_seg_id, parent_mr_seg_ids, bodybuf ) = self {
-            let my_memo_id;
-            let memo_subj_seg_id;
-            // TODO: Consider using middle field.
-            if let Some(&NetbufSegment::MemoRef(MemoRefBuffer(ref memo_id, _, ref subj_seg_id))) = segments.get(mr_seg_id as usize) {
-                my_memo_id = memo_id.clone();
-                memo_subj_seg_id = subj_seg_id;
-
-                if let Some(&NetbufSegment::Subject(ref subject_id)) = segments.get(*subj_seg_id as usize) {
-                    my_subject_id = *subject_id;
-                }else {
-                    return Box::new(future::result(Err(Error::Buffer(BufferError::DecodeFailed))));
-                }
+            if let Some(&NetbufSegment::Subject(ref subject_id)) = segments.get(*subj_seg_id as usize) {
+                my_subject_id = *subject_id;
             }else {
                 return Box::new(future::result(Err(Error::Buffer(BufferError::DecodeFailed))));
             }
-
-            let fut1 = stream::iter_ok::<_, ()>(parent_mr_seg_ids).map(|parent_mr_seg_id|{
-                // TODO: Consider renaming middle field.
-                if let Some(&NetbufSegment::MemoRef(MemoRefBuffer(ref parent_memo_id, _, ref parent_subj_seg_id))) = segments.get(parent_mr_seg_id as usize) {
-                    debug_assert_eq!(parent_subj_seg_id, memo_subj_seg_id );
-                    panic!();  // TODO: Definitely handle this case -- put_memoref needs a peerset.
-                    receiver.put_memoref(*parent_memo_id, my_subject_id, MemoPeerSet::empty())
-                } else {
-                    panic!(); // TODO: Handle this case.
-                }
-            });
-
-            panic!();  // TODO: Handle this case.
-            /*
-            Box::new(fut1.collect().and_then(|parent_memorefs| {
-                let memo = Memo {
-                    id: my_memo_id,
-                    subject_id: my_subject_id,
-                    parents: parent_memorefs,
-                    body: bodybuf,
-                };
-                receiver.put_memo(memo, MemoPeerSet::empty())
-            }))
-            */
         }else {
-            return Box::new(future::result(Err(Error::Buffer(BufferError::DecodeFailed))))
+            return Box::new(future::result(Err(Error::Buffer(BufferError::DecodeFailed))));
         }
+
+        let fut1 = stream::iter_ok::<_, ()>(parent_mr_seg_ids).map(|parent_mr_seg_id|{
+            // TODO: Consider renaming middle field.
+            if let Some(&NetbufSegment::MemoRef(MemoRefBuffer(ref parent_memo_id, _, ref parent_subj_seg_id))) = segments.get(parent_mr_seg_id as usize) {
+                debug_assert_eq!(parent_subj_seg_id, memo_subj_seg_id );
+                panic!();  // TODO: Definitely handle this case -- put_memoref needs a peerset.
+                receiver.put_memoref(*parent_memo_id, my_subject_id, MemoPeerSet::empty())
+            } else {
+                panic!(); // TODO: Handle this case.
+            }
+        });
+
+        panic!();  // TODO: Handle this case.
+        /*
+        Box::new(fut1.collect().and_then(|parent_memorefs| {
+            let memo = Memo {
+                id: my_memo_id,
+                subject_id: my_subject_id,
+                parents: parent_memorefs,
+                body: bodybuf,
+            };
+            receiver.put_memo(memo, MemoPeerSet::empty())
+        }))
+        */
+
 
     }
 }

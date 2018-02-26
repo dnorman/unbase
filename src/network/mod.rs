@@ -73,7 +73,7 @@ impl Network {
         if transport.is_local() {
             // Can only have one is_local transport at a time. Filter out any other local transports when adding this one
             let mut transports = self.transports.write().unwrap();
-            if let Some(removed) = transports.iter().position(|t| t.is_local()).map(|e| transports.remove(e)) {
+            if let Some(mut removed) = transports.iter().position(|t| t.is_local()).map(|e| transports.remove(e)) {
                 //println!("Unbinding local transport");
                 removed.unbind_network(self);
             }
@@ -148,14 +148,14 @@ impl Network {
 
         addresses
     }
-    pub fn register_local_slab(&self, new_slab: LocalSlabHandle) {
+    pub fn register_local_slab(&self, mut new_slab: LocalSlabHandle) {
         // println!("# Network.register_slab {:?}", new_slab );
 
         {
             self.localslabhandles.write().unwrap().insert(0, new_slab.clone());
         }
 
-        for prev_slab in self.get_all_local_slab_handles() {
+        for mut prev_slab in self.get_all_local_slab_handles() {
             prev_slab.register_local_slabref(&new_slab);
             new_slab.register_local_slabref(&prev_slab);
         }
@@ -185,7 +185,7 @@ impl Network {
             if seed_slabhandle.slabref == slabref {
                 if let Some(new_slab) = self.get_representative_slab() {
                     // Clone our old MRH under the newly selected slab
-                    *seed_mrh = seed_mrh.clone_for_slab(&seed_slabhandle, &new_slab, false);
+                    *seed_mrh = seed_mrh.clone_for_slab(seed_slabhandle, &new_slab, false);
                     *seed_slabhandle = new_slab;
                 } else {
                     take = true;
@@ -199,16 +199,16 @@ impl Network {
     }
     pub fn get_root_index_seed(&self, slab: &LocalSlabHandle) -> MemoRefHead {
         
-        let root_index_seed = self.root_index_seed.read().expect("root_index_seed read lock");
+        let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed read lock");
 
         match *root_index_seed {
-            Some((ref seed, ref from_slabhandle)) => {
+            Some((ref seed, ref mut from_slabhandle)) => {
         
                 if from_slabhandle.slabref == slab.slabref {
                     // seed is resident on the requesting slab
                     seed.clone()
                 } else {
-                    seed.clone_for_slab(&from_slabhandle, slab, true)
+                    seed.clone_for_slab(from_slabhandle, slab, true)
                 }
             }
             None => MemoRefHead::Null,

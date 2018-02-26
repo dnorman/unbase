@@ -88,7 +88,7 @@ impl MemoRef {
         // }))
     }
     // TODO: Remove _include_memo.
-    pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{
+    pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{
         debug_assert_eq!(from_slab.slab_id, self.owning_slab_id,       "Cannot clone foreign MemoRef");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
 

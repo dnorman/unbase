@@ -27,8 +27,8 @@ impl StorageRequester {
 }
 
 impl StorageCoreInterface for StorageRequester {
-    fn get_memo(&mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
-        Box::new( self.call(LocalSlabRequest::GetMemo{ memoref, allow_remote } ).and_then(|r| {
+    fn get_memo <'a> (&'a mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
+        Box::new(self.call(LocalSlabRequest::GetMemo{ memoref, allow_remote } ).and_then(|r| {
             if let LocalSlabResponse::GetMemo(memo) = r {
                 return Ok(memo)
             }else{

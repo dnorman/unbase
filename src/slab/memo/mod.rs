@@ -132,7 +132,7 @@ impl Memo {
 
         Box::new(future::result(Ok(false)))
     }
-    pub fn clone_for_slab (&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
+    pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
         debug_assert!(self.owning_slabref == from_slab.slabref, "Memo clone_for_slab owning slab should be identical");
 
         let memo = Memo{
@@ -150,7 +150,7 @@ impl Memo {
 }
 
 impl MemoBody {
-    fn clone_for_slab(&self, from_slab: &LocalSlabHandle, to_slab: &LocalSlabHandle ) -> MemoBody {
+    fn clone_for_slab(&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle ) -> MemoBody {
 
         match self {
             &MemoBody::SlabPresence{ ref s, ref p, ref r } => {
