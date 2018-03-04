@@ -1,20 +1,23 @@
 use std::rc::Rc;
 
+use futures;
+
 use super::core::MemoryCore;
 use network::{Network};
-use slab::{self, dispatcher::*, storage::{self, *}, prelude::*, Slab, counter::SlabCounter};
+use slab::{self, dispatcher::*, storage::*, prelude::*, Slab, counter::SlabCounter};
 use context::Context;
 
 use std::fmt;
 
-pub struct Memory<I> where I: StorageCoreInterface {
+pub struct Memory {
     slab_id: slab::SlabId,
-    storage_requester: I,
+    core: Rc<MemoryCore>,
     counter: Rc<SlabCounter>,
+    dispatcher: Dispatcher<MemoryCore>,
     net: Network
 }
 
-impl <I> Slab for Memory<I> where I: StorageCoreInterface {
+impl Slab for Memory {
     fn slab_id (&self) -> slab::SlabId{
         self.slab_id.clone()
     }
@@ -39,21 +42,27 @@ impl Memory {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
 
+
+        let (dispatcher_tx, dispatcher_rx) =
+            futures::unsync::mpsc::channel::<Dispatch>(1024);
+
         let counter = Rc::new(SlabCounter::new());
         let mut core = Rc::new(MemoryCore::new(
             slab_id,
             net.clone(),
             counter.clone(),
-            dispatcher
+            dispatcher_tx
         ));
-        let dispatcher = Dispatcher::new( net.clone(), core.clone(), counter.clone() );
+
+        let dispatcher: Dispatcher<MemoryCore> =
+            Dispatcher::new(net.clone(), core.clone(), dispatcher_rx );
 
         let me = Memory{
             slab_id,
             core,
             counter,
+            dispatcher,
             net: net.clone(),
-            storage_requester,
         };
 
         net.register_local_slab(me.get_handle());

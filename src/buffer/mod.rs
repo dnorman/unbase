@@ -329,8 +329,8 @@ impl MemoBuffer {
             // TODO: Consider renaming middle field.
             if let Some(&NetbufSegment::MemoRef(MemoRefBuffer(ref parent_memo_id, _, ref parent_subj_seg_id))) = segments.get(parent_mr_seg_id as usize) {
                 debug_assert_eq!(parent_subj_seg_id, memo_subj_seg_id );
-                panic!();  // TODO: Definitely handle this case -- put_memoref needs a peerset.
-                receiver.put_memoref(*parent_memo_id, my_subject_id, MemoPeerSet::empty())
+                unimplemented!();  // TODO: Definitely handle this case -- put_memoref needs a peerset.
+                //receiver.put_memoref(*parent_memo_id, my_subject_id, MemoPeerSet::empty())
             } else {
                 panic!(); // TODO: Handle this case.
             }
