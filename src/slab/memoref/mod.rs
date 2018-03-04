@@ -80,7 +80,9 @@ impl MemoRef {
 
 //     }
     pub fn descends (&self, _memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
-        debug_assert!(self.owning_slab_id == slab.slab_id());
+
+        #[cfg(debug_assertions)]
+        assert_eq!(self.owning_slab_id == slab.slab_id());
 
         unimplemented!();
         // Box::new(self.get_memo( slab ).and_then(|memo| {
@@ -89,7 +91,8 @@ impl MemoRef {
     }
     // TODO: Remove _include_memo.
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{
-        debug_assert_eq!(from_slab.slab_id, self.owning_slab_id,       "Cannot clone foreign MemoRef");
+        #[cfg(debug_assertions)]
+        assert_eq!(from_slab.slab_id, self.owning_slab_id,       "Cannot clone foreign MemoRef");
         //println!("Slab({}).Memoref.clone_for_slab({})", self.owning_slab_id, self.id);
 
         // Because our from_slabref is already owned by the destination slab, there is no need to do peerlist.clone_for_slab
@@ -123,7 +126,6 @@ impl fmt::Debug for MemoRef{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MemoRef")
            .field("id", &self.memo_id)
-           .field("owning_slab_id", &self.owning_slab_id)
            .field("subject_id", &self.subject_id)
         //    .field("resident", &match *self.ptr.read().unwrap() {
         //        MemoRefPtr::Remote      => false,

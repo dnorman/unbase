@@ -133,14 +133,17 @@ impl Memo {
         Box::new(future::result(Ok(false)))
     }
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
-        debug_assert!(self.owning_slabref == from_slab.slabref, "Memo clone_for_slab owning slab should be identical");
+        #[cfg(debug_assertions)]
+        assert_eq!(self.owning_slabref, from_slab.slabref, "Memo clone_for_slab owning slab should be identical");
 
         let memo = Memo{
             id:             self.id,
-            owning_slabref: to_slab.slabref.clone(),
             subject_id:     self.subject_id,
             parents:        self.parents.clone_for_slab(from_slab, to_slab, false),
-            body:           self.body.clone_for_slab(from_slab, to_slab)
+            body:           self.body.clone_for_slab(from_slab, to_slab),
+
+            #[cfg(debug_assertions)]
+            owning_slabref: to_slab.slabref.clone(),
         };
 
         to_slab.receive_memo_with_peerlist( memo.clone(), peerlist.clone(), from_slab.slabref.clone() );

@@ -1,4 +1,5 @@
 use stdweb::PromiseFuture;
+use futures::Future;
 
 pub struct Executor{}
 

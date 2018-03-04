@@ -1,12 +1,12 @@
 use std::collections::{HashMap, hash_map::Entry};
-use std::sync::Arc;
-use futures::{ future, prelude::*, sync::{mpsc,oneshot} };
+use std::rc::Rc;
+use futures::{self, future, prelude::*, sync::{mpsc,oneshot} };
 
 #[cfg(not(target_arch = "wasm32"))]
 mod thread;
 
 use network::Network;
-use slab::{prelude::*, storage::*, counter::SlabCounter};
+use slab::{prelude::*, storage::*};
 use subject::{SubjectId};
 use memorefhead::MemoRefHead;
 use error::Error;
@@ -16,29 +16,39 @@ pub enum Dispatch{
     WaitForMemo{ memoref: MemoRef, tx: oneshot::Sender<Result<Memo,Error>> },
 }
 
-pub struct Dispatcher<I> where I: StorageCoreInterface {
-    storage: I,
-
+pub struct Dispatcher<Core> where Core: StorageCoreInterface {
+    inner: Rc<DispatcherInner<Core>>
+}
+struct DispatcherInner<Core> where Core: StorageCoreInterface{
+    core: Rc<Core>,
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Result<Memo,Error>>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
     net: Network,
 }
 
-impl <I> Dispatcher<I> where I: StorageCoreInterface {
-    pub fn new ( net: Network, storage: I ) -> Dispatcher<I> {
+impl <Core> Dispatcher<Core> where Core: StorageCoreInterface {
+    pub fn new(net: Network, core: Rc<Core>, rx: futures::unsync::mpsc::Receiver<Dispatch>) -> Dispatcher<Core> {
 
-        //TODO: implement channel receive here
-        //let (tx,rx) = mpsc::unbounded::<Dispatch>();
-
-        Dispatcher{
-            storage,
-            memo_wait_channels:    HashMap::new(),
+        let inner: Rc<DispatcherInner<Core>> = Rc::new(DispatcherInner {
+            core,
+            memo_wait_channels: HashMap::new(),
             subject_subscriptions: HashMap::new(),
-            index_subscriptions:   Vec::new(),
-            net, 
+            index_subscriptions: Vec::new(),
+            net,
+        });
+
+        {
+            let mut inner: Rc<DispatcherInner<Core>> = inner.clone();
+            rx.map(move |d| {
+                inner.dispatch(d)
+            })
         }
+
+        Dispatcher { inner }
     }
+}
+impl <Core> DispatcherInner<Core> where Core: StorageCoreInterface {
     pub fn dispatch(&mut self, dispatch: Dispatch ) -> Box<Future<Item=(), Error=()>> {
 
         match dispatch {

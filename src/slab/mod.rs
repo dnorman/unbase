@@ -21,20 +21,21 @@ pub mod prelude {
 }
 
 /// Slab is the storage engine
-pub trait Slab {
+pub trait Slab<Core> where Core: StorageCoreInterface {
     fn slab_id(&self)        -> SlabId;
-    fn get_handle (&self)    -> LocalSlabHandle;
+    fn get_handle (&self)    -> LocalSlabHandle<Core>;
     fn get_slabref (&self)   -> self::SlabRef;
     fn get_net (&self)       -> network::Network;
     fn create_context(&self) -> context::Context;
 }
 
 
-use std::sync::Arc;
+use std::rc::Rc;
 
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::counter::SlabCounter;
+use self::storage::StorageCoreInterface;
 
 /// The actual identifier for a slab Storable
 pub type SlabId = u32;
@@ -69,12 +70,12 @@ pub struct SlabPresence {
 /// Handle to a slab which is resident within our process.
 /// (Not storable)
 #[derive(Clone)]
-pub struct LocalSlabHandle {
+pub struct LocalSlabHandle<Core> where Core: StorageCoreInterface {
     pub slab_id: SlabId,
     pub slabref: SlabRef,
     // under single threaded mode, this should be Rc<StorageCore>
-    pub storage: self::storage::StorageRequester,
-    pub counter: Arc<SlabCounter>,
+    pub core: Rc<Core>,
+    pub counter: Rc<SlabCounter>,
 }
 
 // /// Had to impl clone manually due to StorageInterfaceClonable

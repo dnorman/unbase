@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 //use futures::future;
 use futures::prelude::*;
 use futures::sync::mpsc;
@@ -14,14 +14,14 @@ use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
 
-impl LocalSlabHandle {
-    pub fn new (slabref: SlabRef, counter: Arc<SlabCounter>, storage: StorageRequester) -> LocalSlabHandle {
+impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
+    pub fn new (slabref: SlabRef, counter: Rc<SlabCounter>, core: Rc<Core>) -> LocalSlabHandle<Core> {
 
         LocalSlabHandle{
             slab_id: slabref.slab_id(),
             slabref,
             counter,
-            storage,
+            core,
         }
     }
 
@@ -72,7 +72,7 @@ impl LocalSlabHandle {
     pub fn slab_id(&self) -> slab::SlabId {
         self.slab_id.clone()
     }
-    pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle) {
+    pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle<Core>) {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
@@ -214,7 +214,7 @@ impl LocalSlabHandle {
 }
 
 
-impl fmt::Debug for LocalSlabHandle {
+impl <Core> fmt::Debug for LocalSlabHandle<Core> where Core: StorageCoreInterface {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LocalSlabHandle")
             .field("slab_id", &self.slab_id)
