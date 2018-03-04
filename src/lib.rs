@@ -39,11 +39,17 @@
 
 #![feature(proc_macro, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
 extern crate futures;
-extern crate tokio;
 extern crate core;
 extern crate itertools;
-extern crate nihdb;
 
+#[cfg(not(target_arch = "wasm32"))]
+extern crate nihdb;
+#[cfg(not(target_arch = "wasm32"))]
+extern crate tokio;
+
+#[cfg(target_arch = "wasm32")]
+#[macro_use]
+extern crate stdweb;
 
 #[macro_use]
 extern crate serde_derive;
@@ -62,6 +68,7 @@ pub mod memorefhead;
 pub mod util;
 pub mod subjecthandle;
 pub mod buffer;
+pub mod executor;
 
 // #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 // pub mod executor_std;

@@ -1,8 +1,9 @@
 use std::collections::{HashMap, hash_map::Entry};
 use std::sync::Arc;
 use futures::{ future, prelude::*, sync::{mpsc,oneshot} };
-use tokio::executor::current_thread;
-use std::thread;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod thread;
 
 use network::Network;
 use slab::{prelude::*, storage::*, counter::SlabCounter};
@@ -15,15 +16,8 @@ pub enum Dispatch{
     WaitForMemo{ memoref: MemoRef, tx: oneshot::Sender<Result<Memo,Error>> },
 }
 
-/// A Dispatcher is associated with a slab, and is notified via channel immediately after memos are written to slab storage.
-/// Dispatcher is responsible for peering and other response behaviors, as well as notifying any parties waiting for said memo
-pub struct Dispatcher{
-    pub tx: mpsc::UnboundedSender<Dispatch>,
-    worker_thread: thread::JoinHandle<()>
-}
-
-struct DispatcherInner{
-    storage: StorageRequester,
+pub struct Dispatcher<I> where I: StorageCoreInterface {
+    storage: I,
 
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Result<Memo,Error>>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
@@ -31,37 +25,20 @@ struct DispatcherInner{
     net: Network,
 }
 
-impl Dispatcher{
-    pub fn new ( net: Network, storage: StorageRequester, _counter: Arc<SlabCounter> ) -> Dispatcher {
+impl <I> Dispatcher<I> where I: StorageCoreInterface {
+    pub fn new ( net: Network, storage: I ) -> Dispatcher<I> {
 
-        let (tx,rx) = mpsc::unbounded::<Dispatch>();
+        //TODO: implement channel receive here
+        //let (tx,rx) = mpsc::unbounded::<Dispatch>();
 
-        let mut inner = DispatcherInner{
+        Dispatcher{
             storage,
             memo_wait_channels:    HashMap::new(),
             subject_subscriptions: HashMap::new(),
             index_subscriptions:   Vec::new(),
             net, 
-        };
-
-        let worker_thread = thread::spawn(move || {
-            current_thread::run(|_| {
-
-            let server = rx.for_each(move |dispatch| {
-                current_thread::spawn( inner.dispatch( dispatch ) );
-                future::result(Ok(()))
-            });
-
-            current_thread::spawn(server);
-
-            });
-        });
-
-        Dispatcher{ tx, worker_thread }
+        }
     }
-}
-
-impl DispatcherInner{
     pub fn dispatch(&mut self, dispatch: Dispatch ) -> Box<Future<Item=(), Error=()>> {
 
         match dispatch {
