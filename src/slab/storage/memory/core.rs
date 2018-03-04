@@ -91,8 +91,8 @@ impl StorageCore for MemoryCore {
     }
 }
 
-impl StorageCoreInterface for MemoryCore {
-    fn get_memo<'a> ( &'a mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
+impl <'a> StorageCoreInterface for &'a mut MemoryCore {
+    fn get_memo ( self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         let request_peers: Vec<SlabRef>;
@@ -178,7 +178,7 @@ impl StorageCoreInterface for MemoryCore {
 
         // TODO: Add timeout and retries
     }
-    fn send_memos (&mut self, slabrefs: &[SlabRef], memorefs: &[MemoRef]) -> Box<Future<Item=(), Error=Error>> {
+    fn send_memos ( self, slabrefs: &[SlabRef], memorefs: &[MemoRef]) -> Box<Future<Item=(), Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
         //TODO: accept a list of slabs, and split out the serialization so we can:
@@ -229,7 +229,7 @@ impl StorageCoreInterface for MemoryCore {
 
         Box::new(futures::collect(sends).map( |_| () ) )
     }
-    fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
+    fn put_memo( self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
 
         self.counter.increment_memos_received();
         use std::collections::hash_map::Entry::*;
@@ -258,7 +258,7 @@ impl StorageCoreInterface for MemoryCore {
 
         Box::new(future::result(Ok(memoref)))
     }
-    fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
+    fn put_memoref( self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
         // TODO:
         unimplemented!()
     }
@@ -306,7 +306,7 @@ impl StorageCoreInterface for MemoryCore {
 
     //     (memoref, had_memoref)
     // }
-    fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef> ) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>> {
+    fn get_slab_presence( self, slabrefs: Vec<SlabRef> ) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>> {
 
         let mut out = Vec::with_capacity(slabrefs.len());
 
@@ -327,7 +327,7 @@ impl StorageCoreInterface for MemoryCore {
         // TODO: update transmitter?
         Box::new(future::result(Ok( out )))
     }
-    fn put_slab_presence(&mut self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
+    fn put_slab_presence( self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>> {
         use std::collections::hash_map::Entry::*;
         match self.slab_presence_storage.entry(presence.slab_id) {
             Occupied(mut e) => {
@@ -341,7 +341,7 @@ impl StorageCoreInterface for MemoryCore {
         // TODO: update transmitter?
         Box::new(future::result(Ok( () )))
     }
-    fn get_peerset (&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>> {
+    fn get_peerset ( self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>> {
         //println!("MemoRef({}).get_peerlist_for_peer({:?},{:?})", self.id, my_ref, maybe_dest_slab_id);
 
         let mut peersets = Vec::new();

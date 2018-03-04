@@ -98,36 +98,43 @@ impl NetworkBuffer{
     pub fn add_memoref_peerset_and_memo(&mut self, memoref: &MemoRef, peerset: &MemoPeerSet, memo: &Memo, ) {
         // QUESTION: Should we dedup memos here?
 
-        let body = match memo.body {
-            MemoBody::SlabPresence{ s, p, r } => {
+        let body: MemoBodyBuffer = match memo.body {
+            MemoBody::SlabPresence{ ref s, ref p, ref r } => {
                 // TODO: Don't ignore s?
                 MemoBodyBuffer::SlabPresence {
                     p: SlabPresenceBuffer(0 /* TODO: offset */, p.addresses, p.lifetime),
-                    r: r.iter().map(|mr| self.add_memoref(*mr, self.add_subject(mr.subject_id))).collect(), // Assuming parents are the same subject_id as child
+                    r: r.iter().map(|memoref| {
+                        let subj_offset = self.add_subject(memoref.subject_id);
+                        self.add_memoref(memoref, subj_offset)
+                    }).collect(), // Assuming parents are the same subject_id as child
                 }
             },
-            MemoBody::Edge(edgeset) => {
+            MemoBody::Edge(ref edgeset) => {
                 MemoBodyBuffer::Edge(self.add_edge(edgeset))
             },
-            MemoBody::Edit(hm) => {
-                MemoBodyBuffer::Edit(hm)
+            MemoBody::Edit(ref hm) => {
+                MemoBodyBuffer::Edit(hm.clone())
             },
-            MemoBody::FullyMaterialized{ v, e, .. } => {
-                MemoBodyBuffer::FullyMaterialized{ v, e: self.add_edge(e) }
+            MemoBody::FullyMaterialized{ ref v, ref e, .. } => {
+                MemoBodyBuffer::FullyMaterialized{ v: v.clone(), e: self.add_edge(e) }
             },
-            MemoBody::PartiallyMaterialized{ v, e, .. } => {
-                MemoBodyBuffer::PartiallyMaterialized{ v, e: self.add_edge(e) }
+            MemoBody::PartiallyMaterialized{ ref v, ref e, .. } => {
+                MemoBodyBuffer::PartiallyMaterialized{ v: v.clone(), e: self.add_edge(e) }
             },
-            MemoBody::Peering(mr, peerset) => {
-                let memoref_offset = self.add_memoref(mr, self.add_subject(mr.subject_id));
+            MemoBody::Peering(ref memoref, ref peerset) => {
+                let subj_offset = self.add_subject(memoref.subject_id);
+                let memoref_offset = self.add_memoref(memoref, subj_offset);
                 MemoBodyBuffer::Peering(
                     memoref_offset,
                     peerset.list.iter().map(|ps| MemoPeerStateBuffer(self.add_slabref(&ps.slabref), ps.status)).collect()
                 )
             },
-            MemoBody::MemoRequest(memorefs, slabrefs) =>{
+            MemoBody::MemoRequest(ref memorefs, ref slabrefs) =>{
                 MemoBodyBuffer::MemoRequest(
-                    memorefs.into_iter().map(|mr| self.add_memoref(mr, self.add_subject(mr.subject_id))).collect(),
+                    memorefs.into_iter().map(|memoref|{
+                        let subj_offset = self.add_subject(memoref.subject_id);
+                        self.add_memoref(memoref, subj_offset)
+                    }).collect(),
                     slabrefs.into_iter().map(|r| self.add_slabref(&r) ).collect()
                 )
             }
@@ -137,32 +144,37 @@ impl NetworkBuffer{
 
         let buf = MemoBuffer(
             self.add_memoref_and_peerset(memoref, subj_offset, peerset),
-            memo.parents.iter().map(|mr| self.add_memoref(*mr, subj_offset)).collect(), // Assuming parents are the same subject_id as child
+            memo.parents.iter().map(|memoref| self.add_memoref(memoref, subj_offset)).collect(), // Assuming parents are the same subject_id as child
             body
         );
 
         self.segments.push( NetbufSegment::Memo(buf) );
     }
-    pub fn populate_memopeersets<F> (&mut self, f: F ) where F: FnMut(&MemoRef) -> MemoPeerSet {
-        for (seg_id,memoref,added_peerset) in self.memoref_offsets.drain(..) {
+    pub fn populate_memopeersets<F> (&mut self, mut f: F )
+        where F: FnMut(&MemoRef) -> MemoPeerSet {
 
+        self.memoref_offsets.drain(..).filter_map(|(seg_id,memoref,added_peerset)|{
             if added_peerset == false {
-
-                let peerstates1 = f(&memoref).list.iter().map(|peerstate| {
-                    MemoPeerStateBuffer(
-                        self.add_slabref(&peerstate.slabref),
-                        peerstate.status.clone()
-                    )
-                }).collect();
-
-                if let Some(&mut NetbufSegment::MemoRef(
-                    MemoRefBuffer(ref _memoId, ref maybe_peerstates, ref _subjectOffset)
-                    )) = self.segments.get_mut(seg_id as usize) {
-                    *maybe_peerstates = Some(peerstates1);
-                    added_peerset = true;
-                }
+                Some((seg_id, f(&memoref)))
+            }else{
+                None
             }
-        }
+        }).for_each(|(seg_id, peerset)|{
+
+            let peerstates: Vec<MemoPeerStateBuffer> = peerset.list.iter().map(|peerstate| {
+                MemoPeerStateBuffer(
+                    self.add_slabref(&peerstate.slabref),
+                    peerstate.status.clone()
+                )
+            }).collect();
+
+            if let Some(&mut NetbufSegment::MemoRef(
+                MemoRefBuffer(ref _memoId, ref maybe_peerstates, ref _subjectOffset)
+            )) = self.segments.get_mut(seg_id as usize) {
+                *maybe_peerstates = Some(peerstates);
+                //added_peerset = true;
+            }
+        });
     }
     pub fn populate_slabpresences<F> (&mut self, f: F ) where F: FnMut(&MemoRef) -> MemoPeerSet {
         for offset in self.slabref_offsets.drain(..) {
@@ -201,7 +213,7 @@ impl NetworkBuffer{
                 let memopeer_states = peerset.list.iter().map(|peerstate| {
                     MemoPeerStateBuffer(
                         self.add_slabref(&peerstate.slabref ),
-                        peerstate.status
+                        peerstate.status.clone(),
                     )
                 }).collect();
 
@@ -213,8 +225,8 @@ impl NetworkBuffer{
             }
         }
     }
-    fn add_memoref(&mut self, memoref: MemoRef, subj_offset: SubjectOffset ) -> MemoRefOffset {
-        match self.memoref_offsets.binary_search_by(|x| x.1.cmp(&memoref) ){
+    fn add_memoref(&mut self, memoref: &MemoRef, subj_offset: SubjectOffset ) -> MemoRefOffset {
+        match self.memoref_offsets.binary_search_by(|x| x.1.cmp(memoref) ){
             Ok(i) => {
                 self.memoref_offsets[i].0
             }
@@ -228,10 +240,13 @@ impl NetworkBuffer{
             }
         }
     }
-    fn add_edge(&mut self, e: EdgeSet) -> EdgeSetBuffer {
+    fn add_edge(&mut self, e: &EdgeSet) -> EdgeSetBuffer {
         let mut build = HashMap::new();
         for (slot_id,mrh) in e.0 {
-            build.insert( slot_id, mrh.iter().map(|mr| self.add_memoref(*mr, self.add_subject(mr.subject_id))).collect() );
+            build.insert( slot_id, mrh.iter().map(|memoref| {
+                let subj_offset = self.add_subject(memoref.subject_id);
+                self.add_memoref(memoref, subj_offset)
+            }).collect() );
         }
         EdgeSetBuffer(build)
     }

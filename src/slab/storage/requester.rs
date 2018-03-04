@@ -26,8 +26,8 @@ impl StorageRequester {
     }
 }
 
-impl StorageCoreInterface for StorageRequester {
-    fn get_memo <'a> (&'a mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
+impl <'a> StorageCoreInterface for &'a StorageRequester {
+    fn get_memo (self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
         Box::new(self.call(LocalSlabRequest::GetMemo{ memoref, allow_remote } ).and_then(|r| {
             if let LocalSlabResponse::GetMemo(memo) = r {
                 return Ok(memo)
@@ -36,7 +36,7 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
-    fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
+    fn put_memo(self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::PutMemo{ memo, peerset, from_slabref } ).and_then(|r| {
             if let LocalSlabResponse::PutMemo(memoref) = r {
                 return Ok(memoref);
@@ -45,11 +45,11 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
-        fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
+        fn put_memoref( self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>> {
             // TODO: Implement
             unimplemented!()
         }
-    fn send_memos ( &mut self, to_slabrefs: &[SlabRef], memorefs: &[MemoRef] ) -> Box<Future<Item=(), Error=Error>>{
+    fn send_memos ( self, to_slabrefs: &[SlabRef], memorefs: &[MemoRef] ) -> Box<Future<Item=(), Error=Error>>{
         Box::new( self.call(LocalSlabRequest::SendMemo{ to_slabrefs: to_slabrefs.to_vec(), memorefs: memorefs.to_vec() } ).and_then(|r| {
             if let LocalSlabResponse::SendMemo(_) = r {
                 return Ok(())
@@ -58,7 +58,7 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
-    fn put_slab_presence (&mut self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>>{
+    fn put_slab_presence ( self, presence: SlabPresence ) -> Box<Future<Item=(), Error=Error>>{
         Box::new( self.call(LocalSlabRequest::PutSlabPresence{ presence } ).and_then(|r| {
             if let LocalSlabResponse::SendMemo(_) = r {
                 return Ok(())
@@ -67,7 +67,7 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
-    fn get_slab_presence (&mut self, slabrefs: Vec<SlabRef>) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>>{
+    fn get_slab_presence ( self, slabrefs: Vec<SlabRef>) -> Box<Future<Item=Vec<SlabPresence>, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetSlabPresence{ slabrefs } ).and_then(|r| {
             if let LocalSlabResponse::GetSlabPresence(presences) = r {
                 return Ok(presences)
@@ -76,7 +76,7 @@ impl StorageCoreInterface for StorageRequester {
             }
         }))
     }
-    fn get_peerset (&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>>{
+    fn get_peerset ( self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Box<Future<Item=Vec<MemoPeerSet>, Error=Error>>{
         Box::new( self.call(LocalSlabRequest::GetPeerSet{ memorefs, maybe_dest_slabref } ).and_then(|r| {
             if let LocalSlabResponse::GetPeerSet(peersets) = r {
                 return Ok(peersets)

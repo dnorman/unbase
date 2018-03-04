@@ -35,9 +35,11 @@ impl NetworkReceiver{
         }
     }
     pub fn get_representative_slab<'a> (&'a mut self) -> Option<&'a LocalSlabHandle> {
-        for handle in self.slabs.iter() {
-            if handle.is_live() {
-                return Some(&handle);
+        {
+            for handle in self.slabs.iter() {
+                if handle.is_live() {
+                    return Some(&handle);
+                }
             }
         }
         if let Some(net) = self.net.upgrade() {

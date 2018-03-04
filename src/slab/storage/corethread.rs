@@ -1,6 +1,7 @@
+
 use futures::{future, {Stream,Future}, sync::{mpsc,oneshot}};
+use ::executor::Executor;
 use std::thread;
-use tokio::executor::current_thread;
 
 use super::*;
 
@@ -8,12 +9,13 @@ pub struct CoreThread{
     worker_thread: thread::JoinHandle<()>
 }
 
-struct CoreThreadInner{
-    core: Box<StorageCoreInterface+Send> 
+struct CoreThreadInner<'a, T> where &'a mut T: StorageCoreInterface+Send+'a {
+    core: T
 }
 
 impl CoreThread{
-    pub fn new (core: Box<StorageCoreInterface+Send>, request_rx:  mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) -> CoreThread {
+    pub fn new<'a, T> (core: T, request_rx:  mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) -> CoreThread
+        where &'a mut T: StorageCoreInterface + Send + 'a {
 
         let mut inner = CoreThreadInner{ core };
 
@@ -21,11 +23,11 @@ impl CoreThread{
             current_thread::run(|_| {
 
             let server = request_rx.for_each(move |(request, resp_channel)| {
-                current_thread::spawn( inner.dispatch_request(request,resp_channel) );
+                Executor::spawn( inner.dispatch_request(request,resp_channel) );
                 future::result(Ok(()))
             });
 
-            current_thread::spawn(server);
+            Executor::spawn(server);
 
             });
         });
@@ -35,13 +37,13 @@ impl CoreThread{
     }
 }
 
-impl CoreThreadInner{
+impl <'a,'b, T> CoreThreadInner<'a, T> where &'a mut T: StorageCoreInterface+Send+'b {
     fn dispatch_request(&mut self,request: LocalSlabRequest, responder: oneshot::Sender<Result<LocalSlabResponse,Error>>) -> Box<Future<Item=(), Error=()>> {
         use slab::storage::LocalSlabRequest::*;
 
         // NFI how to do match statements which return different futures
         if let GetMemo{ memoref, allow_remote } = request {
-            return Box::new( self.core.get_memo(memoref, allow_remote).then(|r| {
+            return Box::new( (&mut self.core).get_memo(memoref, allow_remote).then(|r| {
                 match r {
                     Ok(maybe_memo)  => responder.send(Ok(LocalSlabResponse::GetMemo( maybe_memo ) )),
                     Err(e)          => responder.send(Err(e))
