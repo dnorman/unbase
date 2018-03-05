@@ -20,7 +20,8 @@ exclude = [
 
 [dependencies]
 
-futures = "0.1.17"
+#futures = "0.1.17"
+futures-await = "0.1.0"
 itertools = "0.5.9"
 
 sha2 = "0.4.0"

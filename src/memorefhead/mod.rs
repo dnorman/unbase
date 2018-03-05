@@ -4,8 +4,7 @@ use slab::prelude::*;
 use subject::*;
 use error::*;
 
-use futures::prelude::*;
-use std::mem;
+use futures::{self,prelude::*};
 use std::fmt;
 use std::slice;
 use std::collections::VecDeque;
@@ -56,11 +55,75 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
+    pub fn memo_ids (&self) -> Vec<MemoId> {
+        match *self {
+            MemoRefHead::Null => Vec::new(),
+            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.memo_id).collect()
+        }
+    }
+    pub fn subject_id (&self) -> SubjectId {
+        match *self {
+            MemoRefHead::Null | MemoRefHead::Anonymous{..} => SubjectId::anonymous(),
+            MemoRefHead::Subject{ subject_id, .. }         => subject_id
+        }
+    }
+    pub fn is_some (&self) -> bool {
+        match *self {
+            MemoRefHead::Null => false,
+            _                 => true
+        }
+    }
+    pub fn to_vec (self) -> Vec<MemoRef> {
+        match *self {
+            MemoRefHead::Null => vec![],
+            MemoRefHead::Anonymous { head, .. } | MemoRefHead::Subject{  head, .. }   => head
+        }
+    }
+    pub fn to_vecdeque (&self) -> VecDeque<MemoRef> {
+        match *self {
+            MemoRefHead::Null       => VecDeque::new(),
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
+        }
+    }
+    pub fn len (&self) -> usize {
+        match *self {
+            MemoRefHead::Null       =>  0,
+            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => head.len()
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn iter (&self) -> slice::Iter<MemoRef> {
+
+        // This feels pretty stupid. Probably means something is wrong with the factorization of MRH
+        static EMPTY : &'static [MemoRef] = &[];
+
+        match *self {
+            MemoRefHead::Null                    => EMPTY.iter(), // HACK
+            MemoRefHead::Anonymous{ ref head } | MemoRefHead::Subject{ ref head, .. } => head.iter()
+        }
+    }
+    pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
+        assert!(from_slab.slab_id != to_slab.slab_id(), "slab id should differ");
+        match *self {
+            MemoRefHead::Null                    => MemoRefHead::Null,
+            MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
+                head: head.iter().map(|mr| mr.clone_for_slab(from_slab, to_slab, include_memos )).collect()
+            },
+            MemoRefHead::Subject{ subject_id, ref head } => MemoRefHead::Subject {
+                subject_id: subject_id,
+                head:       head.iter().map(|mr| mr.clone_for_slab(from_slab, to_slab, include_memos )).collect()
+            }
+        }
+    }
+
 }
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
+#[derive(Clone)]
 pub struct MemoRefHeadOuter(pub Rc<RefCell<MemoRefHead>>);
 
 impl MemoRefHeadOuter {
@@ -101,62 +164,65 @@ impl MemoRefHeadOuter {
         // new items are more likely to be at the end, and that's more likely to trigger
         // the cheapest case: (existing descends new)
 
-        'existing: for i in (0..head.len()).rev() {
-            let mut remove = false;
-            {
-                let ref mut existing: &mut MemoRef = head[i];
-                if existing == new {
-                    return Ok(false); // we already had this
-
-                } else if existing.descends(&new,&slab).wait()? {
-                    new_is_descended = true;
-
-                    // IMPORTANT: for the purposes of the boolean return,
-                    // the new memo does not get "applied" in this case
-
-                    // If any memo in the head already descends the newcomer,
-                    // then it doesn't get applied at all punt the whole thing
-                    break 'existing;
-
-                } else if new.descends(&existing, &slab).wait()? {
-                    new_descends = true;
-                    applied = true; // descends
-
-                    if replaced {
-                        remove = true;
-                    }else{
-                        // Lets try real hard not to remove stuff in the middle of the vec
-                        // But we only get to do this trick once, because we don't want to add duplicates
-                        mem::replace( existing, new.clone() );
-                        replaced = true;
-                    }
-
-                }
-            }
-
-            if remove {
-                // because we're descending, we know the offset of the next items won't change
-                head.remove(i);
-            }
-        }
-
-        if !new_descends && !new_is_descended  {
-            // if the new memoref neither descends nor is descended
-            // then it must be concurrent
-
-            head.push(new.clone());
-            applied = true; // The memoref was "applied" to the MemoRefHead
-        }
-
-        // This memoref was applied if it was concurrent, or descends one or more previous memos
-
-        if applied {
-            //println!("# \t\\ Was applied - {:?}", self.memo_ids());
-        }else{
-            //println!("# \t\\ NOT applied - {:?}", self.memo_ids());
-        }
-
-       Ok(applied)
+        unimplemented!()
+        // TODO: Convert this to Futures
+//        'existing: for i in (0..head.len()).rev() {
+//            let mut remove = false;
+//            {
+//                let ref mut existing: &mut MemoRef = head[i];
+//                if existing == new {
+//                    return Ok(false); // we already had this
+//
+//
+//                } else if existing.descends(&new,&slab).wait()? {
+//                    new_is_descended = true;
+//
+//                    // IMPORTANT: for the purposes of the boolean return,
+//                    // the new memo does not get "applied" in this case
+//
+//                    // If any memo in the head already descends the newcomer,
+//                    // then it doesn't get applied at all punt the whole thing
+//                    break 'existing;
+//
+//                } else if new.descends(&existing, &slab).wait()? {
+//                    new_descends = true;
+//                    applied = true; // descends
+//
+//                    if replaced {
+//                        remove = true;
+//                    }else{
+//                        // Lets try real hard not to remove stuff in the middle of the vec
+//                        // But we only get to do this trick once, because we don't want to add duplicates
+//                        mem::replace( existing, new.clone() );
+//                        replaced = true;
+//                    }
+//
+//                }
+//            }
+//
+//            if remove {
+//                // because we're descending, we know the offset of the next items won't change
+//                head.remove(i);
+//            }
+//        }
+//
+//        if !new_descends && !new_is_descended  {
+//            // if the new memoref neither descends nor is descended
+//            // then it must be concurrent
+//
+//            head.push(new.clone());
+//            applied = true; // The memoref was "applied" to the MemoRefHead
+//        }
+//
+//        // This memoref was applied if it was concurrent, or descends one or more previous memos
+//
+//        if applied {
+//            //println!("# \t\\ Was applied - {:?}", self.memo_ids());
+//        }else{
+//            //println!("# \t\\ NOT applied - {:?}", self.memo_ids());
+//        }
+//
+//       Ok(applied)
     }
     pub fn apply_memorefs (&self, new_memorefs: &Vec<MemoRef>, slab: &LocalSlabHandle) -> Result<(),Error> {
         for new in new_memorefs.iter(){
@@ -164,16 +230,18 @@ impl MemoRefHeadOuter {
         }
         Ok(())
     }
-    pub fn apply (&self, other: &MemoRefHead, slab: &LocalSlabHandle) -> Result<bool,Error> {
+    pub fn apply (&self, other: MemoRefHead, slab: LocalSlabHandle) -> Box<Future<Item=bool,Error=Error>> {
         let mut applied = false;
 
-        for new in other.iter(){
-            if self.apply_memoref( new, slab )? {
-                applied = true;
-            }
-        }
+        let self_dup = self.clone();
 
-        Ok(applied)
+        futures::stream::iter_ok::<MemoRef, ()>(other.to_vec().drain(..)).fold(false, move |acc, memoref|{
+            self_dup.apply_memoref( memoref, slab ).and_then(|applied| {
+                if applied {
+                    *acc = true;
+                }
+            })
+        })
     }
 
     /// Test to see if this MemoRefHead fully descends another
@@ -208,55 +276,7 @@ impl MemoRefHeadOuter {
             }
         }
     }
-    pub fn memo_ids (&self) -> Vec<MemoId> {
-        match *self {
-            MemoRefHead::Null => Vec::new(),
-            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => head.iter().map(|m| m.memo_id).collect()
-        }
-    }
-    pub fn subject_id (&self) -> SubjectId {
-        match *self {
-            MemoRefHead::Null | MemoRefHead::Anonymous{..} => SubjectId::anonymous(),
-            MemoRefHead::Subject{ subject_id, .. }         => subject_id
-        }
-    }
-    pub fn is_some (&self) -> bool {
-        match *self {
-            MemoRefHead::Null => false,
-            _                 => true
-        }
-    }
-    pub fn to_vec (&self) -> Vec<MemoRef> {
-        match *self {
-            MemoRefHead::Null => vec![],
-            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => head.clone()
-        }
-    }
-    pub fn to_vecdeque (&self) -> VecDeque<MemoRef> {
-        match *self {
-            MemoRefHead::Null       => VecDeque::new(),
-            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => VecDeque::from(head.clone())
-        }
-    }
-    pub fn len (&self) -> usize {
-        match *self {
-            MemoRefHead::Null       =>  0,
-            MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. }   => head.len()
-        }
-    }
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-    pub fn iter (&self) -> slice::Iter<MemoRef> {
 
-        // This feels pretty stupid. Probably means something is wrong with the factorization of MRH
-        static EMPTY : &'static [MemoRef] = &[];
-
-        match *self {
-            MemoRefHead::Null                    => EMPTY.iter(), // HACK
-            MemoRefHead::Anonymous{ ref head } | MemoRefHead::Subject{ ref head, .. } => head.iter()
-        }
-    }
     pub fn causal_memo_iter(&self, slab: &LocalSlabHandle ) -> CausalMemoIter {
         CausalMemoIter::from_head( self, slab )
     }
@@ -270,7 +290,7 @@ impl MemoRefHeadOuter {
             },
             MemoRefHead::Anonymous { ref head, .. } | MemoRefHead::Subject{  ref head, .. } => head
         };
-        
+
         for memoref in head.iter(){
             // TODO: update head iter to be a stream
             let memo = slab.get_memo(memoref.clone(), true ).wait().unwrap();
@@ -283,19 +303,6 @@ impl MemoRefHeadOuter {
         }
 
         true
-    }
-    pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
-        assert!(from_slab.slab_id != to_slab.slab_id(), "slab id should differ");
-        match *self {
-            MemoRefHead::Null                    => MemoRefHead::Null,
-            MemoRefHead::Anonymous { ref head }  => MemoRefHead::Anonymous{
-                head: head.iter().map(|mr| mr.clone_for_slab(from_slab, to_slab, include_memos )).collect()
-            },
-            MemoRefHead::Subject{ subject_id, ref head } => MemoRefHead::Subject {
-                subject_id: subject_id,
-                head:       head.iter().map(|mr| mr.clone_for_slab(from_slab, to_slab, include_memos )).collect()
-            }
-        }
     }
 }
 
