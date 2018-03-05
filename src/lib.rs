@@ -48,7 +48,7 @@ extern crate nihdb;
 extern crate tokio;
 
 #[cfg(target_arch = "wasm32")]
-#[macro_use]
+//#[macro_use]
 extern crate stdweb;
 
 #[macro_use]

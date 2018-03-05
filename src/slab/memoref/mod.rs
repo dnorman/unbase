@@ -1,10 +1,13 @@
 use subject::SubjectId;
 use slab::{self, prelude::*};
-use memorefhead::MemoRefHead;
+use memorefhead::*;
 use error::Error;
 
 use std::fmt;
 use futures::prelude::*;
+
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Clone, Eq, PartialOrd, Ord)]
 pub struct MemoRef {
@@ -39,6 +42,9 @@ impl MemoRef {
                 head: vec![self.clone()]
             }
         }
+    }
+    pub fn to_head_outer (&self) -> MemoRefHeadOuter {
+        MemoRefHeadOuter( Rc::new(RefCell::new(self.to_head())) )
     }
     // pub fn is_resident(&self) -> bool {
     //     unimplemented!()
@@ -80,15 +86,13 @@ impl MemoRef {
 //         }
 
 //     }
-    pub fn descends (&self, _memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
-
+    pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
         #[cfg(debug_assertions)]
         assert_eq!(self.owning_slab_id == slab.slab_id());
 
-        unimplemented!();
-        // Box::new(self.get_memo( slab ).and_then(|memo| {
-        //     memo.descends(memoref,slab)
-        // }))
+         Box::new(slab.get_memo(self, true).and_then(|memo:Memo| {
+             memo.descends(memoref,slab)
+         }))
     }
     // TODO: Remove _include_memo.
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{

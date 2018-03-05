@@ -31,6 +31,7 @@ pub trait Slab {
 
 
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
@@ -73,7 +74,7 @@ pub struct SlabPresence {
 pub struct LocalSlabHandle {
     pub slab_id: SlabId,
     pub slabref: SlabRef,
-    pub core: Rc<StorageCoreInterface>,
+    pub core: Rc<RefCell<StorageCoreInterface>>,
     pub counter: Rc<SlabCounter>,
 }
 

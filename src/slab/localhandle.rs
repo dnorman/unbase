@@ -26,7 +26,7 @@ impl LocalSlabHandle {
 
     pub fn get_memo (&self, _memoref: MemoRef, _allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
 //        use slab::storage::StorageMemoRetrieval::*;
-//        self.core.get_memo(memoref,allow_remote).and_then(|r|{
+//        self.core.borrow_mut().get_memo(memoref,allow_remote).and_then(|r|{
 //            match r {
 //                Found(memo)     => Box::new(future::result(Ok(memo))),
 //                Remote(peerset) => {
@@ -49,11 +49,11 @@ impl LocalSlabHandle {
         //     Err(Either::B((timeout_error, _get))) => Err(From::from(timeout_error)),
         // });
     }
-    pub fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
-        self.core.put_memo(memo, peerset, from_slabref)
+    pub fn put_memo(&self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
+        self.core.borrow_mut().put_memo(memo, peerset, from_slabref)
     }
     pub fn put_slab_presence(&mut self, presence: SlabPresence ) -> SlabRef {
-        self.core.put_slab_presence(presence.clone()).wait().unwrap();
+        self.core.borrow_mut().put_slab_presence(presence.clone()).wait().unwrap();
 
         SlabRef{
             owning_slab_id: self.slab_id,
@@ -62,10 +62,10 @@ impl LocalSlabHandle {
     }
 
     pub fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
-        self.core.get_slab_presence(slabrefs).wait()
+        self.core.borrow_mut().get_slab_presence(slabrefs).wait()
     }
     pub fn get_peerset(&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
-        self.core.get_peerset(memorefs, maybe_dest_slabref).wait()
+        self.core.borrow_mut().get_peerset(memorefs, maybe_dest_slabref).wait()
     }
 
     pub fn slab_id(&self) -> slab::SlabId {
@@ -103,7 +103,7 @@ impl LocalSlabHandle {
     pub fn remotize_memo_ids( &self, _memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  {
         unimplemented!();
     }
-    pub (crate) fn observe_subject (&self, _subject_id: SubjectId ) -> mpsc::Receiver<MemoRefHead> {
+    pub (crate) fn observe_subject (&self, _subject_id: SubjectId ) -> Box<Stream<Item = MemoRefHead, Error = Error>> {
 
         // let (tx, rx) = mpsc::channel::<MemoRefHead>(1);
         unimplemented!()
@@ -136,12 +136,12 @@ impl LocalSlabHandle {
         let id = (self.slab_id as u64).rotate_left(32) | self.counter.next_subject_id() as u64;
         SubjectId{ id, stype }
     }
-    pub fn new_memo ( &self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> MemoRef {
+    pub fn new_memo (&self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> Box<Future<Item=MemoRef,Error=Error>> {
         let memo_id = (self.slab_id as u64).rotate_left(32) | self.counter.next_memo_id() as u64;
 
         //println!("# Slab({}).new_memo(id: {},subject_id: {:?}, parents: {:?}, body: {:?})", self.slab_id, memo_id, subject_id, parents.memo_ids(), body );
 
-        let _memo = Memo {
+        let memo = Memo {
             id:    memo_id,
             subject_id,
             parents,
@@ -151,14 +151,8 @@ impl LocalSlabHandle {
             owning_slabref: self.slabref.clone(),
         };
 
-        // TODO1 figure out if put_memo should give back a remoref. Probably Yes??
-        unimplemented!();
-        //let (memoref, _had_memoref) = self.put_memo( memo, vec![], self.slabref ).wait();
+        self.put_memo( memo, vec![], self.slabref )
 
-        // TODO1 figure out where and how this should be called
-        //self.consider_emit_memo(&memoref);
-
-        //memoref
     }
     pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),Error> {
 
@@ -208,10 +202,10 @@ impl LocalSlabHandle {
     pub fn peer_slab_count (&self) -> usize {
         self.counter.get_peer_slabs() as usize
     }
-    pub fn new_memo_basic (&self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> MemoRef {
+    pub fn new_memo_basic (&self, subject_id: SubjectId, parents: MemoRefHead, body: MemoBody) -> Box<Future<Item=MemoRef, Error=Error>> {
         self.new_memo(subject_id, parents, body)
     }
-    pub fn new_memo_basic_noparent (&self, subject_id: SubjectId, body: MemoBody) -> MemoRef {
+    pub fn new_memo_basic_noparent (&self, subject_id: SubjectId, body: MemoBody) -> Box<Future<Item=MemoRef, Error=Error>> {
         self.new_memo(subject_id, MemoRefHead::Null, body)
     }
 

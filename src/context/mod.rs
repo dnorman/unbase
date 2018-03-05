@@ -8,7 +8,6 @@ use error::*;
 
 use std::collections::HashMap;
 use futures::unsync::mpsc;
-use std::thread;
 
 use index::IndexFixed;
 use slab::Slab;
