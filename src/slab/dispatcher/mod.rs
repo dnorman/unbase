@@ -1,6 +1,6 @@
 use std::collections::{HashMap, hash_map::Entry};
 use std::rc::Rc;
-use futures::{self, future, prelude::*, sync::{mpsc,oneshot} };
+use futures::{self, future, prelude::*, unsync::{mpsc,oneshot} };
 
 #[cfg(not(target_arch = "wasm32"))]
 mod thread;
@@ -10,27 +10,28 @@ use slab::{prelude::*, storage::*};
 use subject::{SubjectId};
 use memorefhead::MemoRefHead;
 use error::Error;
+use ::executor::Executor;
 
 pub enum Dispatch{
     GotMemo{ memo: Memo, memoref: MemoRef, from_slabref: SlabRef },
     WaitForMemo{ memoref: MemoRef, tx: oneshot::Sender<Result<Memo,Error>> },
 }
 
-pub struct Dispatcher<Core> where Core: StorageCoreInterface {
-    inner: Rc<DispatcherInner<Core>>
+pub struct Dispatcher {
+    inner: Rc<DispatcherInner>
 }
-struct DispatcherInner<Core> where Core: StorageCoreInterface{
-    core: Rc<Core>,
+struct DispatcherInner {
+    core: Rc<StorageCoreInterface>,
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Result<Memo,Error>>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
     net: Network,
 }
 
-impl <Core> Dispatcher<Core> where Core: StorageCoreInterface {
-    pub fn new(net: Network, core: Rc<Core>, rx: futures::unsync::mpsc::Receiver<Dispatch>) -> Dispatcher<Core> {
+impl Dispatcher {
+    pub fn new(net: Network, core: Rc<StorageCoreInterface>, rx: futures::unsync::mpsc::Receiver<Dispatch>) -> Dispatcher {
 
-        let inner: Rc<DispatcherInner<Core>> = Rc::new(DispatcherInner {
+        let inner: Rc<DispatcherInner> = Rc::new(DispatcherInner {
             core,
             memo_wait_channels: HashMap::new(),
             subject_subscriptions: HashMap::new(),
@@ -39,17 +40,18 @@ impl <Core> Dispatcher<Core> where Core: StorageCoreInterface {
         });
 
         {
-            let mut inner: Rc<DispatcherInner<Core>> = inner.clone();
-            rx.map(move |d| {
-                inner.dispatch(d)
-            })
+            let mut inner: Rc<DispatcherInner> = inner.clone();
+            Executor::spawn(rx.for_each(move |d| {
+                inner.dispatch(d);
+                Box::new(future::result(Ok(())))
+            }));
         }
 
         Dispatcher { inner }
     }
 }
-impl <Core> DispatcherInner<Core> where Core: StorageCoreInterface {
-    pub fn dispatch(&mut self, dispatch: Dispatch ) -> Box<Future<Item=(), Error=()>> {
+impl DispatcherInner {
+    pub fn dispatch(&mut self, dispatch: Dispatch ) {
 
         match dispatch {
             Dispatch::GotMemo{ memo, memoref, from_slabref } => {
@@ -66,12 +68,12 @@ impl <Core> DispatcherInner<Core> where Core: StorageCoreInterface {
             }
         };
 
-        // 
+        // NOTE: If there is any future to be returned here, it should be given to Executor::spawn
+
         // self.handle_from_other_slab();
         // self.do_peering(&memoref, from_slabref);
         // self.dispatch_memoref(memoref);
 
-        Box::new(future::result(Ok(())))
     }
     pub fn check_waiters ( &mut self, memo: &Memo) {
         match self.memo_wait_channels.entry(memo.id) {

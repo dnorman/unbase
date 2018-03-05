@@ -9,9 +9,10 @@ use futures::prelude::*;
 #[derive(Clone, Eq, PartialOrd, Ord)]
 pub struct MemoRef {
     pub memo_id:        MemoId,
-    #[cfg(debug_assertions)]
-    pub owning_slab_id: slab::SlabId, // TODO - rename and conditionalize with a macro
     pub subject_id:     SubjectId,
+
+    #[cfg(debug_assertions)]
+    pub owning_slab_id: slab::SlabId,
 }
 
 impl MemoRef {

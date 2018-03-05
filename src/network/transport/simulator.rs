@@ -101,28 +101,30 @@ impl Simulator {
         shared.queue.push(event);
     }
     pub fn manual_time_step (&self) -> thread::JoinHandle<()> {
-        let sim = self.clone();
-        thread::spawn(move ||{
-            println!("Simulator transport - Manual Timestep Enabled.\n\nPress ENTER to step\n\n" );
-            let stdin = io::stdin();
-            for _line in stdin.lock().lines() {
-                sim.advance_clock(1);
-            }
-        })
+        unimplemented!()
+//        let sim = self.clone();
+//        thread::spawn(move ||{
+//            println!("Simulator transport - Manual Timestep Enabled.\n\nPress ENTER to step\n\n" );
+//            let stdin = io::stdin();
+//            for _line in stdin.lock().lines() {
+//                sim.advance_clock(1);
+//            }
+//        })
     }
     pub fn metronome (&self, ms: u64) -> thread::JoinHandle<()> {
-        let sim = self.clone();
-        thread::spawn(move ||{
-            println!("Simulator transport - Metronome Timestep Enabled (interval {}ms).\n\n", ms );
-            loop {
-                thread::sleep(time::Duration::from_millis(ms));
-                let run = sim.run.lock().unwrap();
-
-                if *run {
-                    sim.advance_clock(1);
-                }
-            }
-        })
+        unimplemented!()
+//        let sim = self.clone();
+//        thread::spawn(move ||{
+//            println!("Simulator transport - Metronome Timestep Enabled (interval {}ms).\n\n", ms );
+//            loop {
+//                thread::sleep(time::Duration::from_millis(ms));
+//                let run = sim.run.lock().unwrap();
+//
+//                if *run {
+//                    sim.advance_clock(1);
+//                }
+//            }
+//        })
     }
     pub fn pause(&self){
         let mut run = self.run.lock().unwrap();

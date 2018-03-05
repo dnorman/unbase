@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use futures::{self, future, Future, sync::{mpsc,oneshot}}; //prelude::*,
+use std::rc::Rc;
+use futures::{self, future, Future, Sink, unsync::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
 use buffer::NetworkBuffer;
@@ -23,11 +23,11 @@ pub struct MemoryCore {
     /// The Slabref for this slab
     pub slab_id: slab::SlabId,
     net: Network,
-    counter: Arc<SlabCounter>,
+    counter: Rc<SlabCounter>,
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
-    dispatcher_tx: mpsc::UnboundedSender<Dispatch>,
+    dispatcher_tx: mpsc::Sender<Dispatch>,
     slab_transmitters: HashMap<slab::SlabId,Transmitter>, // TODO: Make this an LRU
 
     // * Things that would be serialized in most other slab types *
@@ -39,7 +39,7 @@ pub struct MemoryCore {
 }
 
 impl MemoryCore {
-    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Arc<SlabCounter>, dispatcher_tx: mpsc::UnboundedSender<Dispatch> ) -> Self {
+    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Rc<SlabCounter>, dispatcher_tx: mpsc::Sender<Dispatch> ) -> Self {
         MemoryCore{
             slab_id,
             net,
@@ -125,7 +125,7 @@ impl StorageCoreInterface for MemoryCore {
         let (tx, rx) = oneshot::channel::<Result<Memo, Error>>();
 
         // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
-        self.dispatcher_tx.unbounded_send(Dispatch::WaitForMemo { memoref: memoref.clone(), tx }).unwrap();
+        self.dispatcher_tx.send(Dispatch::WaitForMemo { memoref: memoref.clone(), tx });
 
         let mut return_presences: Vec<SlabPresence> = request_peers.iter().map(|p| p.return_presence()).collect();
         return_presences.sort();
@@ -138,11 +138,13 @@ impl StorageCoreInterface for MemoryCore {
 
         let request_memo = Memo {
             id: request_memo_id,
-            owning_slabref: self.get_slabref(),
             subject_id: SubjectId::anonymous(),
             parents: MemoRefHead::Null,
             // TODO: Make MemoRequest use return_presences?
-            body: MemoBody::MemoRequest(vec![memoref.clone()], vec![self.get_slabref()])
+            body: MemoBody::MemoRequest(vec![memoref.clone()], vec![self.get_slabref()]),
+
+            #[cfg(debug_assertions)]
+            owning_slabref: self.get_slabref(),
         };
 
         let memoref =  MemoRef::new(&self.slab_id, request_memo.id.clone(), request_memo.subject_id.clone());
@@ -203,7 +205,7 @@ impl StorageCoreInterface for MemoryCore {
             }
         };
 
-        self.dispatcher_tx.unbounded_send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref}).unwrap();
+        self.dispatcher_tx.send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref});
 
         Box::new(future::result(Ok(memoref)))
     }

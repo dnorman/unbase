@@ -48,7 +48,7 @@ impl SubjectHandle{
     pub fn get_head_memorefs ( &self ) -> Vec<MemoRef> {
         self.subject.get_head_memorefs(&self.context.slab)
     }
-    pub fn observe (&self) -> Box<Stream<Item = MemoRefHead, Error = ()>> {
+    pub fn observe (&self) -> Box<Stream<Item = (), Error = Error>> {
         self.subject.observe(&self.context.slab)
     }
 }

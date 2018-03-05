@@ -56,7 +56,7 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &LocalSlabHandle ) -> Result<bool,Error> {
+    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &LocalSlabHandle ) -> Box<Future<Item=bool, Error=Error>> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
