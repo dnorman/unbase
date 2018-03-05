@@ -185,25 +185,34 @@ impl Subject {
         //head_dup.project_value(&slab_dup, &key_dup)
         Ok(None)
     }
-    pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
-        match self.get_edge_head(context,key)? {
-            Some(head) => {
-                Ok( Some( context.get_subject_with_head(head)? ) )
-            },
-            None => {
-                Ok(None)
-            }
-        }
-    }
-    #[async]
-    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHeadOuter>, Error> {
-        //println!("# Subject({}).get_relation({})",self.id,key);
-        let key_dup = key.clone();
-        let slab_dup = context.slab.clone();
-        let head_dup = self.head.clone();
+    pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Box<Future<Item=Option<Subject>, Error=Error>> {
+        let context_dup = context.clone();
 
-        await!(self.head.apply( context.get_resident_subject_head(self.id), context.slab.clone() ));
-        head_dup.project_edge(slab_dup, key_dup)
+        Box::new(self.get_edge_head(context,key).and_then(|maybe_head| {
+            match maybe_head {
+                Some(head) => {
+                    Ok(Some(context_dup.get_subject_with_head(head)?))
+                },
+                None => {
+                    Ok(None)
+                }
+            }
+        }))
+    }
+    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Box<Future<Item=Option<MemoRefHeadOuter>, Error=Error>> {
+        //println!("# Subject({}).get_relation({})",self.id,key);
+
+        let slab_dup = context.slab.clone();
+        let slab_dup2 = context.slab.clone();
+//
+        let head_dup = self.head.clone();
+        let head_dup2 = self.head.clone();
+
+        let res_head: MemoRefHead = context.get_resident_subject_head(self.id);
+
+        Box::new(head_dup.apply( res_head , slab_dup ).and_then(move |did_apply|{
+            head_dup2.project_edge(slab_dup2, key)
+        }))
     }
 
     pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,Error> {
@@ -211,7 +220,7 @@ impl Subject {
         let mut vals: HashMap<String, String> = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
-        let head: Rc<RefCell<MemoRefHead>> = self.head.clone();
+        let head: MemoRefHeadOuter = self.head.clone();
 
         // TODO: get rid of these clones
         let slab_copy: LocalSlabHandle = context.slab.clone();
