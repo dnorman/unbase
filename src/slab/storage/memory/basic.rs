@@ -13,7 +13,7 @@ pub struct Memory {
     slab_id: slab::SlabId,
     core: Rc<MemoryCore>,
     counter: Rc<SlabCounter>,
-    dispatcher: Dispatcher<MemoryCore>,
+    dispatcher: Dispatcher,
     net: Network
 }
 
@@ -22,7 +22,7 @@ impl Slab for Memory {
         self.slab_id.clone()
     }
     fn get_handle (&self) -> LocalSlabHandle {
-        LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.storage_requester.clone() )
+        LocalSlabHandle::new( self.get_slabref(), self.counter.clone(), self.core.clone() )
     }
     fn get_slabref (&self) -> SlabRef {
         SlabRef{
@@ -54,8 +54,7 @@ impl Memory {
             dispatcher_tx
         ));
 
-        let dispatcher: Dispatcher<MemoryCore> =
-            Dispatcher::new(net.clone(), core.clone(), dispatcher_rx );
+        let dispatcher: Dispatcher = Dispatcher::new(net.clone(), core.clone(), dispatcher_rx );
 
         let me = Memory{
             slab_id,

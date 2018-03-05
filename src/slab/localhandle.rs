@@ -1,12 +1,11 @@
 use std::rc::Rc;
 //use futures::future;
 use futures::prelude::*;
-use futures::sync::mpsc;
+use futures::unsync::mpsc;
 use std::fmt;
 
 use network;
 use slab;
-use slab::storage::StorageRequester;
 use slab::storage::StorageCoreInterface;
 use slab::prelude::*;
 use slab::counter::SlabCounter;
@@ -14,8 +13,8 @@ use error::*;
 use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
 
-impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
-    pub fn new (slabref: SlabRef, counter: Rc<SlabCounter>, core: Rc<Core>) -> LocalSlabHandle<Core> {
+impl LocalSlabHandle {
+    pub fn new (slabref: SlabRef, counter: Rc<SlabCounter>, core: Rc<StorageCoreInterface>) -> LocalSlabHandle {
 
         LocalSlabHandle{
             slab_id: slabref.slab_id(),
@@ -27,7 +26,7 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
 
     pub fn get_memo (&self, _memoref: MemoRef, _allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
 //        use slab::storage::StorageMemoRetrieval::*;
-//        self.storage.get_memo(memoref,allow_remote).and_then(|r|{
+//        self.core.get_memo(memoref,allow_remote).and_then(|r|{
 //            match r {
 //                Found(memo)     => Box::new(future::result(Ok(memo))),
 //                Remote(peerset) => {
@@ -51,10 +50,10 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
         // });
     }
     pub fn put_memo(&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>> {
-        self.storage.put_memo(memo, peerset, from_slabref)
+        self.core.put_memo(memo, peerset, from_slabref)
     }
     pub fn put_slab_presence(&mut self, presence: SlabPresence ) -> SlabRef {
-        self.storage.put_slab_presence(presence.clone()).wait().unwrap();
+        self.core.put_slab_presence(presence.clone()).wait().unwrap();
 
         SlabRef{
             owning_slab_id: self.slab_id,
@@ -63,16 +62,16 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
     }
 
     pub fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
-        self.storage.get_slab_presence(slabrefs).wait()
+        self.core.get_slab_presence(slabrefs).wait()
     }
     pub fn get_peerset(&mut self, memorefs: Vec<MemoRef>, maybe_dest_slabref: Option<SlabRef>) -> Result<Vec<MemoPeerSet>, Error> {
-        self.storage.get_peerset(memorefs, maybe_dest_slabref).wait()
+        self.core.get_peerset(memorefs, maybe_dest_slabref).wait()
     }
 
     pub fn slab_id(&self) -> slab::SlabId {
         self.slab_id.clone()
     }
-    pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle<Core>) {
+    pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle) {
 
         //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
@@ -104,8 +103,9 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
     pub fn remotize_memo_ids( &self, _memo_ids: &[MemoId] ) -> Box<Future<Item=(), Error=Error>>  {
         unimplemented!();
     }
-    pub (crate) fn observe_subject (&self, _subject_id: SubjectId, _tx: mpsc::Sender<MemoRefHead> ) {
+    pub (crate) fn observe_subject (&self, _subject_id: SubjectId ) -> mpsc::Receiver<MemoRefHead> {
 
+        // let (tx, rx) = mpsc::channel::<MemoRefHead>(1);
         unimplemented!()
         // let (tx,sub) = SubjectSubscription::new( subject_id, self.weak() );
 
@@ -120,7 +120,7 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
 
         // sub
     }
-    pub (crate) fn observe_index (&self, _tx: mpsc::Sender<MemoRefHead> ) {
+    pub (crate) fn observe_index (&self) -> mpsc::Receiver<MemoRefHead> {
         unimplemented!()
         // self.index_subscriptions.lock().unwrap().push(tx);
     }
@@ -143,10 +143,12 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
 
         let _memo = Memo {
             id:    memo_id,
-            owning_slabref: self.slabref.clone(),
             subject_id,
             parents,
-            body
+            body,
+
+            #[cfg(debug_assertions)]
+            owning_slabref: self.slabref.clone(),
         };
 
         // TODO1 figure out if put_memo should give back a remoref. Probably Yes??
@@ -159,6 +161,8 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
         //memoref
     }
     pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),Error> {
+
+        #[cfg(debug_assertions)]
         assert_eq!(memoref.owning_slab_id, self.slab_id);
 
         //println!("# Slab({}).MemoRef({}).remotize()", self.slab_id, memoref.id );
@@ -214,7 +218,7 @@ impl <Core> LocalSlabHandle<Core> where Core: StorageCoreInterface {
 }
 
 
-impl <Core> fmt::Debug for LocalSlabHandle<Core> where Core: StorageCoreInterface {
+impl fmt::Debug for LocalSlabHandle{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LocalSlabHandle")
             .field("slab_id", &self.slab_id)

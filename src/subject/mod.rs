@@ -3,7 +3,8 @@ use slab::prelude::*;
 use core;
 use std::fmt;
 use std::collections::HashMap;
-use std::sync::{Arc,RwLock};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use memorefhead::*;
 use context::Context;
@@ -102,7 +103,7 @@ impl fmt::Display for SubjectId {
 
 pub(crate) struct Subject {
     pub id:     SubjectId,
-    pub (crate) head: Arc<RwLock<MemoRefHead>>, // Not sure how I feel about this being an Arc. Kind of a HACK.
+    pub (crate) head: Rc<RefCell<MemoRefHead>>, // Not sure how I feel about this being an Arc. Kind of a HACK.
     //pub (crate) rx: RwLock<Option<Box<Stream<Item=MemoRefHead, Error = ()>>>>
 }
 
@@ -119,7 +120,7 @@ impl Subject {
             );
         let head = memoref.to_head();
 
-        let subject = Subject{ id, head: Arc::new(RwLock::new(head.clone())) };
+        let subject = Subject{ id, head: Rc::new(RefCell::new(head.clone())) };
 
         //slab.subscribe_subject( &subject );
 
@@ -132,7 +133,7 @@ impl Subject {
         use self::SubjectType::*;
         match self.id.stype {
             IndexNode => {
-                let head = self.head.read().unwrap();
+                let head = self.head.borrow();
                 context.apply_head( &*head )?;
             },
             Record    => {
@@ -154,7 +155,7 @@ impl Subject {
         if !subject_id.is_anonymous(){
             let subject = Subject{
                 id:   subject_id,
-                head: Arc::new(RwLock::new(head))
+                head: Rc::new(RefCell::new(head))
             };
 
             // TODO3 - Should a resident subject be proactively updated? Or only when it's being observed?
@@ -173,8 +174,8 @@ impl Subject {
         //        Use the lack of potential dirtyness to skip index traversal inside get_relevant_subject_head
         let chead = context.get_relevant_subject_head(self.id)?;
         //println!("\t\tGOT: {:?}", chead.memo_ids() );
-        self.head.write().unwrap().apply( &chead, &context.slab )?;
-        self.head.read().unwrap().project_value(&context.slab, key)
+        self.head.borrow_mut().apply( &chead, &context.slab )?;
+        self.head.borrow().project_value(&context.slab, key)
     }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
         match self.get_edge_head(context,key)? {
@@ -188,8 +189,8 @@ impl Subject {
     }
     pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHead>, Error> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-        self.head.write().unwrap().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
-        self.head.read().unwrap().project_edge(&context.slab, key)
+        self.head.borrow_mut().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
+        self.head.borrow().project_edge(&context.slab, key)
     }
 
     pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,Error> {
@@ -198,7 +199,7 @@ impl Subject {
 
         let slab = &context.slab;
         {
-            let mut head = self.head.write().unwrap();
+            let mut head = self.head.borrow_mut();
 
             let memoref = slab.new_memo_basic(
                 self.id,
@@ -219,7 +220,7 @@ impl Subject {
 
         let slab = &context.slab;
         {
-            let mut head = self.head.write().unwrap();
+            let mut head = self.head.borrow_mut();
 
             let memoref = slab.new_memo(
                 self.id,
@@ -243,7 +244,7 @@ impl Subject {
     //     self.head.write().unwrap().apply(&new, &slab);
     // }
     pub fn get_head (&self) -> MemoRefHead {
-        self.head.read().unwrap().clone()
+        self.head.borrow().clone()
     }
     // pub fn get_contextualized_head(&self, context: &Context) -> MemoRefHead {
     //     let mut head = self.head.read().unwrap().clone();
@@ -263,27 +264,19 @@ impl Subject {
     //     //self.shared.lock().unwrap().head.fully_materialize(slab)
     // }
 
-    pub fn observe (&self, slab: &LocalSlabHandle) -> Box<Stream<Item=MemoRefHead, Error = ()>> {
-        let (tx, rx) = channel::<MemoRefHead>(1);
+    pub fn observe (&self, slab: &LocalSlabHandle) -> Box<Stream<Item=(), Error = Error>> {
 
         // TODO - figure out how to subscribe only once, such that one may create multiple observers for a single subject
         //        without duplication of effort
-        let head = self.head.clone();
-        let slab_clone = slab.clone();
-        let rx2 = rx.map(move |mrh| {
-            // TODO - make this more elegant, such that the initial MRH isn't redundantly applied to itself
-            if let Err(_) =  head.write().unwrap().apply(&mrh,&slab_clone) {
-                // TODO - Handle this somehow. (propagating the error to the observer seems odd)
-            }
+        // TODO - make this more elegant, such that the initial MRH isn't redundantly applied to itself
 
-            mrh
+        let head: Rc<RefCell<MemoRefHead>> = self.head.clone();
+        let slab: LocalSlabHandle = slab.clone();
+        let stream = slab.observe_subject( self.id ).map(move |mrh|{
+            head.borrow_mut().apply(&mrh, &slab).and_then(|applied| Ok(()) )
         });
 
-        // Send the initial MRH such that an observers gets the starting state
-        tx.clone().send( self.head.read().unwrap().clone() ).wait().unwrap();
-        
-        slab.observe_subject( self.id, tx );
-        Box::new(rx2)
+        Box::new(stream)
     }
 }
 

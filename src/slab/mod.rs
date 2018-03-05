@@ -21,9 +21,9 @@ pub mod prelude {
 }
 
 /// Slab is the storage engine
-pub trait Slab<Core> where Core: StorageCoreInterface {
+pub trait Slab {
     fn slab_id(&self)        -> SlabId;
-    fn get_handle (&self)    -> LocalSlabHandle<Core>;
+    fn get_handle (&self)    -> LocalSlabHandle;
     fn get_slabref (&self)   -> self::SlabRef;
     fn get_net (&self)       -> network::Network;
     fn create_context(&self) -> context::Context;
@@ -70,11 +70,10 @@ pub struct SlabPresence {
 /// Handle to a slab which is resident within our process.
 /// (Not storable)
 #[derive(Clone)]
-pub struct LocalSlabHandle<Core> where Core: StorageCoreInterface {
+pub struct LocalSlabHandle {
     pub slab_id: SlabId,
     pub slabref: SlabRef,
-    // under single threaded mode, this should be Rc<StorageCore>
-    pub core: Rc<Core>,
+    pub core: Rc<StorageCoreInterface>,
     pub counter: Rc<SlabCounter>,
 }
 

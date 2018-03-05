@@ -7,7 +7,7 @@ use memorefhead::*;
 use error::*;
 
 use std::collections::HashMap;
-use futures::sync::mpsc::channel;
+use futures::unsync::mpsc;
 use std::thread;
 
 use index::IndexFixed;
@@ -15,16 +15,17 @@ use slab::Slab;
 use slab::prelude::*;
 use self::stash::Stash;
 
-use std::sync::{Arc,Weak,RwLock};
+use std::rc::{Rc,Weak};
+use std::cell::RefCell;
 use std::ops::Deref;
 use std::fmt;
 
 #[derive(Clone)]
-pub struct Context(Arc<ContextInner>);
+pub struct Context(Rc<ContextInner>);
 
 pub struct ContextInner {
     pub slab: LocalSlabHandle,
-    pub root_index: RwLock<Option<Arc<IndexFixed>>>,
+    pub root_index: RefCell<Option<Rc<IndexFixed>>>,
     net: Network,
     stash: Stash,
     //pathology:  Option<Box<Fn(String)>> // Something is wrong here, causing compile to fail with a recursion error
@@ -46,11 +47,11 @@ impl Deref for Context {
 impl Context{
     pub fn new <T> (slab: &T) -> Self where T: Slab {
         let new_self = Context(
-            Arc::new(
+            Rc::new(
                 ContextInner{
                     slab: slab.get_handle(),
                     net:  slab.get_net(),
-                    root_index: RwLock::new(None),
+                    root_index: RefCell::new(None),
                     stash: Stash::new()
                 }
             )
@@ -62,7 +63,7 @@ impl Context{
     }
     pub fn weak (&self) -> WeakContext {
         WeakContext {
-            inner: Arc::downgrade(&self.0)
+            inner: Rc::downgrade(&self.0)
         }
     }
     pub fn fetch_kv (&self, key: &str, val: &str) -> Result<Option<SubjectHandle>,Error> {
@@ -96,32 +97,20 @@ impl Context{
     }
     fn init_index_subscription (&self) {
 
-        let (tx, rx) = channel(1);
-        self.slab.observe_index( tx );
+        let receiver: mpsc::Receiver<MemoRefHead> = self.slab.observe_index();
 
-        use futures::Stream;
-        let rx = Box::new(rx);
         let weak_self = self.weak();
 
-        // TODO3 - should we be storing the join handle?
-        thread::spawn(move || {
-            for mr in rx.wait() {
-                match mr {
-                    Ok(mr) => {
-                        if let Some(ctx) = weak_self.upgrade(){
-                            if let Err(e) = ctx.apply_head(&mr){ // TODO2 Add action to apply memoref directly
-                                //TODO: Update this to use logger
-                                println!("Failed to apply head to context {:?}", e);
-                            }
-                        }
-                    },
-                    Err(_) => {
-                        break;
-                    }
+        ::executor::Executor::spawn(receiver.for_each(move |mrh|{
+            if let Some(ctx) = weak_self.upgrade(){
+                if let Err(e) = ctx.apply_head(&mrh){ // TODO2 Add action to apply memoref directly
+                    //TODO: Update this to use logger
+                    println!("Failed to apply head to context {:?}", e);
                 }
+            }else{
+                return Err(()) // Tell the executor that we're done here
             }
-        });
-
+        }));
     }
     pub (crate) fn insert_into_root_index(&self, subject_id: SubjectId, subject: &Subject) -> Result<(),Error> {
         self.root_index()?.insert(self, subject_id.id, subject)
@@ -218,7 +207,7 @@ impl Context{
             }
         }
     }
-    pub fn root_index (&self) -> Result<Arc<IndexFixed>,Error> {
+    pub fn root_index (&self) -> Result<Rc<IndexFixed>,Error> {
 
         {
            let rg = self.root_index.read().unwrap();
@@ -230,16 +219,16 @@ impl Context{
         let seed = self.net.get_root_index_seed(&self.slab);
         if seed.is_some() {
             let index = IndexFixed::new_from_memorefhead(&self, 5, seed);
-            let arcindex = Arc::new(index);
-            *self.root_index.write().unwrap() = Some(arcindex.clone());
+            let rcindex = Rc::new(index);
+            *self.root_index.borrow_mut() = Some(rcindex.clone());
 
-            Ok(arcindex)
+            Ok(rcindex)
         }else{
             Err(Error::RetrieveError(RetrieveError::IndexNotInitialized))
         }
 
     }
-    pub fn root_index_wait (&self, wait: u64) -> Result<Arc<IndexFixed>, Error> {
+    pub fn root_index_wait (&self, wait: u64) -> Result<Rc<IndexFixed>, Error> {
         use std::time::{Instant,Duration};
         let start = Instant::now();
         let wait = Duration::from_millis(wait);

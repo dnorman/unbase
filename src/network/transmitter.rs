@@ -16,7 +16,8 @@ pub trait DynamicDispatchTransmitter {
 enum TransmitterInternal {
     // TODO1: consider changing this to slab::storage::StorageRequester instead of LocalSlabHandle
     Local(LocalSlabHandle),
-    Dynamic(Box<DynamicDispatchTransmitter + Send>),
+    Dynamic(Box<DynamicDispatchTransmitter>),
+    // Consider DynamicSend(Box<DynamicDispatchTransmitter+Send>)
     Blackhole
 }
 
@@ -65,7 +66,7 @@ impl Transmitter {
         }
     }
     /// Create a new transmitter capable of using any dynamic-dispatch transmitter.
-    pub fn new(to_slabref: SlabRef, dyn: Box<DynamicDispatchTransmitter + Send>) -> Self {
+    pub fn new(to_slabref: SlabRef, dyn: Box<DynamicDispatchTransmitter>) -> Self {
         Self {
             to_slab_id: to_slabref.slab_id(),
             internal: TransmitterInternal::Dynamic(dyn)
