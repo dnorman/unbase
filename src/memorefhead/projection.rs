@@ -1,7 +1,7 @@
 use super::*;
 use subject::SUBJECT_MAX_RELATIONS;
 
-impl MemoRefHead {
+impl MemoRefHeadOuter {
     /*pub fn fully_materialize( &self, slab: &Slab ) {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
         //       as part of the list management. That way we won't have to incur the below computational effort.
@@ -143,7 +143,7 @@ impl MemoRefHead {
 
         Err(Error::RetrieveError(RetrieveError::MemoLineageError))
     }
-    pub fn project_edge ( &self, slab: &LocalSlabHandle, key: RelationSlotId ) -> Result<Option<Self>, Error> {
+    pub fn project_edge ( &self, slab: LocalSlabHandle, key: RelationSlotId ) -> Result<Option<Self>, Error> {
         for memo in self.causal_memo_iter( &slab ) {
 
             if let Some((edges,materialized)) = memo?.get_edges(){

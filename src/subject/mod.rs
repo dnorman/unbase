@@ -10,7 +10,7 @@ use memorefhead::*;
 use context::Context;
 use error::*;
 
-use futures::{Stream,Future};
+use futures::prelude::*;
 //use futures::unsync::mpsc;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
@@ -153,11 +153,11 @@ impl Subject {
         //println!("Subject.reconstitute({:?})", head);
         // Arguably we shouldn't ever be reconstituting a subject
 
-        let subject_id = head.subject_id();
+        let subject_id: SubjectId = head.subject_id();
         if !subject_id.is_anonymous(){
             let subject = Subject{
                 id:   subject_id,
-                head: Rc::new(RefCell::new(head))
+                head: MemoRefHeadOuter(Rc::new(RefCell::new(head)))
             };
 
             // TODO3 - Should a resident subject be proactively updated? Or only when it's being observed?
@@ -169,15 +169,21 @@ impl Subject {
             Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead))
         }
     }
-    pub fn get_value ( &self, context: &Context, key: &str ) -> Result<Option<String>, Error> {
+    #[async]
+    pub fn get_value ( &self, context: Context, key: String ) -> Result<Option<String>, Error> {
         //println!("# Subject({}).get_value({})",self.id,key);
 
         // TODO3: Consider updating index node ingress to mark relevant subjects as potentially dirty
         //        Use the lack of potential dirtyness to skip index traversal inside get_relevant_subject_head
-        let chead = context.get_relevant_subject_head(self.id)?;
-        //println!("\t\tGOT: {:?}", chead.memo_ids() );
-        self.head.borrow_mut().apply( &chead, &context.slab )?;
-        self.head.borrow().project_value(&context.slab, key)
+//        let chead = context.get_relevant_subject_head(self.id)?;
+//
+//        let head_dup : MemoRefHeadOuter = self.head.clone();
+//        let slab_dup: LocalSlabHandle = context.slab.clone();
+//        let key_dup: String = key.to_string();
+
+        //let did_apply = await!(head_dup.apply( chead, context.slab.clone() ));
+        //head_dup.project_value(&slab_dup, &key_dup)
+        Ok(None)
     }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<Subject>, Error> {
         match self.get_edge_head(context,key)? {
@@ -189,10 +195,15 @@ impl Subject {
             }
         }
     }
-    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHead>, Error> {
+    #[async]
+    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Result<Option<MemoRefHeadOuter>, Error> {
         //println!("# Subject({}).get_relation({})",self.id,key);
-        self.head.borrow_mut().apply( &context.get_resident_subject_head(self.id), &context.slab )?;
-        self.head.borrow().project_edge(&context.slab, key)
+        let key_dup = key.clone();
+        let slab_dup = context.slab.clone();
+        let head_dup = self.head.clone();
+
+        await!(self.head.apply( context.get_resident_subject_head(self.id), context.slab.clone() ));
+        head_dup.project_edge(slab_dup, key_dup)
     }
 
     pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,Error> {
