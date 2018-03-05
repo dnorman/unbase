@@ -56,12 +56,20 @@ impl MemoRefHead {
     //     //     MemoRefHead::Null
     //     // }
     // }
-    pub fn apply_memoref(&mut self, new: &MemoRef, slab: &LocalSlabHandle ) -> Box<Future<Item=bool, Error=Error>> {
+}
+
+use std::rc::Rc;
+use std::cell::RefCell;
+
+pub struct MemoRefHeadOuter(pub Rc<RefCell<MemoRefHead>>);
+
+impl MemoRefHeadOuter {
+    pub fn apply_memoref(&self, new: MemoRef, slab: &LocalSlabHandle ) -> Box<Future<Item=bool, Error=Error>> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
         // Conditionally add the new memoref only if it descends any memorefs in the head
         // If so, any memorefs that it descends must be removed
-        let head = match *self {
+        let head = match *self.0.borrow() {
             MemoRefHead::Null => {
                 if !new.subject_id.is_anonymous() {
                     *self = MemoRefHead::Subject{
@@ -96,7 +104,7 @@ impl MemoRefHead {
         'existing: for i in (0..head.len()).rev() {
             let mut remove = false;
             {
-                let ref mut existing = head[i];
+                let ref mut existing: &mut MemoRef = head[i];
                 if existing == new {
                     return Ok(false); // we already had this
 
@@ -150,13 +158,13 @@ impl MemoRefHead {
 
        Ok(applied)
     }
-    pub fn apply_memorefs (&mut self, new_memorefs: &Vec<MemoRef>, slab: &LocalSlabHandle) -> Result<(),Error> {
+    pub fn apply_memorefs (&self, new_memorefs: &Vec<MemoRef>, slab: &LocalSlabHandle) -> Result<(),Error> {
         for new in new_memorefs.iter(){
             self.apply_memoref(new, slab)?;
         }
         Ok(())
     }
-    pub fn apply (&mut self, other: &MemoRefHead, slab: &LocalSlabHandle) -> Result<bool,Error> {
+    pub fn apply (&self, other: &MemoRefHead, slab: &LocalSlabHandle) -> Result<bool,Error> {
         let mut applied = false;
 
         for new in other.iter(){

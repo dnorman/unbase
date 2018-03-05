@@ -1,9 +1,7 @@
 
 use std::fmt;
-use std::io;
 use std::thread;
 use std::time;
-use std::io::BufRead;
 use futures::future;
 //use futures::prelude::*;
 

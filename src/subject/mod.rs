@@ -10,8 +10,8 @@ use memorefhead::*;
 use context::Context;
 use error::*;
 
-use futures::{Stream,Sink,Future};
-use futures::sync::mpsc::channel;
+use futures::{Stream,Future};
+//use futures::unsync::mpsc;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
@@ -103,37 +103,39 @@ impl fmt::Display for SubjectId {
 
 pub(crate) struct Subject {
     pub id:     SubjectId,
-    pub (crate) head: Rc<RefCell<MemoRefHead>>, // Not sure how I feel about this being an Arc. Kind of a HACK.
+    pub (crate) head: MemoRefHeadOuter,
     //pub (crate) rx: RwLock<Option<Box<Stream<Item=MemoRefHead, Error = ()>>>>
 }
 
 impl Subject {
-    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Result<Self,Error> {
+    pub fn new (context: &Context, stype: SubjectType, vals: HashMap<String,String> ) -> Box<Future<Item=Self,Error=Error>> {
 
         let slab = &context.slab;
         let id = slab.generate_subject_id(stype);
         //println!("# Subject({}).new()",subject_id);
 
-        let memoref = slab.new_memo_basic_noparent(
-                id,
-                MemoBody::FullyMaterialized {v: vals, e: EdgeSet::empty(), t: stype }
-            );
-        let head = memoref.to_head();
+        // TODO: Get rid of this clone
+        let context_dup = context.clone();
 
-        let subject = Subject{ id, head: Rc::new(RefCell::new(head.clone())) };
+        Box::new(slab.new_memo_basic_noparent(
+            id,
+            MemoBody::FullyMaterialized {v: vals, e: EdgeSet::empty(), t: stype }
+        ).and_then(move |memoref|{
 
-        //slab.subscribe_subject( &subject );
+            let head = memoref.to_head_outer();
+            let subject = Subject{ id, head };
+            subject.update_referents( context_dup )?;
 
-        subject.update_referents( context )?;
+            Ok(subject)
+        }))
 
-        Ok(subject)
     }
     /// Notify whomever needs to know that a new subject has been created
-    fn update_referents (&self, context: &Context) -> Result<(),Error> {
+    fn update_referents (&self, context: Context) -> Result<(),Error> {
         use self::SubjectType::*;
         match self.id.stype {
             IndexNode => {
-                let head = self.head.borrow();
+                let head = self.head.0.borrow();
                 context.apply_head( &*head )?;
             },
             Record    => {
@@ -194,24 +196,30 @@ impl Subject {
     }
 
     pub fn set_value (&self, context: &Context, key: &str, value: &str) -> Result<bool,Error> {
-        let mut vals = HashMap::new();
+
+        let mut vals: HashMap<String, String> = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
-        let slab = &context.slab;
-        {
-            let mut head = self.head.borrow_mut();
+        let head: Rc<RefCell<MemoRefHead>> = self.head.clone();
 
-            let memoref = slab.new_memo_basic(
-                self.id,
-                head.clone(),
-                MemoBody::Edit(vals)
-            );
+        // TODO: get rid of these clones
+        let slab_copy: LocalSlabHandle = context.slab.clone();
+        let self_copy: Subject = self.clone();
+        let context_copy: Context = context.clone();
 
-            head.apply_memoref(&memoref, &slab)?;
-        }
-        self.update_referents( context )?;
+        context.slab.new_memo_basic(
+            self.id,
+            self.head.clone(),
+            MemoBody::Edit(vals)
+        ).and_then(move |memoref|{
+            head.apply_memoref(memoref, slab_copy).and_then(move |did_apply|{
+                if did_apply {
+                    self_copy.update_referents(context_copy)?;
+                };
 
-        Ok(true)
+                Ok(did_apply)
+            })
+        }).wait()
     }
     pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),Error>{
         //println!("# Subject({}).set_edge({}, {})", &self.id, key, relation.id);

@@ -1,6 +1,5 @@
 use subject::{Subject, SubjectId, SubjectType};
 use context::Context;
-use memorefhead::MemoRefHead;
 use slab::prelude::*;
 use error::*;
 use std::fmt;
