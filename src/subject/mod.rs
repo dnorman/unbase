@@ -103,7 +103,7 @@ impl fmt::Display for SubjectId {
 
 pub(crate) struct Subject {
     pub id:     SubjectId,
-    pub (crate) head: MemoRefHeadOuter,
+    pub (crate) head: MemoRefHeadMut,
     //pub (crate) rx: RwLock<Option<Box<Stream<Item=MemoRefHead, Error = ()>>>>
 }
 
@@ -157,7 +157,7 @@ impl Subject {
         if !subject_id.is_anonymous(){
             let subject = Subject{
                 id:   subject_id,
-                head: MemoRefHeadOuter(Rc::new(RefCell::new(head)))
+                head: MemoRefHeadMut(Rc::new(RefCell::new(head)))
             };
 
             // TODO3 - Should a resident subject be proactively updated? Or only when it's being observed?
@@ -169,8 +169,7 @@ impl Subject {
             Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead))
         }
     }
-    #[async]
-    pub fn get_value ( &self, context: Context, key: String ) -> Result<Option<String>, Error> {
+    pub fn get_value ( &self, context: &Context, key: &str ) -> Box<Future<Item=Option<String>, Error=Error>> {
         //println!("# Subject({}).get_value({})",self.id,key);
 
         // TODO3: Consider updating index node ingress to mark relevant subjects as potentially dirty
@@ -183,7 +182,7 @@ impl Subject {
 
         //let did_apply = await!(head_dup.apply( chead, context.slab.clone() ));
         //head_dup.project_value(&slab_dup, &key_dup)
-        Ok(None)
+        unimplemented!()
     }
     pub fn get_edge ( &self, context: &Context, key: RelationSlotId ) -> Box<Future<Item=Option<Subject>, Error=Error>> {
         let context_dup = context.clone();
@@ -199,19 +198,17 @@ impl Subject {
             }
         }))
     }
-    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Box<Future<Item=Option<MemoRefHeadOuter>, Error=Error>> {
+    pub fn get_edge_head ( &self, context: &Context, key: RelationSlotId ) -> Box<Future<Item=Option<MemoRefHeadMut>, Error=Error>> {
         //println!("# Subject({}).get_relation({})",self.id,key);
 
+        // TODO: get rid of these clones
         let slab_dup = context.slab.clone();
-        let slab_dup2 = context.slab.clone();
-//
         let head_dup = self.head.clone();
-        let head_dup2 = self.head.clone();
 
         let res_head: MemoRefHead = context.get_resident_subject_head(self.id);
 
-        Box::new(head_dup.apply( res_head , slab_dup ).and_then(move |did_apply|{
-            head_dup2.project_edge(slab_dup2, key)
+        Box::new(self.head.apply( res_head , &context.slab ).and_then(move |did_apply|{
+            head_dup.project_edge(slab_dup, key)
         }))
     }
 
@@ -220,47 +217,47 @@ impl Subject {
         let mut vals: HashMap<String, String> = HashMap::new();
         vals.insert(key.to_string(), value.to_string());
 
-        let head: MemoRefHeadOuter = self.head.clone();
+        let head: MemoRefHeadMut = self.head.clone();
 
         // TODO: get rid of these clones
-        let slab_copy: LocalSlabHandle = context.slab.clone();
-        let self_copy: Subject = self.clone();
-        let context_copy: Context = context.clone();
+        let slab_dup: LocalSlabHandle = context.slab.clone();
+        let self_dup: Subject = self.clone();
+        let context_dup: Context = context.clone();
 
         context.slab.new_memo_basic(
             self.id,
-            self.head.clone(),
+            self.head.as_immut(),
             MemoBody::Edit(vals)
         ).and_then(move |memoref|{
-            head.apply_memoref(memoref, slab_copy).and_then(move |did_apply|{
+            head.apply_memoref(memoref, &slab_dup).and_then(move |did_apply|{
                 if did_apply {
-                    self_copy.update_referents(context_copy)?;
+                    self_dup.update_referents(context_dup)?;
                 };
 
                 Ok(did_apply)
             })
         }).wait()
     }
-    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Result<(),Error>{
+    pub fn set_edge (&self, context: &Context, key: RelationSlotId, edge: &Self) -> Box<Future<Item=(),Error=Error>> {
         //println!("# Subject({}).set_edge({}, {})", &self.id, key, relation.id);
         let mut edgeset = EdgeSet::empty();
         edgeset.insert( key, edge.get_head() );
 
-        let slab = &context.slab;
-        {
-            let mut head = self.head.borrow_mut();
+        // TODO: Get rid of these clones
+        let slab_clone = context.slab.clone();
+        let head_clone = self.head.clone();
+        let self_clone = self.clone();
+        let context_clone = context.clone();
 
-            let memoref = slab.new_memo(
-                self.id,
-                head.clone(),
-                MemoBody::Edge(edgeset)
-            );
-
-            head.apply_memoref(&memoref, &slab)?;
-        }
-        
-        self.update_referents( context )
-
+        Box::new( context.slab.new_memo(
+            self.id,
+            self.head.as_immut(),
+            MemoBody::Edge(edgeset)
+        ).and_then(|memoref|{
+            head_clone.apply_memoref(memoref, &slab_clone)
+        }).and_then(|did_apply|{
+            self_clone.update_referents( context_clone )
+        }) )
     }
     // // TODO: get rid of apply_head and get_head in favor of Arc sharing heads with the context
     // pub fn apply_head (&self, context: &Context, new: &MemoRefHead){
@@ -272,7 +269,7 @@ impl Subject {
     //     self.head.write().unwrap().apply(&new, &slab);
     // }
     pub fn get_head (&self) -> MemoRefHead {
-        self.head.borrow().clone()
+        self.head.as_immut()
     }
     // pub fn get_contextualized_head(&self, context: &Context) -> MemoRefHead {
     //     let mut head = self.head.read().unwrap().clone();
@@ -298,11 +295,11 @@ impl Subject {
         //        without duplication of effort
         // TODO - make this more elegant, such that the initial MRH isn't redundantly applied to itself
 
-        let head: Rc<RefCell<MemoRefHead>> = self.head.clone();
+        let head = self.head.clone();
         let slab: LocalSlabHandle = slab.clone();
-        let stream = slab.observe_subject( self.id ).map(move |mrh|{
-            head.borrow_mut().apply(&mrh, &slab).and_then(|applied| Ok(()) )
-        });
+        let stream : _ = slab.observe_subject(self.id ).and_then(move |mrh|{
+            head.apply(mrh, &slab)
+        }).and_then(|applied| Ok(()) );
 
         Box::new(stream)
     }
@@ -327,7 +324,7 @@ impl fmt::Debug for Subject {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Subject")
             .field("subject_id", &self.id)
-            .field("head", &self.head)
+            .field("head", &*self.head)
             .finish()
     }
 }

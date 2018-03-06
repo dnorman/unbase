@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use futures;
 
@@ -11,7 +12,7 @@ use std::fmt;
 
 pub struct Memory {
     slab_id: slab::SlabId,
-    core: Rc<MemoryCore>,
+    core: Rc<RefCell<MemoryCore>>,
     counter: Rc<SlabCounter>,
     dispatcher: Dispatcher,
     net: Network
@@ -47,12 +48,12 @@ impl Memory {
             futures::unsync::mpsc::channel::<Dispatch>(1024);
 
         let counter = Rc::new(SlabCounter::new());
-        let mut core = Rc::new(MemoryCore::new(
+        let mut core = Rc::new(RefCell::new( MemoryCore::new(
             slab_id,
             net.clone(),
             counter.clone(),
             dispatcher_tx
-        ));
+        )));
 
         let dispatcher: Dispatcher = Dispatcher::new(net.clone(), core.clone(), dispatcher_rx );
 

@@ -1,3 +1,5 @@
+extern crate core;
+
 mod projection;
 
 use slab::prelude::*;
@@ -104,6 +106,58 @@ impl MemoRefHead {
             MemoRefHead::Anonymous{ ref head } | MemoRefHead::Subject{ ref head, .. } => head.iter()
         }
     }
+    pub fn descends_or_contains_memoref (&self, other_memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool,Error=Error>> {
+        unimplemented!()
+//        match *self {
+//            MemoRefHead::Null => Ok(false),
+//            MemoRefHead::Subject { ref head, .. } | MemoRefHead::Anonymous { ref head, .. } => {
+//                for memoref in head.iter() {
+//                    if memoref == other_memoref {
+//                        //
+//                    } else if !memoref.descends(other_memoref, slab).wait()? {
+//                        return Ok(false);
+//                    }
+//                }
+//
+//                Ok(true)
+//            }
+//        }
+    }
+    /// Test to see if this MemoRefHead fully descends another
+    /// If there is any hint of causal concurrency, then this will return false
+    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &LocalSlabHandle) -> Box<Future<Item=bool,Error=Error>> {
+
+        unimplemented!()
+//        // there's probably a more efficient way to do this than iterating over the cartesian product
+//        // we can get away with it for now though I think
+//        // TODO: revisit when beacons are implemented
+//        match *self {
+//            MemoRefHead::Null             => Ok(false),
+//            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => {
+//                match *other {
+//                    MemoRefHead::Null             => Ok(false),
+//                    MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
+//                        if head.is_empty() || other_head.is_empty() {
+//                            return Ok(false) // searching for positive descendency, not merely non-ascendency
+//                        }
+//
+//
+//                        for memoref in head.iter(){
+//                            'other: for other_memoref in other_head.iter(){
+//                                if memoref == other_memoref {
+//                                    //
+//                                } else if !memoref.descends(other_memoref, slab).wait()? {
+//                                    return Ok(false);
+//                                }
+//                            }
+//                        }
+//
+//                        Ok(true)
+//                    }
+//                }
+//            }
+//        }
+    }
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, include_memos: bool ) -> Self {
         assert!(from_slab.slab_id != to_slab.slab_id(), "slab id should differ");
         match *self {
@@ -122,11 +176,15 @@ impl MemoRefHead {
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use core::ops::Deref;
 
 #[derive(Clone)]
-pub struct MemoRefHeadOuter(pub Rc<RefCell<MemoRefHead>>);
+pub struct MemoRefHeadMut(pub Rc<RefCell<MemoRefHead>>);
 
-impl MemoRefHeadOuter {
+impl MemoRefHeadMut {
+    pub fn as_immut(&self) -> MemoRefHead {
+        *self.borrow().clone()
+    }
     pub fn apply_memoref(&self, new: MemoRef, slab: &LocalSlabHandle ) -> Box<Future<Item=bool, Error=Error>> {
         //println!("# MemoRefHead({:?}).apply_memoref({})", self.memo_ids(), &new.id);
 
@@ -230,51 +288,19 @@ impl MemoRefHeadOuter {
         }
         Ok(())
     }
-    pub fn apply (&self, other: MemoRefHead, slab: LocalSlabHandle) -> Box<Future<Item=bool,Error=Error>> {
+    pub fn apply (&self, other: MemoRefHead, slab: &LocalSlabHandle) -> Box<Future<Item=bool,Error=Error>> {
         let mut applied = false;
 
-        let self_dup = self.clone();
+        let self_dup: MemoRefHeadMut = self.clone();
+        let slab_dup: LocalSlabHandle = slab.clone();
 
         futures::stream::iter_ok::<MemoRef, ()>(other.to_vec().drain(..)).fold(false, move |acc, memoref|{
-            self_dup.apply_memoref( memoref, slab ).and_then(|applied| {
+            self_dup.apply_memoref( memoref, &slab ).and_then(|applied| {
                 if applied {
                     *acc = true;
                 }
             })
         })
-    }
-
-    /// Test to see if this MemoRefHead fully descends another
-    /// If there is any hint of causal concurrency, then this will return false
-    pub fn descends_or_contains (&self, other: &MemoRefHead, slab: &LocalSlabHandle) -> Result<bool,Error> {
-
-        // there's probably a more efficient way to do this than iterating over the cartesian product
-        // we can get away with it for now though I think
-        // TODO: revisit when beacons are implemented
-        match *self {
-            MemoRefHead::Null             => Ok(false),
-            MemoRefHead::Subject{ ref head, .. } | MemoRefHead::Anonymous{ ref head, .. } => {
-                match *other {
-                    MemoRefHead::Null             => Ok(false),
-                    MemoRefHead::Subject{ head: ref other_head, .. } | MemoRefHead::Anonymous{ head: ref other_head, .. } => {
-                        if head.is_empty() || other_head.is_empty() {
-                            return Ok(false) // searching for positive descendency, not merely non-ascendency
-                        }
-                        for memoref in head.iter(){
-                            'other: for other_memoref in other_head.iter(){
-                                if memoref == other_memoref {
-                                    //
-                                } else if !memoref.descends(other_memoref, slab).wait()? {
-                                    return Ok(false);
-                                }
-                            }
-                        }
-
-                        Ok(true)
-                    }
-                }
-            }
-        }
     }
 
     pub fn causal_memo_iter(&self, slab: &LocalSlabHandle ) -> CausalMemoIter {
@@ -303,6 +329,13 @@ impl MemoRefHeadOuter {
         }
 
         true
+    }
+}
+
+impl Deref for MemoRefHeadMut {
+    type Target = MemoRefHead;
+    fn deref(&self) -> &MemoRefHead {
+        &self.0.borrow()
     }
 }
 

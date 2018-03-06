@@ -43,8 +43,8 @@ impl MemoRef {
             }
         }
     }
-    pub fn to_head_outer (&self) -> MemoRefHeadOuter {
-        MemoRefHeadOuter( Rc::new(RefCell::new(self.to_head())) )
+    pub fn to_head_outer (&self) -> MemoRefHeadMut {
+        MemoRefHeadMut( Rc::new(RefCell::new(self.to_head())) )
     }
     // pub fn is_resident(&self) -> bool {
     //     unimplemented!()
@@ -86,13 +86,16 @@ impl MemoRef {
 //         }
 
 //     }
-    pub fn descends (&self, memoref: &MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
+    pub fn descends (&self, memoref: MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
         #[cfg(debug_assertions)]
         assert_eq!(self.owning_slab_id == slab.slab_id());
 
-         Box::new(slab.get_memo(self, true).and_then(|memo:Memo| {
-             memo.descends(memoref,slab)
-         }))
+        // TODO: remove this clone
+        let slab_dup = slab.clone();
+
+        Box::new(slab.get_memo(self.clone(), true).and_then(|memo:Memo| {
+            memo.descends(&memoref,&slab_dup)
+        }))
     }
     // TODO: Remove _include_memo.
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, _include_memo: bool ) -> Self{
