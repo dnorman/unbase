@@ -121,16 +121,8 @@ impl Memo {
             };
         }
 
-        // Ok now depth - TODO: join parent futures
-        for parent in self.parents.iter() {
-            match parent.descends(&memoref,slab).wait() {
-                Ok(true)  => return Box::new(future::result(Ok(true))),
-                Ok(false) => continue,
-                Err(e)    => return Box::new(future::result(Err(e)))
-            };
-        }
-
-        Box::new(future::result(Ok(false)))
+        //TODO: avoid the allocation here by adding descends_or_contains_memoref
+        self.parents.descends_or_contains_memoref(memoref,slab)
     }
     pub fn clone_for_slab (&self, from_slab: &mut LocalSlabHandle, to_slab: &LocalSlabHandle, peerlist: &Vec<MemoPeerState>) -> Memo {
         #[cfg(debug_assertions)]

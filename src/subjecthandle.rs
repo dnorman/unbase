@@ -57,7 +57,7 @@ impl fmt::Debug for SubjectHandle {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Subject")
             .field("subject_id", &self.subject.id)
-            .field("head", &self.subject.head)
+            .field("head", &*self.subject.head)
             .finish()
     }
 }

@@ -1,4 +1,6 @@
 use std::rc::Rc;
+use std::cell::RefCell;
+
 //use futures::future;
 use futures::prelude::*;
 use futures::unsync::mpsc;
@@ -14,7 +16,7 @@ use subject::{SubjectId,SubjectType};
 use memorefhead::MemoRefHead;
 
 impl LocalSlabHandle {
-    pub fn new (slabref: SlabRef, counter: Rc<SlabCounter>, core: Rc<StorageCoreInterface>) -> LocalSlabHandle {
+    pub fn new (slabref: SlabRef, counter: Rc<SlabCounter>, core: Rc<RefCell<StorageCoreInterface>>) -> LocalSlabHandle {
 
         LocalSlabHandle{
             slab_id: slabref.slab_id(),
@@ -151,7 +153,7 @@ impl LocalSlabHandle {
             owning_slabref: self.slabref.clone(),
         };
 
-        self.put_memo( memo, vec![], self.slabref )
+        self.put_memo( memo, MemoPeerSet::empty(), self.slabref )
 
     }
     pub fn remotize_memoref( &self, memoref: &MemoRef ) -> Result<(),Error> {

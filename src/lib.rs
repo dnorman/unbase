@@ -37,8 +37,8 @@
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
-#![feature(proc_macro, conservative_impl_trait, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
-extern crate futures_await as futures;
+#![feature(proc_macro, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
+extern crate futures;
 extern crate core;
 extern crate itertools;
 

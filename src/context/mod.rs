@@ -125,7 +125,7 @@ impl Context{
     }
     /// Retrieve a subject for a known MemoRefHead – ususally used for relationship traversal.
     /// Any relevant context will also be applied when reconstituting the relevant subject to ensure that our consistency model invariants are met
-    pub (crate) fn get_subject_with_head(&self,  mut head: MemoRefHeadOuter)  -> Result<Subject, Error> {
+    pub (crate) fn get_subject_with_head(&self, mut head: MemoRefHeadMut) -> Result<Subject, Error> {
 
         if head.is_empty() {
             return Err(Error::RetrieveError(RetrieveError::InvalidMemoRefHead));

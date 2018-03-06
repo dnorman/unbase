@@ -143,16 +143,17 @@ impl TransportUDP {
                 lifetime: SlabAnticipatedLifetime::Unknown
             };
 
-            let hello = slab.new_memo_basic_noparent(
+            slab.new_memo_basic_noparent(
                 SubjectId::anonymous(),
                 MemoBody::SlabPresence{ s: presence.slab_id, p: presence, r: net.get_root_index_seed(&slab) }
             );
 
-            self.send_to_addr(
-                slab,
-                hello,
-                to_address.clone()
-            );
+            unimplemented!()
+//            self.send_to_addr(
+//                slab,
+//                hello,
+//                to_address.clone()
+//            );
         }
 
     }

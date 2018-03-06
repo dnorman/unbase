@@ -1,7 +1,7 @@
 use super::*;
 use subject::SUBJECT_MAX_RELATIONS;
 
-impl MemoRefHeadOuter {
+impl MemoRefHeadMut {
     /*pub fn fully_materialize( &self, slab: &Slab ) {
         // TODO: consider doing as-you-go distance counting to the nearest materialized memo for each descendent
         //       as part of the list management. That way we won't have to incur the below computational effort.
