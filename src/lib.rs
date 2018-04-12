@@ -38,14 +38,13 @@
 #![doc(html_root_url = "https://unba.se")]
 
 #![feature(proc_macro, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
+extern crate actix;
 extern crate futures;
 extern crate core;
 extern crate itertools;
 
 #[cfg(not(target_arch = "wasm32"))]
 extern crate nihdb;
-#[cfg(not(target_arch = "wasm32"))]
-extern crate tokio;
 
 #[cfg(target_arch = "wasm32")]
 //#[macro_use]

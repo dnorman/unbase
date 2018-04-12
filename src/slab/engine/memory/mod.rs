@@ -1,24 +1,25 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 
-use futures;
+mod store;
+use self::store::MemoryStore;
 
-use super::core::MemoryCore;
 use network::{Network};
 use slab::{self, dispatcher::*, storage::*, prelude::*, Slab, counter::SlabCounter};
 use context::Context;
 
+use actix::prelude::*;
+use futures;
 use std::fmt;
+use std::rc::Rc;
 
-pub struct Memory {
+pub struct MemoryEngine<S> where S: Handler<StorageRequest> {
     slab_id: slab::SlabId,
-    core: Rc<RefCell<MemoryCore>>,
+    store: Addr<Unsync,S>,
     counter: Rc<SlabCounter>,
-    dispatcher: Dispatcher,
+    dispatcher: Dispatcher<S>,
     net: Network
 }
 
-impl Slab for Memory {
+impl <S> Slab for MemoryEngine<S> {
     fn slab_id (&self) -> slab::SlabId{
         self.slab_id.clone()
     }
@@ -39,27 +40,26 @@ impl Slab for Memory {
     }
 }
 
-impl Memory {
+impl <S> MemoryEngine<S>  where S: Handler<StorageRequest> {
     pub fn new(net: &Network) -> Self {
         let slab_id = net.generate_slab_id();
-
 
         let (dispatcher_tx, dispatcher_rx) =
             futures::unsync::mpsc::channel::<Dispatch>(1024);
 
         let counter = Rc::new(SlabCounter::new());
-        let mut core = Rc::new(RefCell::new( MemoryCore::new(
+        let store: Addr<Unsync,MemoryStore> = MemoryStore::new(
             slab_id,
             net.clone(),
             counter.clone(),
             dispatcher_tx
-        )));
+        ).start();
 
-        let dispatcher: Dispatcher = Dispatcher::new(net.clone(), core.clone(), dispatcher_rx );
+        let dispatcher = Dispatcher::<MemoryStore>::new(net.clone(), store.clone(), dispatcher_rx );
 
-        let me = Memory{
+        let me = MemoryEngine {
             slab_id,
-            core,
+            store,
             counter,
             dispatcher,
             net: net.clone(),
@@ -72,7 +72,7 @@ impl Memory {
     }
 }
 
-impl Drop for Memory {
+impl Drop for MemoryEngine {
     fn drop(&mut self) {
 
         //println!("# SlabInner({}).drop", self.id);
@@ -85,7 +85,7 @@ impl Drop for Memory {
     }
 }
 
-impl fmt::Debug for Memory {
+impl fmt::Debug for MemoryEngine {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Slab")
             .field("slab_id", &self.slab_id)

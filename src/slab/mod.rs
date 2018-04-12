@@ -5,7 +5,8 @@ mod counter;
 mod localhandle;
 mod dispatcher;
 
-pub mod storage;
+mod engine;
+pub use self::engine::memory::MemoryEngine as Memory;
 
 
 pub mod prelude {

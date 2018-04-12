@@ -18,6 +18,7 @@ use std::rc::{Rc,Weak};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::fmt;
+use futures::Stream;
 
 #[derive(Clone)]
 pub struct Context(Rc<ContextInner>);
