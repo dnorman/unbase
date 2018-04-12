@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use futures::{self, future, Future, Sink, unsync::{mpsc,oneshot}}; //prelude::*,
+use actix::prelude::*;
 
 use network::{Network,Transmitter};
 use buffer::NetworkBuffer;
@@ -18,7 +19,7 @@ struct MemoCarrier{
     peerset:  MemoPeerSet,
 }
 
-pub struct MemoryCore {
+pub struct MemoryStore {
     // * things which will probably be nearly identical across slab types
     /// The Slabref for this slab
     pub slab_id: slab::SlabId,
@@ -38,9 +39,10 @@ pub struct MemoryCore {
     memo_storage: HashMap<MemoId,MemoCarrier>,
 }
 
-impl MemoryCore {
+
+impl MemoryStore {
     pub fn new ( slab_id: slab::SlabId, net: Network, counter: Rc<SlabCounter>, dispatcher_tx: mpsc::Sender<Dispatch> ) -> Self {
-        MemoryCore{
+        MemoryStore {
             slab_id,
             net,
             counter,
@@ -85,13 +87,33 @@ impl MemoryCore {
         }
     }
 }
-impl StorageCore for MemoryCore {
+
+impl Actor for MemoryStore {
+    type Context = Context<Self>;
+}
+
+impl Message for Ping {
+    type Result = usize;
+}
+
+impl Handler<Ping> for MyActor {
+    type Result = usize;
+
+    fn handle(&mut self, msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
+        self.count += msg.0;
+
+        self.count
+    }
+}
+
+impl StorageCore for MemoryStore {
     fn slab_id (&self) -> slab::SlabId {
         self.slab_id.clone()
     }
 }
 
-impl StorageCoreInterface for MemoryCore {
+
+impl StorageCoreInterface for MemoryStore {
     fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 

@@ -5,10 +5,13 @@ use unbase::Slab;
 
 #[test]
 fn basic_record_retrieval() {
+    let system = actix::System::new("test");
+    system.run();
 
     let net = unbase::Network::create_new_system();
-    let slab_a = unbase::slab::storage::Memory::new(&net);
+    let slab_a = unbase::slab::Memory::new(&net);
     let context_a = slab_a.create_context();
+
 
     let record_id;
     {

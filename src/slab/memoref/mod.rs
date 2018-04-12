@@ -88,7 +88,7 @@ impl MemoRef {
 //     }
     pub fn descends (&self, memoref: MemoRef, slab: &LocalSlabHandle) -> Box<Future<Item=bool, Error=Error>> {
         #[cfg(debug_assertions)]
-        assert_eq!(self.owning_slab_id == slab.slab_id());
+        assert_eq!(self.owning_slab_id, slab.slab_id());
 
         // TODO: remove this clone
         let slab_dup = slab.clone();
