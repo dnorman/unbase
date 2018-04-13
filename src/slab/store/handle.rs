@@ -2,10 +2,17 @@ use futures::{future, Future, sync::oneshot};
 use super::*;
 use error::*;
 
-impl StorageRequester {
+
+
+#[derive(Clone)]
+pub struct StoreHandle {
+    tx: mpsc::UnboundedSender<(LocalSlabRequest,oneshot::Sender<Result<LocalSlabResponse,Error>>)>
+}
+
+impl StoreHandle {
     pub fn new() -> (Self, mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) {
         let (tx, rx) = mpsc::unbounded::<LocalSlabRequestAndResponder>();
-        (StorageRequester { tx }, rx)
+        (StoreHandle{ tx }, rx)
     }
     fn call (&self, request: LocalSlabRequest ) -> Box<Future<Item=LocalSlabResponse, Error=Error>> {
         let (p, c) = oneshot::channel::<Result<LocalSlabResponse,Error>>();
@@ -24,9 +31,6 @@ impl StorageRequester {
             }
         }))
     }
-}
-
-impl StorageCoreInterface for StorageRequester {
     fn get_memo (self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>{
         Box::new(self.call(LocalSlabRequest::GetMemo{ memoref, allow_remote } ).and_then(|r| {
             if let LocalSlabResponse::GetMemo(memo) = r {

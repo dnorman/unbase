@@ -1,44 +1,16 @@
 
-use futures::{future, {Stream,Future}, sync::{mpsc,oneshot}};
-use ::executor::Executor;
-use std::thread;
-
+use util::workeragent::Worker;
 use super::*;
 
-pub struct CoreThread{
-    worker_thread: thread::JoinHandle<()>
+struct SlabStoreWorker{
+
 }
 
-struct CoreThreadInner<'a, T> where &'a mut T: StorageCoreInterface+Send+'a {
-    core: T
-}
+impl <T> Worker<T> for SlabStoreWorker where T: SlabStore {
+    type Request = LocalSlabRequest;
+    type Response = Result<LocalSlabResponse,Error>;
 
-impl CoreThread{
-    pub fn new<'a, T> (core: T, request_rx:  mpsc::UnboundedReceiver<LocalSlabRequestAndResponder>) -> CoreThread
-        where &'a mut T: StorageCoreInterface + Send + 'a {
-
-        let mut inner = CoreThreadInner{ core };
-
-        let worker_thread = thread::spawn(move || {
-            current_thread::run(|_| {
-
-            let server = request_rx.for_each(move |(request, resp_channel)| {
-                Executor::spawn( inner.dispatch_request(request,resp_channel) );
-                future::result(Ok(()))
-            });
-
-            Executor::spawn(server);
-
-            });
-        });
-
-        CoreThread{ worker_thread }
-
-    }
-}
-
-impl <'a,'b, T> CoreThreadInner<'a, T> where &'a mut T: StorageCoreInterface+Send+'b {
-    fn dispatch_request(&mut self,request: LocalSlabRequest, responder: oneshot::Sender<Result<LocalSlabResponse,Error>>) -> Box<Future<Item=(), Error=()>> {
+    fn handle_message(&mut self, message: WorkerMessage<Self>) -> Box<Future<Item=(), Error=()>> {
         use slab::storage::LocalSlabRequest::*;
 
         // NFI how to do match statements which return different futures
