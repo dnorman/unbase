@@ -21,7 +21,6 @@ exclude = [
 [dependencies]
 
 futures = "0.1.17"
-actix = "0.5.5"
 itertools = "0.5.9"
 
 sha2 = "0.4.0"

@@ -2,7 +2,6 @@ use std::collections::{HashMap, hash_map::Entry};
 use std::rc::Rc;
 use std::cell::RefCell;
 use futures::{self, future, prelude::*, unsync::{mpsc,oneshot} };
-use actix::{Addr,prelude::*};
 
 //#[cfg(not(target_arch = "wasm32"))]
 //mod thread;
@@ -12,7 +11,6 @@ use slab::{prelude::*, storage::*};
 use subject::{SubjectId};
 use memorefhead::MemoRefHead;
 use error::Error;
-use ::executor::Executor;
 
 pub enum Dispatch{
     GotMemo{ memo: Memo, memoref: MemoRef, from_slabref: SlabRef },

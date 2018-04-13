@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use futures::{self, future, Future, Sink, unsync::{mpsc,oneshot}}; //prelude::*,
-use actix::prelude::*;
 
 use network::{Network,Transmitter};
 use buffer::NetworkBuffer;
@@ -86,14 +85,6 @@ impl MemoryStore {
             }
         }
     }
-}
-
-impl Actor for MemoryStore {
-    type Context = Context<Self>;
-}
-
-impl Message for Ping {
-    type Result = usize;
 }
 
 impl Handler<Ping> for MyActor {
