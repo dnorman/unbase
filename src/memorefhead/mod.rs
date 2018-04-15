@@ -174,12 +174,11 @@ impl MemoRefHead {
 
 }
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc,Mutex};
 use core::ops::Deref;
 
 #[derive(Clone)]
-pub struct MemoRefHeadMut(pub Rc<RefCell<MemoRefHead>>);
+pub struct MemoRefHeadMut(pub Arc<Mutex<MemoRefHead>>);
 
 impl MemoRefHeadMut {
     pub fn as_immut(&self) -> MemoRefHead {
@@ -191,14 +190,14 @@ impl MemoRefHeadMut {
         // Conditionally add the new memoref only if it descends any memorefs in the head
         // If so, any memorefs that it descends must be removed
         let head = match *self.0.borrow() {
-            MemoRefHead::Null => {
+            MemoRefHeadMut::Null => {
                 if !new.subject_id.is_anonymous() {
-                    *self = MemoRefHead::Subject{
+                    *self = MemoRefHeadMut::Subject{
                         head: vec![new.clone()],
                         subject_id: new.subject_id
                     };
                 }else{
-                    *self = MemoRefHead::Anonymous{ head: vec![new.clone()] };
+                    *self = MemoRefHeadMut::Anonymous{ head: vec![new.clone()] };
                 }
 
                 return Ok(true);
@@ -284,7 +283,7 @@ impl MemoRefHeadMut {
     }
     pub fn apply_memorefs (&self, new_memorefs: &Vec<MemoRef>, slab: &LocalSlabHandle) -> Result<(),Error> {
         for new in new_memorefs.iter(){
-            self.apply_memoref(new, slab)?;
+            self.apply_memoref(new.clone(), slab)?;
         }
         Ok(())
     }

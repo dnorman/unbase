@@ -1,32 +1,33 @@
 use std::collections::{HashMap, hash_map::Entry};
 use std::rc::Rc;
 use std::cell::RefCell;
-use futures::{self, future, prelude::*, unsync::{mpsc,oneshot} };
+use futures::{self, future, prelude::*, channel::{mpsc,oneshot} };
 
 //#[cfg(not(target_arch = "wasm32"))]
 //mod thread;
 
 use network::Network;
-use slab::{prelude::*, storage::*};
+use slab::{prelude::*, store::*};
 use subject::{SubjectId};
 use memorefhead::MemoRefHead;
 use error::Error;
+use util::workeragent::{Worker,WorkerAgent};
 
 pub enum Dispatch{
     GotMemo{ memo: Memo, memoref: MemoRef, from_slabref: SlabRef },
     WaitForMemo{ memoref: MemoRef, tx: oneshot::Sender<Result<Memo,Error>> },
 }
 
-pub struct Dispatcher<S> where S: Handler<StorageRequest> {
-    store: Addr<Unsync,S>,
+pub struct Dispatcher<S> {
+    store: WorkerAgent<SlabStore>,
     memo_wait_channels: HashMap<MemoId,Vec<oneshot::Sender<Result<Memo,Error>>>>,
     subject_subscriptions: HashMap<SubjectId, Vec<mpsc::Sender<MemoRefHead>>>,
     index_subscriptions: Vec<mpsc::Sender<MemoRefHead>>,
     net: Network,
 }
 
-impl<S> Dispatcher<S> where S: Handler<StorageRequest> {
-    pub fn new(net: Network, store: Addr<Unsync,T>, rx: futures::unsync::mpsc::Receiver<Dispatch>) -> Dispatcher<S> {
+impl <S> Dispatcher<S> where S: Handler<StorageRequest> {
+    pub fn new(net: Network, store: StoreHandle ) -> Dispatcher<S> {
         Dispatcher {
             store,
             memo_wait_channels: HashMap::new(),
