@@ -21,6 +21,7 @@ exclude = [
 
 [dependencies]
 
+<<<<<<< HEAD
 futures = "0.1.17"
 linked-hash-map = "0.3.0"
 sha2 = "0.8.0"

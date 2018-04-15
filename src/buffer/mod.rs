@@ -17,7 +17,7 @@ use error::*;
 use network::TransportAddress;
 use subject::SubjectId;
 use slab::{self,prelude::*};
-use slab::storage::StorageCoreInterface;
+use slab::store::StoreHandle;
 use itertools::Itertools;
 
 //use self::receiver::BufferReceiver;
@@ -278,7 +278,7 @@ impl NetworkBuffer{
         // TODO: Handle error (like above?)
         serde_json::to_vec(self).unwrap()
     }
-    pub fn extract(self, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>>{
+    pub fn extract(self, receiver: StoreHandle ) -> Box<Future<Item=(),Error=Error>>{
         let segments = self.segments;
         // TODO: Implement.
         for segment in segments {
@@ -298,7 +298,7 @@ impl NetworkBuffer{
 }
 
 impl MemoBuffer {
-    fn extract (self, segments: &Vec<NetbufSegment>, receiver: &mut impl StorageCoreInterface ) -> Box<Future<Item=(),Error=Error>> {
+    fn extract (self, segments: &Vec<NetbufSegment>, receiver: StoreHandle ) -> Box<Future<Item=(),Error=Error>> {
 
     // TODO 1: LEFT OFF HERE
 

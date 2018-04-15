@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 //use futures::prelude::*;
-use futures::sync::{mpsc};
+use futures::channel::{mpsc};
 //use futures::future;
 use nihdb;
 

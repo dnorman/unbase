@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use futures::{self, future, Future, Sink, unsync::{mpsc,oneshot}}; //prelude::*,
+use futures::{self, future, Future, Sink, channel::{mpsc,oneshot}}; //prelude::*,
 
 use network::{Network,Transmitter};
 use buffer::NetworkBuffer;
-use slab::{self, prelude::*, counter::SlabCounter, storage::{StorageCore, StorageCoreInterface}};
+use slab::{self, prelude::*, counter::SlabCounter, store::{SlabStore, StoreHandle}};
+use context::Context;
 use subject::SubjectId;
 use memorefhead::MemoRefHead;
 use error::*;
-use slab::dispatcher::Dispatch;
+use slab::dispatcher::Dispatcher;
 use futures::Stream;
+use util::workeragent::{Worker,WorkerAgent};
 
 
 struct MemoCarrier{
@@ -27,7 +29,7 @@ pub struct MemoryStore {
     // peering_remediation_thread: RwLock<Option<thread::JoinHandle<()>>>,
     // peering_remediation_queue: Mutex<Vec<MemoRef>>,
 
-    dispatcher_tx: mpsc::Sender<Dispatch>,
+    dispatcher: WorkerAgent<Dispatcher<Self>>,
     slab_transmitters: HashMap<slab::SlabId,Transmitter>, // TODO: Make this an LRU
 
     // * Things that would be serialized in most other slab types *
@@ -40,22 +42,6 @@ pub struct MemoryStore {
 
 
 impl MemoryStore {
-    pub fn new ( slab_id: slab::SlabId, net: Network, counter: Rc<SlabCounter>, dispatcher_tx: mpsc::Sender<Dispatch> ) -> Self {
-        MemoryStore {
-            slab_id,
-            net,
-            counter,
-
-            memo_storage:          HashMap::new(),
-            slab_presence_storage: HashMap::new(),
-
-            // I think we want to have the transmitters locally accessible
-            // so we can send stuff directly without deserializing
-            slab_transmitters:    HashMap::new(),
-
-            dispatcher_tx,
-        }
-    }
     fn get_slabref(&self) -> SlabRef {
         SlabRef{
             owning_slab_id: self.slab_id,
@@ -87,24 +73,26 @@ impl MemoryStore {
     }
 }
 
-impl Handler<Ping> for MyActor {
-    type Result = usize;
+impl SlabStore for MemoryStore {
+    fn new ( slab_id: slab::SlabId, net: Network, counter: Rc<SlabCounter>, dispatcher: WorkerAgent<Dispatcher<Self>> ) -> Self {
+        MemoryStore {
+            slab_id,
+            net,
+            counter,
 
-    fn handle(&mut self, msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
-        self.count += msg.0;
+            memo_storage:          HashMap::new(),
+            slab_presence_storage: HashMap::new(),
 
-        self.count
+            // I think we want to have the transmitters locally accessible
+            // so we can send stuff directly without deserializing
+            slab_transmitters:    HashMap::new(),
+
+            dispatcher,
+        }
     }
-}
-
-impl StorageCore for MemoryStore {
     fn slab_id (&self) -> slab::SlabId {
         self.slab_id.clone()
     }
-}
-
-
-impl StorageCoreInterface for MemoryStore {
     fn get_memo ( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>> {
         //println!("# Slab({}).SlabRef({}).send_memo({:?})", self.owning_slab_id, self.slab_id, memoref );
 
@@ -138,7 +126,7 @@ impl StorageCoreInterface for MemoryStore {
         let (tx, rx) = oneshot::channel::<Result<Memo, Error>>();
 
         // Listen for the returned memo - QUESTION: what ordering guarantees does this channel offer? Could the GotMemo potentially beat the WaitForMemo?
-        self.dispatcher_tx.send(Dispatch::WaitForMemo { memoref: memoref.clone(), tx });
+        self.dispatcher_tx.send(Dispatcher::WaitForMemo { memoref: memoref.clone(), tx });
 
         let mut return_presences: Vec<SlabPresence> = request_peers.iter().map(|p| p.return_presence()).collect();
         return_presences.sort();
@@ -181,7 +169,7 @@ impl StorageCoreInterface for MemoryStore {
             return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::InsufficientPresence))))
         }
 
-        use futures::sync::oneshot::Canceled;
+        use futures::channel::oneshot::Canceled;
         Box::new(futures::collect(sends).and_then( |_| {
             rx.then(| response : Result<Result<Memo,Error>,Canceled> | {
                 match response {
@@ -218,7 +206,7 @@ impl StorageCoreInterface for MemoryStore {
             }
         };
 
-        self.dispatcher_tx.send(Dispatch::GotMemo{memo, memoref: memoref.clone(), from_slabref});
+        self.dispatcher_tx.send(Dispatcher::GotMemo{memo, memoref: memoref.clone(), from_slabref});
 
         Box::new(future::result(Ok(memoref)))
     }

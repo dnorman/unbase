@@ -7,7 +7,7 @@ use memorefhead::*;
 use error::*;
 
 use std::collections::HashMap;
-use futures::unsync::mpsc;
+use futures::channel::mpsc;
 
 use index::IndexFixed;
 use slab::Slab;
@@ -101,7 +101,8 @@ impl Context{
 
         let weak_self = self.weak();
 
-        ::executor::Executor::spawn(receiver.for_each(move |mrh|{
+        // TODO: modularize executor
+        tokio::spawn(receiver.for_each(move |mrh|{
             if let Some(ctx) = weak_self.upgrade(){
                 if let Err(e) = ctx.apply_head(&mrh){ // TODO2 Add action to apply memoref directly
                     //TODO: Update this to use logger

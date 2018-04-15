@@ -8,6 +8,11 @@ mod store;
 
 pub use self::store::memory::MemoryStore as Memory;
 
+use util::workeragent::WorkerAgent;
+use self::dispatcher::Dispatcher;
+use context::Context;
+
+use std::fmt;
 
 pub mod prelude {
     // Intentionally omitting trait Slab and MemorySlab from here
@@ -22,16 +27,42 @@ pub mod prelude {
 }
 
 
-pub struct Slab<S> {
+pub struct Slab<S=Memory> {
     slab_id: SlabId,
     store: WorkerAgent<SlabStoreWorker<S>>,
     counter: Rc<SlabCounter>,
-    dispatcher: Dispatcher<S>,
+    dispatcher: WorkerAgent<Dispatcher<S>>,
     net: Network
 }
 
-impl <S> Slab<S=Memory> {
-    fn slab_id (&self) -> slab::SlabId{
+impl <S> Slab<S> {
+    pub fn new(net: &Network) -> Self<S> {
+        let slab_id = net.generate_slab_id();
+
+        let counter = Rc::new(SlabCounter::new());
+        let store: WorkerAgent<StoreWorker<S>> = WorkerAgent::new(S::new(
+            slab_id,
+            net.clone(),
+            counter.clone(),
+            dispatcher_tx
+        ));
+
+        let dispatcher: WorkerAgent<Dispatcher<S>> = Dispatcher::new(net.clone(), store.clone() );
+
+        let me = Slab::<S> {
+            slab_id,
+            store,
+            counter,
+            dispatcher,
+            net: net.clone(),
+        };
+
+        net.register_local_slab(me.get_handle());
+        net.conditionally_generate_root_index_seed(&me.get_handle());
+
+        me
+    }
+    fn slab_id (&self) -> SlabId{
         self.slab_id.clone()
     }
     fn get_handle (&self) -> LocalSlabHandle {
@@ -48,38 +79,6 @@ impl <S> Slab<S=Memory> {
     }
     fn create_context (&self) -> Context {
         Context::new(self)
-    }
-}
-
-impl <S> MemoryStore<S>  where S: Handler<StorageRequest> {
-    pub fn new(net: &Network) -> Self {
-        let slab_id = net.generate_slab_id();
-
-        let (dispatcher_tx, dispatcher_rx) =
-            futures::unsync::mpsc::channel::<Dispatch>(1024);
-
-        let counter = Rc::new(SlabCounter::new());
-        let store: Addr<Unsync,MemoryStore> = MemoryStore::new(
-            slab_id,
-            net.clone(),
-            counter.clone(),
-            dispatcher_tx
-        ).start();
-
-        let dispatcher = Dispatcher::<MemoryStore>::new(net.clone(), store.clone(), dispatcher_rx );
-
-        let me = MemoryStore {
-            slab_id,
-            store,
-            counter,
-            dispatcher,
-            net: net.clone(),
-        };
-
-        net.register_local_slab(me.get_handle());
-        net.conditionally_generate_root_index_seed(&me.get_handle());
-
-        me
     }
 }
 
@@ -110,7 +109,7 @@ use std::cell::RefCell;
 use {context, network};
 use network::{Network,Transmitter,TransportAddress};
 use self::counter::SlabCounter;
-use self::storage::StorageCoreInterface;
+use self::store::StoreHandle;
 
 /// The actual identifier for a slab Storable
 pub type SlabId = u32;
@@ -148,7 +147,7 @@ pub struct SlabPresence {
 pub struct LocalSlabHandle {
     pub slab_id: SlabId,
     pub slabref: SlabRef,
-    pub core: Rc<RefCell<StorageCoreInterface>>,
+    pub store: StoreHandle,
     pub counter: Rc<SlabCounter>,
 }
 

@@ -39,6 +39,7 @@
 
 #![feature(proc_macro, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
 extern crate futures;
+extern crate tokio;
 extern crate core;
 extern crate itertools;
 

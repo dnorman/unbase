@@ -1,4 +1,3 @@
-pub (crate) mod handle;
 pub (crate) mod worker;
 
 pub (crate) mod memory;
@@ -6,7 +5,18 @@ pub (crate) mod memory;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod nihdb;
 
+use slab::{self, prelude::*, counter::SlabCounter, dispatcher::Dispatcher};
+use network::Network;
+use util::workeragent::WorkerAgent;
+use error::Error;
+use subject::SubjectId;
+
+use futures::prelude::*;
+use std::rc::Rc;
+
 pub trait SlabStore {
+    fn new ( slab_id: slab::SlabId, net: Network, counter: Rc<SlabCounter>, dispatcher: WorkerAgent<Dispatcher<Self>> ) -> Self;
+    fn slab_id (&self) -> slab::SlabId;
     fn get_memo( &mut self, memoref: MemoRef, allow_remote: bool ) -> Box<Future<Item=Memo, Error=Error>>;
     fn put_memo (&mut self, memo: Memo, peerset: MemoPeerSet, from_slabref: SlabRef ) -> Box<Future<Item=MemoRef, Error=Error>>;
     fn put_memoref( &mut self, memo_id: MemoId, subject_id: SubjectId, peerset: MemoPeerSet) -> Box<Future<Item=MemoRef, Error=Error>>;

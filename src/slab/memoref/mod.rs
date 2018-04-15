@@ -6,8 +6,7 @@ use error::Error;
 use std::fmt;
 use futures::prelude::*;
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc,Mutex};
 
 #[derive(Clone, Eq, PartialOrd, Ord)]
 pub struct MemoRef {
@@ -44,7 +43,7 @@ impl MemoRef {
         }
     }
     pub fn to_head_outer (&self) -> MemoRefHeadMut {
-        MemoRefHeadMut( Rc::new(RefCell::new(self.to_head())) )
+        MemoRefHeadMut( Arc::new(Mutex::new(self.to_head())) )
     }
     // pub fn is_resident(&self) -> bool {
     //     unimplemented!()

@@ -10,8 +10,6 @@
     SlabRef can continue to serve its purpose without material change.
 */
 
-pub mod serde;
-
 use network::{TransportAddress,Transmitter,TransmitterArgs};
 use slab::prelude::*;
 

@@ -11,7 +11,6 @@ use context::Context;
 use error::*;
 
 use futures::prelude::*;
-//use futures::unsync::mpsc;
 
 pub const SUBJECT_MAX_RELATIONS : usize = 256;
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,Serialize,Deserialize)]
