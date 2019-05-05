@@ -1,5 +1,5 @@
-use context::Context;
-use subject::{SubjectId,SubjectField};
+use crate::context::Context;
+use crate::subject::{SubjectId,SubjectField};
 
 pub struct Query{
     parts: Vec<QueryPart>,

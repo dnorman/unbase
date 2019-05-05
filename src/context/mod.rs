@@ -1,17 +1,17 @@
 pub mod stash;
 
-use subject::{Subject,SubjectId};
-use subjecthandle::SubjectHandle;
-use network::Network;
-use memorefhead::*;
-use error::*;
+use crate::subject::{Subject,SubjectId};
+use crate::subjecthandle::SubjectHandle;
+use crate::network::Network;
+use crate::memorefhead::*;
+use crate::error::*;
 
 use std::collections::HashMap;
 use futures::channel::mpsc;
 
-use index::IndexFixed;
-use slab::Slab;
-use slab::prelude::*;
+use crate::index::IndexFixed;
+use crate::slab::Slab;
+use crate::slab::prelude::*;
 use self::stash::Stash;
 
 use std::rc::{Rc,Weak};

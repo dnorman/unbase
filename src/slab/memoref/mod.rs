@@ -1,7 +1,7 @@
-use subject::SubjectId;
-use slab::{self, prelude::*};
-use memorefhead::*;
-use error::Error;
+use crate::subject::SubjectId;
+use crate::slab::{self, prelude::*};
+use crate::memorefhead::*;
+use crate::error::Error;
 
 use std::fmt;
 use futures::prelude::*;

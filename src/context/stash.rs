@@ -3,10 +3,10 @@
 use std::sync::{Arc,Mutex};
 use std::iter;
 
-use memorefhead::MemoRefHead;
-use slab::prelude::*;
-use error::*;
-use subject::{SubjectId,SubjectType,SUBJECT_MAX_RELATIONS};
+use crate::memorefhead::MemoRefHead;
+use crate::slab::prelude::*;
+use crate::error::*;
+use crate::subject::{SubjectId,SubjectType,SUBJECT_MAX_RELATIONS};
 use std::mem;
 
 /// Stash of Subject `MemoRefHeads` which must be considered for state projection

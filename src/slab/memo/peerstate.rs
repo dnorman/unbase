@@ -1,4 +1,4 @@
-use slab::{prelude::*};
+use crate::slab::{prelude::*};
 
 #[derive(Clone, Debug)]
 pub struct MemoPeerState {

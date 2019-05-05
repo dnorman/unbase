@@ -8,11 +8,11 @@ use std::{fmt};
 use futures::prelude::*;
 use futures::future;
 
-use subject::{SubjectId,SubjectType};
-use slab::{self, prelude::*};
-use memorefhead::MemoRefHead;
+use crate::subject::{SubjectId,SubjectType};
+use crate::slab::{self, prelude::*};
+use crate::memorefhead::MemoRefHead;
 //use buffer::MemoBuffer;
-use error::*;
+use crate::error::*;
 
 //pub type MemoId = [u8; 32];
 pub type MemoId = u64;

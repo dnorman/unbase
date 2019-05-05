@@ -1,5 +1,5 @@
 
-use util::workeragent::Worker;
+use crate::util::workeragent::Worker;
 use super::*;
 
 pub (crate) struct SlabStoreWorker<T> where T: SlabStore {
@@ -11,7 +11,7 @@ impl <T> Worker for SlabStoreWorker<T> where T: SlabStore {
     type Response = Result<LocalSlabResponse,Error>;
 
     fn handle_message(&mut self, message: WorkerMessage<Self>) -> Box<Future<Item=(), Error=()>> {
-        use slab::store::LocalSlabRequest::*;
+        use crate::slab::store::LocalSlabRequest::*;
 
         // NFI how to do match statements which return different futures
         if let GetMemo{ memoref, allow_remote } = request {

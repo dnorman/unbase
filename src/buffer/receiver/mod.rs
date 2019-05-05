@@ -1,6 +1,6 @@
-use slab::{self,prelude::*};
-use buffer::NetworkBuffer;
-use network::{Network, WeakNetwork, TransportAddress};
+use crate::slab::{self,prelude::*};
+use crate::buffer::NetworkBuffer;
+use crate::network::{Network, WeakNetwork, TransportAddress};
 
 pub (crate) trait BufferReceiver {
     fn receive(&self, buffer: NetworkBuffer, source_address: &TransportAddress );

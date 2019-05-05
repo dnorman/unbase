@@ -2,16 +2,16 @@ mod transmitter;
 
 pub mod transport;
 
-use slab;
-pub use slab::prelude::*;
+use crate::slab;
+pub use crate::slab::prelude::*;
 pub use self::transport::{Transport, TransportAddress};
-use util::system_creator::SystemCreator;
+use crate::util::system_creator::SystemCreator;
 pub use self::transmitter::{Transmitter, TransmitterArgs};
 
 use std::ops::Deref;
 use std::sync::{Arc, Weak, RwLock};
 use std::fmt;
-use memorefhead::MemoRefHead;
+use crate::memorefhead::MemoRefHead;
 
 #[derive(Clone)]
 pub struct Network(Arc<NetworkInner>);

@@ -5,11 +5,11 @@ pub (crate) mod memory;
 //#[cfg(not(target_arch = "wasm32"))]
 //pub mod nihdb;
 
-use slab::{self, prelude::*, counter::SlabCounter, dispatcher::Dispatcher};
-use network::Network;
-use util::workeragent::WorkerAgent;
-use error::Error;
-use subject::SubjectId;
+use crate::slab::{self, prelude::*, counter::SlabCounter, dispatcher::Dispatcher};
+use crate::network::Network;
+use crate::util::workeragent::WorkerAgent;
+use crate::error::Error;
+use crate::subject::SubjectId;
 
 use futures::prelude::*;
 use std::rc::Rc;

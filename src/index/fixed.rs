@@ -1,9 +1,9 @@
-use context::*;
-use error::*;
-use subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
-use subjecthandle::SubjectHandle;
-use slab::prelude::*;
-use memorefhead::MemoRefHead;
+use crate::context::*;
+use crate::error::*;
+use crate::subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
+use crate::subjecthandle::SubjectHandle;
+use crate::slab::prelude::*;
+use crate::memorefhead::MemoRefHead;
 
 use std::collections::HashMap;
 

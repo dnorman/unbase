@@ -1,11 +1,11 @@
 use futures::prelude::*;
 use futures::future;
 
-use slab;
-use slab::prelude::*;
-use network::transport::TransportAddress;
-use buffer::NetworkBuffer;
-use error::*;
+use crate::slab;
+use crate::slab::prelude::*;
+use crate::network::transport::TransportAddress;
+use crate::buffer::NetworkBuffer;
+use crate::error::*;
 
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {

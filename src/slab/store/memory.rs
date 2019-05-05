@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use futures::{self, future, Future, Sink, channel::{mpsc,oneshot}}; //prelude::*,
-
-use network::{Network,Transmitter};
-use buffer::NetworkBuffer;
-use slab::{self, prelude::*, counter::SlabCounter, store::{SlabStore, StoreHandle}};
-use context::Context;
-use subject::SubjectId;
-use memorefhead::MemoRefHead;
-use error::*;
-use slab::dispatcher::Dispatcher;
 use futures::Stream;
-use util::workeragent::{Worker,WorkerAgent};
+
+use crate::network::{Network,Transmitter};
+use crate::buffer::NetworkBuffer;
+use crate::slab::{self, prelude::*, counter::SlabCounter, store::{SlabStore, StoreHandle}};
+use crate::context::Context;
+use crate::subject::SubjectId;
+use crate::memorefhead::MemoRefHead;
+use crate::error::*;
+use crate::slab::dispatcher::Dispatcher;
+use crate::util::workeragent::{Worker,WorkerAgent};
 
 
 struct MemoCarrier{
@@ -169,7 +169,7 @@ impl SlabStore for MemoryStore {
             return Box::new(future::result(Err(Error::RetrieveError(RetrieveError::InsufficientPresence))))
         }
 
-        use futures::channel::oneshot::Canceled;
+        use futures::sync::oneshot::Canceled;
         Box::new(futures::collect(sends).and_then( |_| {
             rx.then(| response : Result<Result<Memo,Error>,Canceled> | {
                 match response {

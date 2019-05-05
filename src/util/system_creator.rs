@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use memorefhead::MemoRefHead;
-use slab::prelude::*;
-use subject::SubjectType;
+use crate::memorefhead::MemoRefHead;
+use crate::slab::prelude::*;
+use crate::subject::SubjectType;
 
 pub struct SystemCreator;
 

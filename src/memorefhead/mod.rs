@@ -2,9 +2,9 @@ extern crate core;
 
 mod projection;
 
-use slab::prelude::*;
-use subject::*;
-use error::*;
+use crate::slab::prelude::*;
+use crate::subject::*;
+use crate::error::*;
 
 use futures::{self,prelude::*};
 use std::fmt;
