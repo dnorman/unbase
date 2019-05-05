@@ -3,17 +3,17 @@ use std::cell::RefCell;
 
 //use futures::future;
 use futures::prelude::*;
-use futures::channel::mpsc;
+use futures::sync::mpsc;
 use std::fmt;
 
-use network;
-use slab;
-use slab::store::StoreHandle;
-use slab::prelude::*;
-use slab::counter::SlabCounter;
-use error::*;
-use subject::{SubjectId,SubjectType};
-use memorefhead::MemoRefHead;
+use crate::network;
+use crate::slab;
+use crate::slab::store::StoreHandle;
+use crate::slab::prelude::*;
+use crate::slab::counter::SlabCounter;
+use crate::error::*;
+use crate::subject::{SubjectId,SubjectType};
+use crate::memorefhead::MemoRefHead;
 
 use super::store::{LocalSlabRequest,LocalSlabResponse};
 
@@ -78,7 +78,7 @@ impl LocalSlabHandle {
             }
         }))
     }
-
+    // LEFT OFF HERE
     pub fn get_slab_presence(&mut self, slabrefs: Vec<SlabRef>) -> Result<Vec<SlabPresence>, Error> {
         self.store.borrow_mut().get_slab_presence(slabrefs).wait()
     }

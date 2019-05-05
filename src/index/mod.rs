@@ -1,9 +1,9 @@
-use subject::Subject;
+use crate::subject::*;
 
 mod fixed;
 pub use self::fixed::IndexFixed;
 
 trait Index{
-    fn insert(&self, u64, Subject);
-    fn get(&self, u64) -> Option<Subject>;
+    fn insert(&self, subject: Subject);
+    fn get(&self, subject_id: SubjectId) -> Option<Subject>;
 }

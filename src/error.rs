@@ -8,8 +8,7 @@ pub enum Error{
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
     LocalSlab(LocalSlabError),
-    Buffer(BufferError),
-    Serde(serde_json::Error),
+    Buffer(BufferError),     Serde(serde_json::Error),
 }
 
 #[derive(Debug)]

@@ -2,8 +2,8 @@ pub (crate) mod worker;
 
 pub (crate) mod memory;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub mod nihdb;
+//#[cfg(not(target_arch = "wasm32"))]
+//pub mod nihdb;
 
 use slab::{self, prelude::*, counter::SlabCounter, dispatcher::Dispatcher};
 use network::Network;

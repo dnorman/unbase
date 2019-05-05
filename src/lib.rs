@@ -37,11 +37,12 @@
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
-#![feature(proc_macro, universal_impl_trait, generators, integer_atomics, use_nested_groups)]
-extern crate futures;
-extern crate tokio;
-extern crate core;
-extern crate itertools;
+// enable the await! macro, async support, and the new std::Futures api.
+#![feature(await_macro, async_await, futures_api)]
+
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 
 #[cfg(not(target_arch = "wasm32"))]
 extern crate nihdb;
@@ -53,6 +54,8 @@ extern crate stdweb;
 extern crate serde;
 extern crate serde_json;
 
+// only needed to manually implement a std future:
+#![feature(arbitrary_self_types)]
 
 //#[doc(inline)]
 mod subject;
