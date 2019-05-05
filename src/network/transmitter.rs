@@ -66,10 +66,10 @@ impl Transmitter {
         }
     }
     /// Create a new transmitter capable of using any dynamic-dispatch transmitter.
-    pub fn new(to_slabref: SlabRef, dyn: Box<DynamicDispatchTransmitter>) -> Self {
+    pub fn new(to_slabref: SlabRef, trans: Box<DynamicDispatchTransmitter>) -> Self {
         Self {
             to_slab_id: to_slabref.slab_id(),
-            internal: TransmitterInternal::Dynamic(dyn)
+            internal: TransmitterInternal::Dynamic(trans)
         }
     }
     /// Send a Memo over to the target of this transmitter
