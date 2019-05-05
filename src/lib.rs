@@ -66,7 +66,7 @@ pub mod executor;
 // #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 // pub mod executor_wasm;
 
-pub use network::Network;
-pub use subjecthandle::SubjectHandle;
-pub use subject::SubjectId;
-pub use slab::Slab;
+pub use crate::network::Network;
+pub use crate::subjecthandle::SubjectHandle;
+pub use crate::subject::SubjectId;
+pub use crate::slab::Slab;

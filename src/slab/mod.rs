@@ -8,9 +8,9 @@ mod store;
 
 pub use self::store::memory::MemoryStore as Memory;
 
-use util::workeragent::WorkerAgent;
+use crate::util::workeragent::WorkerAgent;
 use self::dispatcher::Dispatcher;
-use context::Context;
+use crate::context::Context;
 
 use std::fmt;
 

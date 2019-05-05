@@ -6,12 +6,12 @@ use futures::{self, future, prelude::*, channel::{mpsc,oneshot} };
 //#[cfg(not(target_arch = "wasm32"))]
 //mod thread;
 
-use network::Network;
-use slab::{prelude::*, store::*};
-use subject::{SubjectId};
-use memorefhead::MemoRefHead;
-use error::Error;
-use util::workeragent::{Worker,WorkerAgent};
+use crate::network::Network;
+use crate::slab::{prelude::*, store::*};
+use crate::subject::{SubjectId};
+use crate::memorefhead::MemoRefHead;
+use crate::error::Error;
+use crate::util::workeragent::{Worker,WorkerAgent};
 
 pub enum Dispatch{
     GotMemo{ memo: Memo, memoref: MemoRef, from_slabref: SlabRef },

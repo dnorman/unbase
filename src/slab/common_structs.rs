@@ -1,9 +1,9 @@
 use core::ops::Deref;
 use std::collections::HashMap;
 
-use slab::prelude::*;
-use subject::SubjectId;
-use memorefhead::MemoRefHead;
+use crate::slab::prelude::*;
+use crate::subject::SubjectId;
+use crate::memorefhead::MemoRefHead;
 
 pub type RelationSlotId = u8;
 

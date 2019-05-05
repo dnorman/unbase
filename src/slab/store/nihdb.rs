@@ -5,9 +5,9 @@ use futures::channel::{mpsc};
 //use futures::future;
 use nihdb;
 
-use slab::prelude::*;
-use slab::counter::SlabCounter;
-use network::Network;
+use crate::slab::prelude::*;
+use crate::slab::counter::SlabCounter;
+use crate::network::Network;
 
 pub struct NIHDBWorker {
     pub slabref: SlabRef,

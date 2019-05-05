@@ -7,7 +7,7 @@ use tokio::prelude::*;
 use tokio::timer::Deadline;
 use std::time::{Duration, Instant};
 
-use error::*;
+use crate::error::*;
 
 enum WorkerMessage<Request,Response>{
     Shutdown,

@@ -10,8 +10,8 @@
     SlabRef can continue to serve its purpose without material change.
 */
 
-use network::{TransportAddress,Transmitter,TransmitterArgs};
-use slab::prelude::*;
+use crate::network::{TransportAddress,Transmitter,TransmitterArgs};
+use crate::slab::prelude::*;
 
 use std::ops::Deref;
 use std::mem;
