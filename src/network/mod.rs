@@ -18,7 +18,7 @@ use std::sync::{Arc, Weak, RwLock};
 use std::fmt;
 //use crate::memorefhead::MemoRefHead;
 
-#[wasm_bindgen(module="network")]
+#[wasm_bindgen]
 #[derive(Clone)]
 pub struct Network(Arc<NetworkInner>);
 
@@ -75,6 +75,10 @@ impl Network {
     pub fn get_local_slab_count(&self) -> usize {
         self.localslabhandles.read().unwrap().len()
     }
+
+    pub fn add_blackhole_transport (&mut self, transport: crate::network::transport::Blackhole ){
+        self.add_transport( Box::new( transport ) )
+    }
 }
 
 impl Network{
@@ -82,7 +86,7 @@ impl Network{
         WeakNetwork(Arc::downgrade(&self.0))
     }
 
-//    pub fn add_transport(&self, mut transport: Box<Transport + Send + Sync>) {
+    pub fn add_transport(&self, mut transport: Box<Transport + Send + Sync>) {
 //        if transport.is_local() {
 //            // Can only have one is_local transport at a time. Filter out any other local transports when adding this one
 //            let mut transports = self.transports.write().unwrap();
@@ -94,7 +98,7 @@ impl Network{
 //
 //        transport.bind_network(self);
 //        self.transports.write().unwrap().push(transport);
-//    }
+    }
 
     pub fn generate_slab_id(&self) -> u32 {
         let mut next_slab_id = self.next_slab_id.write().unwrap();

@@ -1,10 +1,15 @@
+use wasm_bindgen::prelude::*;
+
 use crate::network::*;
 
+#[wasm_bindgen]
 #[derive(Clone)]
 pub struct Blackhole;
 
+#[wasm_bindgen]
 impl Blackhole {
     // TODO: Potentially, make this return an Arc of itself.
+    #[wasm_bindgen(constructor)]
     pub fn new () -> Self{
         Blackhole
     }

@@ -6,11 +6,12 @@
 
 void async function () {
 
-    const {greet2, Network} = await import('./pkg/unbase');
+    const {greet2, Network, Blackhole} = await import('./pkg/unbase');
 
      let net = Network.create_new_system();
-     // let blackhole = unbase::network::transport::Blackhole::new();
-// //    net.add_transport( Box::new(blackhole) );
+
+     let blackhole = new Blackhole;
+     net.add_blackhole_transport( blackhole );
 // //    {
 // //        let slab_a = unbase::Slab::new(&net);
 // //        let _context_a = slab_a.create_context();
