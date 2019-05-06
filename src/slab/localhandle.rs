@@ -110,7 +110,6 @@ impl LocalSlabHandle {
     }
     pub fn register_local_slabref(&mut self, peer_slab: &LocalSlabHandle) {
 
-        //let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence{
             slab_id: peer_slab.slab_id,
             addresses: vec![network::transport::TransportAddress::Local],

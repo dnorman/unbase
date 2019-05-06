@@ -1,4 +1,4 @@
-use super::*;
+use crate::network::*;
 
 #[derive(Clone)]
 pub struct Blackhole;

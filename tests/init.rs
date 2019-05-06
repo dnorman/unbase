@@ -1,21 +1,26 @@
-//extern crate unbase;
 //
 //use std::{thread, time};
 //
 //
-//#[test]
-//fn init_blackhole() {
-//    let net = unbase::Network::create_new_system();
+
+
+extern crate wasm_bindgen_test;
+use wasm_bindgen_test::*;
+
+#[wasm_bindgen_test]
+#[test]
+fn init_blackhole() {
+    let net = unbase::Network::create_new_system();
 //    let blackhole = unbase::network::transport::Blackhole::new();
 //    net.add_transport( Box::new(blackhole) );
 //    {
 //        let slab_a = unbase::Slab::new(&net);
 //        let _context_a = slab_a.create_context();
 //    }
-//
-//    // Slabs should have been dropped by now
-//    assert_eq!( net.get_all_local_slabs().len(), 0 );
-//}
+
+    // Slabs should have been dropped by now
+    assert_eq!( net.get_local_slab_count(), 0 );
+}
 //
 //#[test]
 //fn init_local_single() {

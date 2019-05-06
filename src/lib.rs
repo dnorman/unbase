@@ -37,6 +37,15 @@
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
+//#![allow(dead_code)]
+//#![allow(unused_imports)]
+//#![allow(unused_variables)]
+//
+// enable the await! macro, async support, and the new std::Futures api.
+#![feature(await_macro, async_await)]
+
+// only needed to manually implement a std future:
+#![feature(arbitrary_self_types)]
 
 use wasm_bindgen::prelude::*;
 
@@ -50,27 +59,21 @@ pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
 }
 
-//#![allow(dead_code)]
-//#![allow(unused_imports)]
-//#![allow(unused_variables)]
-//
-//// enable the await! macro, async support, and the new std::Futures api.
-//#![feature(await_macro, async_await, futures_api)]
-//
-//// only needed to manually implement a std future:
-//#![feature(arbitrary_self_types)]
-//
+#[wasm_bindgen]
+pub fn greet2(name: &str,name2: &str) {
+    alert(&format!("Hello, {} {}!", name, name2));
+}
 ////#[doc(inline)]
 //mod subject;
-//pub mod network;
-//pub mod slab;
+pub mod network;
+pub mod slab;
 //pub mod context;
-//pub mod error;
+pub mod error;
 //pub mod index;
 //pub mod memorefhead;
 //pub mod util;
 //pub mod subjecthandle;
-//pub mod buffer;
+pub mod buffer;
 //pub mod executor;
 //
 //// #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -79,7 +82,8 @@ pub fn greet(name: &str) {
 //// #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 //// pub mod executor_wasm;
 //
-//pub use crate::network::Network;
+
+pub use crate::network::Network;
 //pub use crate::subjecthandle::SubjectHandle;
 //pub use crate::subject::SubjectId;
-//pub use crate::slab::Slab;
+pub use crate::slab::Slab;

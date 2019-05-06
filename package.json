@@ -5,8 +5,8 @@
   "repository": "https://github.com/unbase/unbase",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "wasm-pack build && webpack",
-    "serve": "wasm-pack build && webpack-dev-server"
+    "build": "cargo build && wasm-pack build && webpack",
+    "serve": "cargo build && wasm-pack build && webpack-dev-server"
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "0.2.1",
