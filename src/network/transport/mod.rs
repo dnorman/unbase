@@ -13,7 +13,7 @@ pub use self::local_direct::LocalDirect;
 pub use self::blackhole::Blackhole;
 pub use super::transmitter::{Transmitter, DynamicDispatchTransmitter};
 
-use network::*;
+use crate::network::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransportAddress{
@@ -33,7 +33,7 @@ pub trait Transport {
     fn is_local        (  &self ) -> bool;
     fn bind_network    (  &mut self, network: &Network );
     fn unbind_network  (  &mut self, network: &Network );
-    fn get_return_address  ( &self, address: &TransportAddress ) -> Option<TransportAddress;
+    fn get_return_address  ( &self, address: &TransportAddress ) -> Option<TransportAddress>;
 }
 
 impl TransportAddress {

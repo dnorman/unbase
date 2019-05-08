@@ -1,13 +1,13 @@
-use slab::*;
+use crate::slab::*;
 
 use core;
 use std::fmt;
 use std::collections::HashMap;
 use std::sync::{Arc,RwLock};
 
-use memorefhead::*;
-use context::Context;
-use error::*;
+use crate::memorefhead::*;
+use crate::context::Context;
+use crate::error::*;
 
 use futures::{Stream,Sink,Future};
 use futures::sync::mpsc::channel;

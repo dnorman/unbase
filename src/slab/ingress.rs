@@ -1,5 +1,5 @@
 use super::*;
-use subject::SubjectType;
+use crate::subject::SubjectType;
 use futures::{Future, Sink};
 
 

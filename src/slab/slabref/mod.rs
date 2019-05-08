@@ -13,7 +13,7 @@
 pub mod serde;
 
 use super::*;
-use network::{TransportAddress,Transmitter};
+use crate::network::{TransportAddress,Transmitter};
 
 use std::ops::Deref;
 use std::mem;

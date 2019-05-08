@@ -1,7 +1,7 @@
 pub mod serde;
 use super::*;
-use memorefhead::MemoRefHead;
-use error::RetrieveError;
+use crate::memorefhead::MemoRefHead;
+use crate::error::RetrieveError;
 
 use std::sync::{Arc,RwLock};
 use std::fmt;

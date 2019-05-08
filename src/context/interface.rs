@@ -1,5 +1,5 @@
 use super::*;
-use subjecthandle::SubjectHandle;
+use crate::subjecthandle::SubjectHandle;
 use std::fmt;
 
 /// User interface functions - Programmer API for `Context`

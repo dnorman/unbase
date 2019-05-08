@@ -1,10 +1,10 @@
 use std::fmt;
-use network::{TransportAddress};
-use slab::SlabId;
+use crate::network::{TransportAddress};
+use crate::slab::SlabId;
 
 use serde::ser::{Serialize};
 pub use serde::ser::{Serializer,SerializeStruct,SerializeSeq,SerializeMap};
-pub use serde::de::{Deserializer,DeserializeSeed,Visitor,SeqVisitor};
+pub use serde::de::{Deserializer,DeserializeSeed,Visitor,SeqAccess};
 
 pub use serde::ser::Error as SerError;
 pub use serde::de::Error as DeError;
@@ -80,7 +80,7 @@ impl<K,V,H> StatefulSerialize for HashMap<K,V,H>
         };
         let mut serializer = serializer.serialize_map(hint)?;
         for (key, value) in iter {
-            try!(serializer.serialize_entry(&key, &SerializeWrapper(value,helper)));
+            serializer.serialize_entry(&key, &SerializeWrapper(value,helper))?;
         }
         serializer.end()
 
@@ -128,7 +128,7 @@ impl<S> Visitor for VecSeed<S>
     }
 
     fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqVisitor
+       where V: SeqAccess
     {
 
         let mut out : Vec<S::Value> = Vec::new();

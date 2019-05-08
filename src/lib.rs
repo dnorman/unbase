@@ -40,6 +40,9 @@
 // enable the await! macro, async support, and the new std::Futures api.
 #![feature(await_macro, async_await, futures_api)]
 
+// only needed to manually implement a std future:
+#![feature(arbitrary_self_types)]
+
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
@@ -48,8 +51,6 @@
 extern crate serde;
 extern crate serde_json;
 
-// only needed to manually implement a std future:
-#![feature(arbitrary_self_types)]
 
 //#[doc(inline)]
 mod subject;
@@ -62,7 +63,7 @@ pub mod memorefhead;
 pub mod util;
 pub mod subjecthandle;
 
-pub use network::Network;
-pub use subjecthandle::SubjectHandle;
-pub use subject::SubjectId;
-pub use slab::Slab;
+pub use crate::network::Network;
+pub use crate::subjecthandle::SubjectHandle;
+pub use crate::subject::SubjectId;
+pub use crate::slab::Slab;

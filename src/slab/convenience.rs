@@ -1,5 +1,5 @@
 use super::*;
-use error::*;
+use crate::error::*;
 
 impl Slab {
     pub fn new_memo_basic (&self, subject_id: Option<SubjectId>, parents: MemoRefHead, body: MemoBody) -> MemoRef {

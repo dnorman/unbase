@@ -6,11 +6,11 @@ pub mod serde;
 use std::collections::HashMap;
 use std::{fmt};
 use std::sync::Arc;
-use error::*;
+use crate::error::*;
 
-use subject::{SubjectId,SubjectType};
-use slab::MemoRef;
-use network::{SlabRef,SlabPresence};
+use crate::subject::{SubjectId,SubjectType};
+use crate::slab::MemoRef;
+use crate::network::{SlabRef,SlabPresence};
 use super::*;
 
 //pub type MemoId = [u8; 32];

@@ -2,7 +2,7 @@
 use std::iter;
 
 use super::*;
-use subject::{SubjectId,SUBJECT_MAX_RELATIONS};
+use crate::subject::{SubjectId,SUBJECT_MAX_RELATIONS};
 use std::mem;
 
 /// Stash of Subject MemoRefHeads which must be considered for state projection

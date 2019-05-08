@@ -1,11 +1,11 @@
-use context::*;
-use error::*;
-use subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
-use subjecthandle::SubjectHandle;
-use slab::*;
-use memorefhead::MemoRefHead;
+use crate::context::*;
+use crate::error::*;
+use crate::subject::{Subject,SubjectType,SUBJECT_MAX_RELATIONS};
+use crate::subjecthandle::SubjectHandle;
+use crate::slab::*;
+use crate::memorefhead::MemoRefHead;
 
-use error::RetrieveError;
+use crate::error::RetrieveError;
 use std::collections::HashMap;
 
 

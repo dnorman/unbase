@@ -1,7 +1,7 @@
 
 use std::sync::mpsc;
 use super::*;
-use slab::*;
+use crate::slab::*;
 
 /// A trait for transmitters to implement
 pub trait DynamicDispatchTransmitter {

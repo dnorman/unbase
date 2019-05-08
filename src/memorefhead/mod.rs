@@ -1,9 +1,9 @@
 pub mod serde;
 mod projection;
 
-use slab::{Slab,SlabRef,Memo,MemoId,MemoBody,MemoRef,EdgeLink,RelationSlotId};
-use subject::*;
-use error::*;
+use crate::slab::{Slab,SlabRef,Memo,MemoId,MemoBody,MemoRef,EdgeLink,RelationSlotId};
+use crate::subject::*;
+use crate::error::*;
 
 use std::mem;
 use std::fmt;

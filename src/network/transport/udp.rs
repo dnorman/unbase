@@ -5,12 +5,12 @@ use std::str;
 use super::*;
 use std::sync::mpsc;
 use std::sync::{Arc,Mutex};
-use slab::*;
+use crate::slab::*;
 // use std::collections::BTreeMap;
 use super::packet::*;
-use util::serde::DeserializeSeed;
+use crate::util::serde::DeserializeSeed;
 
-use util::serde::{SerializeHelper,SerializeWrapper};
+use crate::util::serde::{SerializeHelper,SerializeWrapper};
 use super::packet::serde::PacketSeed;
 //use std::time;
 
@@ -320,7 +320,7 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
 
             //println!("UDP QUEUE FOR SEND {:?}", &packet);
 
-            //use util::serde::SerializeHelper;
+            //use crate::util::serde::SerializeHelper;
             //let helper = SerializeHelper{ transmitter: self };
             //wrapper = SerializeWrapper<Packet>
     //        let b = serde_json::to_vec(&packet).expect("serde_json::to_vec");

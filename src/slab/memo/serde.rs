@@ -1,12 +1,12 @@
 use super::*;
-use memorefhead::serde::*;
+use crate::memorefhead::serde::*;
 use super::memoref::serde::MemoPeerSeed;
 
-use slab::slabref::serde::SlabRefSeed;
-use util::serde::*;
+use crate::slab::slabref::serde::SlabRefSeed;
+use crate::util::serde::*;
 
 use std::fmt;
-use serde::*;
+use ::serde::*;
 use serde::ser::*;
 use serde::de::*;
 
@@ -140,7 +140,7 @@ impl<'a> Visitor for MemoSeed<'a>{
     }
 
     fn visit_seq<V> (self, mut visitor: V) -> Result<Self::Value, V::Error>
-        where V: SeqVisitor
+        where V: SeqAccess
     {
         let id: MemoId = match visitor.visit()? {
             Some(value) => value,
@@ -216,7 +216,7 @@ impl<'a> Visitor for MemoBodySeed<'a> {
         where V: EnumVisitor
     {
 
-        match try!(visitor.visit_variant()) {
+        match visitor.visit_variant()? {
             (MBVariant::SlabPresence,      variant) => variant.visit_newtype_seed(MBSlabPresenceSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MBVariant::Relation,          variant) => variant.visit_newtype_seed(RelationSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }).map(MemoBody::Relation),
             (MBVariant::Edge,              variant) => variant.visit_newtype_seed(EdgeSetSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }).map(MemoBody::Edge),

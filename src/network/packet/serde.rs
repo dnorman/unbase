@@ -1,10 +1,10 @@
 use super::*;
 use super::super::*;
 
-use slab::memo_serde::MemoSeed;
-use slab::memoref_serde::MemoPeerSeed;
-use util::serde::DeserializeSeed;
-use util::serde::*;
+use crate::slab::memo_serde::MemoSeed;
+use crate::slab::memoref_serde::MemoPeerSeed;
+use crate::util::serde::DeserializeSeed;
+use crate::util::serde::*;
 
 impl StatefulSerialize for Packet {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
@@ -42,7 +42,7 @@ impl<'a> Visitor for PacketSeed<'a> {
     }
 
     fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqVisitor
+       where V: SeqAccess
     {
        let from_slab_id: SlabId = match visitor.visit()? {
            Some(value) => value,

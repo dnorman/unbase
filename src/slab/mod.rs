@@ -1,5 +1,3 @@
-#![feature(proc_macro, conservative_impl_trait, generators)]
-extern crate futures_await as futures;
 
 pub use self::common_structs::*;
 pub use self::slabref::{SlabRef,SlabRefInner};
@@ -8,10 +6,10 @@ pub use self::memo::{MemoId,Memo,MemoInner,MemoBody};
 pub use self::memoref::serde as memoref_serde;
 pub use self::memo::serde as memo_serde;
 
-use subject::{SubjectId,SubjectType};
-use memorefhead::*;
-use context::*;
-use network::{Network,Transmitter,TransmitterArgs,TransportAddress};
+use crate::subject::{SubjectId,SubjectType};
+use crate::memorefhead::*;
+use crate::context::*;
+use crate::network::{Network,Transmitter,TransmitterArgs,TransportAddress};
 
 use std::ops::Deref;
 use std::sync::{Arc,Weak,RwLock,Mutex};

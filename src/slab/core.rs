@@ -1,5 +1,5 @@
 use super::*;
-use error::*;
+use crate::error::*;
 
 
 impl Slab {

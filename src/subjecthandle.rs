@@ -1,8 +1,8 @@
-use subject::{Subject, SubjectId, SubjectType};
-use context::Context;
-use memorefhead::MemoRefHead;
-use slab::*;
-use error::*;
+use crate::subject::{Subject, SubjectId, SubjectType};
+use crate::context::Context;
+use crate::memorefhead::MemoRefHead;
+use crate::slab::*;
+use crate::error::*;
 use std::fmt;
 use std::collections::HashMap;
 use futures::{Stream};

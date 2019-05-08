@@ -1,5 +1,5 @@
 use super::*;
-use network::TransportAddress;
+use crate::network::TransportAddress;
 
 /// SlabPresence represents the expected reachability of a given Slab
 /// Including Transport address and anticipated lifetime

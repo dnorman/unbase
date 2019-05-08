@@ -1,21 +1,19 @@
-extern crate linked_hash_map;
-
 mod transmitter;
 
 pub mod transport;
 pub mod packet;
 
-pub use slab::{SlabRef, SlabPresence, SlabAnticipatedLifetime};
+pub use crate::slab::{SlabRef, SlabPresence, SlabAnticipatedLifetime};
 pub use self::transport::{Transport, TransportAddress};
 pub use self::packet::Packet;
-use util::system_creator::SystemCreator;
+use crate::util::system_creator::SystemCreator;
 pub use self::transmitter::{Transmitter, TransmitterArgs};
 
 use std::ops::Deref;
 use std::sync::{Arc, Weak, Mutex, RwLock};
 use std::fmt;
-use slab::{Slab, WeakSlab, SlabId};
-use memorefhead::MemoRefHead;
+use crate::slab::{Slab, WeakSlab, SlabId};
+use crate::memorefhead::MemoRefHead;
 
 
 #[derive(Clone)]

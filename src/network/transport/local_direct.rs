@@ -1,7 +1,7 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
 use std::sync::mpsc;
-use slab::*;
+use crate::slab::*;
 use super::*;
 
 #[derive(Clone)]

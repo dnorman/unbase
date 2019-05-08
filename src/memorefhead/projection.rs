@@ -1,5 +1,5 @@
 use super::*;
-use subject::SUBJECT_MAX_RELATIONS;
+use crate::subject::SUBJECT_MAX_RELATIONS;
 
 impl MemoRefHead {
     /*pub fn fully_materialize( &self, slab: &Slab ) {

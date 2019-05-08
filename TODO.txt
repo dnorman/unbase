@@ -51,7 +51,7 @@ Steps Believed necessary for the passage of the first self-consistency test case
     [X] All received memos get mindlessly jammed into subject head index
     [X] subject head index is actually pruned to leave only the head memos
     [X] subject head index is itself built from memos
-    [X] bootstrap subject index which requires the subject index (turns out to be simple graph traversal. The index doesn't use index, duh)
+    [X] bootstrap subject index which requires the subject index (turns out to be simple graph traversal. The index doesn't use crate::index, duh)
     [ ] local subscriptions should be no different from nonlocal subscriptions§
 [X] memo body
 [X] memo peering

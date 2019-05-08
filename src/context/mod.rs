@@ -2,17 +2,17 @@ mod internal;
 pub mod stash;
 mod interface;
 
-use subject::{Subject,SubjectId,SubjectType};
-use subjecthandle::SubjectHandle;
-use memorefhead::*;
-use error::*;
+use crate::subject::{Subject,SubjectId,SubjectType};
+use crate::subjecthandle::SubjectHandle;
+use crate::memorefhead::*;
+use crate::error::*;
 
 use std::collections::HashMap;
 use futures::sync::mpsc::channel;
 use std::thread;
 
-use index::IndexFixed;
-use slab::*;
+use crate::index::IndexFixed;
+use crate::slab::*;
 use self::stash::Stash;
 
 use std::sync::{Arc,Weak,Mutex,RwLock};
@@ -135,7 +135,7 @@ impl WeakContext {
 #[cfg(test)]
 mod test {
     use {Network, Slab};
-    use subject::SubjectId;
+    use crate::subject::SubjectId;
     use super::EdgeSet;
     use super::Context;
     use super::MemoBody;

@@ -1,6 +1,6 @@
 use super::*;
-use slab::slabref::serde::*;
-use util::serde::*;
+use crate::slab::slabref::serde::*;
+use crate::util::serde::*;
 
 impl StatefulSerialize for MemoPeerList {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
@@ -97,7 +97,7 @@ impl<'a> Visitor for MemoRefSeed<'a> {
     }
 
     fn visit_seq<V>(self, mut visitor: V) -> Result<MemoRef, V::Error>
-       where V: SeqVisitor
+       where V: SeqAccess
     {
         let memo_id: MemoId = match visitor.visit()? {
             Some(value) => value,
@@ -157,7 +157,7 @@ impl<'a> Visitor for MemoPeerSeed<'a> {
        formatter.write_str("struct MemoPeer")
     }
     fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqVisitor
+       where V: SeqAccess
     {
         let slabref: SlabRef = match visitor.visit_seed( SlabRefSeed{ dest_slab: self.dest_slab })? {
             Some(value) => value,

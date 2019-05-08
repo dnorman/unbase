@@ -1,5 +1,5 @@
-use util::serde::*;
-//use network::TransportAddress;
+use crate::util::serde::*;
+//use crate::network::TransportAddress;
 use super::*;
 
 /*
@@ -72,7 +72,7 @@ impl<'a> Visitor for SlabRefSeed<'a> {
     }
 
     fn visit_seq<V> (self, mut visitor: V) -> Result<SlabRef, V::Error>
-        where V: SeqVisitor
+        where V: SeqAccess
     {
         let slab_id: SlabId = match visitor.visit()? {
             Some(value) => value,
