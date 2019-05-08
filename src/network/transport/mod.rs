@@ -15,6 +15,8 @@ pub use super::transmitter::{Transmitter, DynamicDispatchTransmitter};
 
 use crate::network::*;
 
+use serde::{Serialize, Deserialize};
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransportAddress{
     Blackhole,

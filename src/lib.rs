@@ -43,6 +43,7 @@
 // only needed to manually implement a std future:
 #![feature(arbitrary_self_types)]
 
+
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
@@ -50,6 +51,8 @@
 #[macro_use]
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 
 
 //#[doc(inline)]
