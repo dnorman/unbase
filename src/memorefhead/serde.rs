@@ -64,7 +64,7 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
         where V: EnumVisitor
     {
 
-        let foo = match try!(visitor.visit_variant()) {
+        let foo = match visitor.visit_variant()? {
             (MRHVariant::Null,       variant) => variant.visit_newtype_seed(MRHNullSeed{}),
             (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
             (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })

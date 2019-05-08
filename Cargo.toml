@@ -2,6 +2,7 @@
 name = "unbase"
 version = "0.0.2"
 authors = ["Daniel Norman <daniel@gudtech.com>"]
+edition = "2018"
 description = "Unbase intends to be a causal, coordination-free distributed data-persistence and application framework. It is fundamentally reactive, fault tolerant, and decentralized."
 documentation = "https://docs.rs/unbase/"
 homepage = "https://unba.se"
@@ -20,12 +21,19 @@ exclude = [
 
 [dependencies]
 linked-hash-map = "0.3.0"
-sha2 = "0.4.0"
-itertools = "0.5.9"
-serde = "0.9.11"
-serde_derive = "0.9.11"
-serde_json = "0.9.9"
-futures-await = "0.1"
+sha2 = "0.8.0"
+itertools = "0.8.0"
+serde = "1.0.90"
+serde_json = "1.0.39"
+tokio = { version = "0.1.19", features = ["async-await-preview"] }
+tokio-async-await = "0.1.7"
+futures = "0.1.26"
+
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 
 [features]
 

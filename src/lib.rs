@@ -37,15 +37,12 @@
 //! ```
 #![doc(html_root_url = "https://unba.se")]
 
-#![feature(proc_macro, conservative_impl_trait, generators)]
-extern crate futures_await as futures;
 extern crate core;
 extern crate linked_hash_map;
 extern crate itertools;
 
 
 #[macro_use]
-extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 

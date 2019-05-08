@@ -78,7 +78,7 @@ impl<K,V,H> StatefulSerialize for HashMap<K,V,H>
             (lo, Some(hi)) if lo == hi => Some(lo),
             _ => None,
         };
-        let mut serializer = try!(serializer.serialize_map(hint));
+        let mut serializer = serializer.serialize_map(hint)?;
         for (key, value) in iter {
             try!(serializer.serialize_entry(&key, &SerializeWrapper(value,helper)));
         }
