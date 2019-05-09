@@ -80,45 +80,45 @@ impl StatefulSerialize for MemoPeer {
 #[derive(Clone)]
 pub struct MemoRefSeed<'a> { pub dest_slab: &'a Slab, pub origin_slabref: &'a SlabRef }
 
-impl<'a> DeserializeSeed for MemoRefSeed<'a> {
+impl<'de,'a> DeserializeSeed<'de> for MemoRefSeed<'de> {
     type Value = MemoRef;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         deserializer.deserialize_seq(self)
     }
 }
 
-impl<'a> Visitor for MemoRefSeed<'a> {
+impl<'de> Visitor<'de> for MemoRefSeed<'de> {
     type Value = MemoRef;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("struct MemoRef")
     }
 
-    fn visit_seq<V>(self, mut visitor: V) -> Result<MemoRef, V::Error>
-       where V: SeqAccess
+    fn visit_seq<A>(self, mut seq: A) -> Result<MemoRef, A::Error>
+       where A: SeqAccess<'de>
     {
-        let memo_id: MemoId = match visitor.visit()? {
+        let memo_id: MemoId = match seq.next_element()? {
             Some(value) => value,
             None => {
                 return Err(DeError::invalid_length(0, &self));
             }
         };
-        let subject_id: Option<SubjectId> = match visitor.visit()? {
+        let subject_id: Option<SubjectId> = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));
            }
         };
-        let has_memo: bool = match visitor.visit()? {
+        let has_memo: bool = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(2, &self));
            }
         };
 
-        let mut peers: Vec<MemoPeer> = match visitor.visit_seed( VecSeed( MemoPeerSeed{ dest_slab: self.dest_slab } ) )? {
+        let mut peers: Vec<MemoPeer> = match seq.next_element_seed( VecSeed( MemoPeerSeed{ dest_slab: self.dest_slab } ) )? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(3, &self));
@@ -141,31 +141,31 @@ impl<'a> Visitor for MemoRefSeed<'a> {
 #[derive(Clone)]
 pub struct MemoPeerSeed<'a> { pub dest_slab: &'a Slab }
 
-impl<'a> DeserializeSeed for MemoPeerSeed<'a> {
+impl<'de, 'a> DeserializeSeed<'de> for MemoPeerSeed<'de> {
     type Value = MemoPeer;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         deserializer.deserialize_seq(self)
     }
 }
 
-impl<'a> Visitor for MemoPeerSeed<'a> {
+impl<'de> Visitor<'de> for MemoPeerSeed<'de> {
     type Value = MemoPeer;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("struct MemoPeer")
     }
-    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqAccess
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+       where A: SeqAccess<'de>
     {
-        let slabref: SlabRef = match visitor.visit_seed( SlabRefSeed{ dest_slab: self.dest_slab })? {
+        let slabref: SlabRef = match seq.next_element_seed( SlabRefSeed{ dest_slab: self.dest_slab })? {
             Some(value) => value,
             None => {
                 return Err(DeError::invalid_length(0, &self));
             }
         };
-        let status: MemoPeeringStatus = match visitor.visit()? {
+        let status: MemoPeeringStatus = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));

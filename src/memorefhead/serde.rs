@@ -1,7 +1,7 @@
 use crate::slab::memoref_serde::*;
 use crate::util::serde::*;
-use serde::ser::*;
-use serde::de::*;
+use ::serde::ser::*;
+use ::serde::de::*;
 use super::*;
 
 impl StatefulSerialize for MemoRefHead {
@@ -10,7 +10,7 @@ impl StatefulSerialize for MemoRefHead {
     {
         match *self {
             MemoRefHead::Null => {
-                let mut sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
+                let sv = serializer.serialize_struct_variant("MemoRefHead", 0, "Null", 0)?;
                 sv.end()
             },
             MemoRefHead::Anonymous{ref head} => {
@@ -39,10 +39,10 @@ enum MRHVariant{
 }
 
 
-impl<'a> DeserializeSeed for MemoRefHeadSeed<'a> {
+impl<'de,'a> DeserializeSeed<'de> for MemoRefHeadSeed<'de> {
     type Value = MemoRefHead;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         const MRH_VARIANTS: &'static [&'static str] = &[
             "Null",
@@ -54,20 +54,20 @@ impl<'a> DeserializeSeed for MemoRefHeadSeed<'a> {
     }
 }
 
-impl<'a> Visitor for MemoRefHeadSeed<'a> {
+impl<'de> Visitor<'de> for MemoRefHeadSeed<'de> {
     type Value = MemoRefHead;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("MemoRefHead")
     }
-    fn visit_enum<V>(self, visitor: V) -> Result<MemoRefHead, V::Error>
-        where V: EnumVisitor
+    fn visit_enum<A>(self, data: A) -> Result<MemoRefHead, A::Error>
+        where A: EnumAccess<'de>
     {
 
-        let foo = match visitor.visit_variant()? {
-            (MRHVariant::Null,       variant) => variant.visit_newtype_seed(MRHNullSeed{}),
-            (MRHVariant::Anonymous,  variant) => variant.visit_newtype_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
-            (MRHVariant::Subject,    variant) => variant.visit_newtype_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
+        let foo = match data.variant()? {
+            (MRHVariant::Null,       variant) => variant.newtype_variant_seed(MRHNullSeed{}),
+            (MRHVariant::Anonymous,  variant) => variant.newtype_variant_seed(MRHAnonymousSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }),
+            (MRHVariant::Subject,    variant) => variant.newtype_variant_seed(MRHSubjectSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref })
         };
         
         foo
@@ -76,23 +76,23 @@ impl<'a> Visitor for MemoRefHeadSeed<'a> {
 
 struct MRHNullSeed{}
 
-impl<'a> DeserializeSeed for MRHNullSeed {
+impl<'de, 'a> DeserializeSeed<'de> for MRHNullSeed {
     type Value = MemoRefHead;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
-        deserializer.deserialize(self)
+        deserializer.deserialize_any(self)
     }
 }
-impl<'a> Visitor for MRHNullSeed {
+impl<'de> Visitor<'de> for MRHNullSeed {
     type Value = MemoRefHead;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("MemoRefHead::Null")
     }
-    fn visit_map<Visitor>(self, _visitor: Visitor) -> Result<Self::Value, Visitor::Error>
-        where Visitor: MapVisitor,
+    fn visit_map<A>(self, _map: A) -> Result<Self::Value, A::Error>
+        where A: MapAccess<'de>,
     {
         Ok(MemoRefHead::Null)
     }
@@ -100,28 +100,28 @@ impl<'a> Visitor for MRHNullSeed {
 
 struct MRHAnonymousSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
 
-impl<'a> DeserializeSeed for MRHAnonymousSeed<'a> {
+impl<'de,'a> DeserializeSeed<'de> for MRHAnonymousSeed<'de> {
     type Value = MemoRefHead;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
-        deserializer.deserialize(self)
+        deserializer.deserialize_any(self)
     }
 }
-impl<'a> Visitor for MRHAnonymousSeed<'a> {
+impl<'de> Visitor<'de> for MRHAnonymousSeed<'de> {
     type Value = MemoRefHead;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("MemoRefHead::Anonymous")
     }
-    fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
-        where Visitor: MapVisitor,
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where A: MapAccess<'de>,
     {
         let mut head : Option<Vec<MemoRef>> = None;
-        while let Some(key) = visitor.visit_key()? {
+        while let Some(key) = map.next_key()? {
             match key {
-                'h' => head  = Some(visitor.visit_value_seed(VecSeed(MemoRefSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }))?),
+                'h' => head  = Some(map.next_value_seed(VecSeed(MemoRefSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }))?),
                 _   => {}
             }
         }
@@ -137,30 +137,30 @@ impl<'a> Visitor for MRHAnonymousSeed<'a> {
 
 
 struct MRHSubjectSeed<'a> { dest_slab: &'a Slab, origin_slabref: &'a SlabRef  }
-impl<'a> DeserializeSeed for MRHSubjectSeed<'a> {
+impl<'de,'a> DeserializeSeed<'de> for MRHSubjectSeed<'de> {
     type Value = MemoRefHead;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
-        deserializer.deserialize(self)
+        deserializer.deserialize_any(self)
     }
 }
-impl<'a> Visitor for MRHSubjectSeed<'a> {
+impl<'de> Visitor<'de> for MRHSubjectSeed<'de> {
     type Value = MemoRefHead;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("MemoRefHead::Subject")
     }
-    fn visit_map<Visitor>(self, mut visitor: Visitor) -> Result<Self::Value, Visitor::Error>
-        where Visitor: MapVisitor,
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where A: MapAccess<'de>,
     {
         let mut head : Option<Vec<MemoRef>> = None;
         let mut subject_id : Option<SubjectId> = None;
-        while let Some(key) = visitor.visit_key()? {
+        while let Some(key) = map.next_key()? {
             match key {
-                's' => subject_id = Some(visitor.visit_value()?),
-                'h' => head        = Some(visitor.visit_value_seed(VecSeed(MemoRefSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }))?),
+                's' => subject_id = Some(map.next_value()?),
+                'h' => head        = Some(map.next_value_seed(VecSeed(MemoRefSeed{ dest_slab: self.dest_slab, origin_slabref: self.origin_slabref }))?),
                 _   => {}
             }
         }

@@ -107,19 +107,19 @@ impl<T> StatefulSerialize for Option<T>
 
 pub struct VecSeed<S>(pub S);
 
-impl<S> DeserializeSeed for VecSeed<S>
-    where S: DeserializeSeed + Clone
+impl<'de,S> DeserializeSeed<'de> for VecSeed<S>
+    where S: DeserializeSeed<'de> + Clone
 {
     type Value = Vec<S::Value>;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         deserializer.deserialize_seq(self)
     }
 }
 
-impl<S> Visitor for VecSeed<S>
-    where S: DeserializeSeed + Clone
+impl<'de,S> Visitor<'de> for VecSeed<S>
+    where S: DeserializeSeed<'de> + Clone
 {
     type Value = Vec<S::Value>;
 
@@ -127,13 +127,13 @@ impl<S> Visitor for VecSeed<S>
        formatter.write_str("sequence")
     }
 
-    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqAccess
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+       where A: SeqAccess<'de>
     {
 
         let mut out : Vec<S::Value> = Vec::new();
 
-        while let Some(v) = visitor.visit_seed( self.0.clone() )? {
+        while let Some(v) = seq.next_element_seed( self.0.clone() )? {
             out.push(v);
         };
 
@@ -143,8 +143,8 @@ impl<S> Visitor for VecSeed<S>
 /// optional one.
 pub struct OptionSeed<S>(pub S);
 
-impl<S> Visitor for OptionSeed<S>
-    where S: DeserializeSeed
+impl<'de,S> Visitor<'de> for OptionSeed<S>
+    where S: DeserializeSeed<'de>
 {
     type Value = Option<S::Value>;
 
@@ -159,19 +159,19 @@ impl<S> Visitor for OptionSeed<S>
     }
 
     fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         self.0.deserialize(deserializer).map(Some)
     }
 }
 
-impl<S> DeserializeSeed for OptionSeed<S>
-    where S: DeserializeSeed
+impl<'de,S> DeserializeSeed<'de> for OptionSeed<S>
+    where S: DeserializeSeed<'de>
 {
     type Value = Option<S::Value>;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         deserializer.deserialize_option(self)
     }

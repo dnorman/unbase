@@ -5,10 +5,10 @@ use serde_json;
 pub enum Error{
     RetrieveError(RetrieveError),
     WriteError(WriteError),
-    TransmitError(TransmitError),
+    //TransmitError(TransmitError),
     ObserveError(ObserveError),
     StorageOpDeclined(StorageOpDeclined),
-    LocalSlab(LocalSlabError),
+    //LocalSlab(LocalSlabError),
     Buffer(BufferError),     Serde(serde_json::Error),
 }
 

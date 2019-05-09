@@ -24,33 +24,31 @@ pub struct PacketSeed <'a>{
     pub source_address: TransportAddress
 }
 
-impl<'a> DeserializeSeed for PacketSeed<'a>{
+impl<'de, 'a> DeserializeSeed<'de> for PacketSeed<'de>{
     type Value = ();
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
         deserializer.deserialize_seq( self )
     }
 }
 
-impl<'a> Visitor for PacketSeed<'a> {
+impl<'de> Visitor<'de> for PacketSeed<'de> {
     type Value = ();
-
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("struct Packet")
     }
-
-    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-       where V: SeqAccess
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where  A: SeqAccess<'de>
     {
-       let from_slab_id: SlabId = match visitor.visit()? {
+       let from_slab_id: SlabId = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(0, &self));
            }
        };
-       let to_slab_id: SlabId = match visitor.visit()? {
+       let to_slab_id: SlabId = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));
@@ -85,7 +83,7 @@ impl<'a> Visitor for PacketSeed<'a> {
        let origin_slabref = dest_slab.slabref_from_presence(&from_presence).expect("slabref from presence");
 
        // no need to return the memo here, as it's added to the slab
-       let peers = match visitor.visit_seed(VecSeed(MemoPeerSeed{ dest_slab: &dest_slab }))? {
+       let peers = match seq.next_element_seed(VecSeed(MemoPeerSeed{ dest_slab: &dest_slab }))? {
            Some(p) => p,
            None    => {
                return Err(DeError::invalid_length(2, &self));
@@ -93,7 +91,7 @@ impl<'a> Visitor for PacketSeed<'a> {
        };
 
        // no need to return the memo here, as it's added to the slab
-       if let None = visitor.visit_seed( MemoSeed {
+       if let None = seq.next_element_seed( MemoSeed {
            dest_slab: &dest_slab,
            origin_slabref: &origin_slabref,
            from_presence: from_presence,

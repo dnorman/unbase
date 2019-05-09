@@ -5,7 +5,7 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::{Arc,RwLock};
 
-use serde::{Serialize, Deserialize};
+use ::serde::{Serialize, Deserialize};
 
 use crate::memorefhead::*;
 use crate::context::Context;

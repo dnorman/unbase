@@ -33,8 +33,8 @@ pub enum TransportAddress{
 pub trait Transport {
     fn make_transmitter(  &self, args: &TransmitterArgs  ) -> Option<Transmitter>;
     fn is_local        (  &self ) -> bool;
-    fn bind_network    (  &mut self, network: &Network );
-    fn unbind_network  (  &mut self, network: &Network );
+    fn bind_network    (  &self, network: &Network );
+    fn unbind_network  (  &self, network: &Network );
     fn get_return_address  ( &self, address: &TransportAddress ) -> Option<TransportAddress>;
 }
 

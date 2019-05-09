@@ -53,34 +53,33 @@ impl StatefulSerialize for SlabRef {
 
 
 pub struct SlabRefSeed<'a> { pub dest_slab: &'a Slab }
-impl<'a> DeserializeSeed for SlabRefSeed<'a> {
+impl<'de,'a> DeserializeSeed<'de> for SlabRefSeed<'de> {
     type Value = SlabRef;
 
     fn deserialize<D> (self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'de>
     {
-
         deserializer.deserialize_seq( self )
     }
 }
 
-impl<'a> Visitor for SlabRefSeed<'a> {
+impl<'de> Visitor<'de> for SlabRefSeed<'de> {
     type Value = SlabRef;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
        formatter.write_str("SlabRef")
     }
 
-    fn visit_seq<V> (self, mut visitor: V) -> Result<SlabRef, V::Error>
-        where V: SeqAccess
+    fn visit_seq<A> (self, mut seq: A) -> Result<SlabRef, A::Error>
+        where A: SeqAccess<'de>
     {
-        let slab_id: SlabId = match visitor.visit()? {
+        let slab_id: SlabId = match seq.next_element()? {
             Some(value) => value,
             None => {
                 return Err(DeError::invalid_length(0, &self));
             }
         };
-       let presence: Vec<SlabPresence> = match visitor.visit()? {
+       let presence: Vec<SlabPresence> = match seq.next_element()? {
            Some(value) => value,
            None => {
                return Err(DeError::invalid_length(1, &self));
