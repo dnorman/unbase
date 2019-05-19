@@ -3,8 +3,6 @@ pub use self::common_structs::*;
 pub use self::slabref::{SlabRef,SlabRefInner};
 pub use self::memoref::{MemoRef,MemoRefInner,MemoRefPtr};
 pub use self::memo::{MemoId,Memo,MemoInner,MemoBody};
-pub use self::memoref::serde as memoref_serde;
-pub use self::memo::serde as memo_serde;
 
 use crate::subject::{SubjectId,SubjectType};
 use crate::memorefhead::*;
@@ -31,6 +29,16 @@ mod common_structs;
 mod memo;
 mod slabref;
 mod memoref;
+
+pub (crate) mod prelude {
+    pub use crate::slab::SlabId;
+    pub use crate::slab::SlabRef;
+    pub use crate::slab::common_structs::*;
+    pub use crate::slab::memoref::MemoRef;
+    pub use crate::slab::memo::{MemoId,Memo,MemoBody};
+    pub use crate::slab::{SlabAnticipatedLifetime,SlabPresence};
+}
+
 
 pub type SlabId = u32;
 

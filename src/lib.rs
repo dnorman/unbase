@@ -57,6 +57,7 @@ extern crate serde_derive;
 
 //#[doc(inline)]
 mod subject;
+mod stream;
 pub mod network;
 pub mod slab;
 pub mod context;

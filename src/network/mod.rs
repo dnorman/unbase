@@ -1,11 +1,9 @@
 mod transmitter;
 
 pub mod transport;
-pub mod packet;
 
 pub use crate::slab::{SlabRef, SlabPresence, SlabAnticipatedLifetime};
 pub use self::transport::{Transport, TransportAddress};
-pub use self::packet::Packet;
 use crate::util::system_creator::SystemCreator;
 pub use self::transmitter::{Transmitter, TransmitterArgs};
 
@@ -101,7 +99,7 @@ impl Network {
         }
         return None;
     }
-    fn get_representative_slab(&self) -> Option<Slab> {
+    pub (crate) fn get_representative_slab(&self) -> Option<Slab> {
         for weak in self.slabs.read().unwrap().iter() {
             if let Some(slab) = weak.upgrade() {
                 if !slab.dropping {

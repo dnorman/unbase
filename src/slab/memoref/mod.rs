@@ -1,4 +1,3 @@
-pub mod serde;
 use super::*;
 use crate::memorefhead::MemoRefHead;
 use crate::error::RetrieveError;

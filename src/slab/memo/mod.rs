@@ -1,7 +1,6 @@
 /* Memo
  * A memo is an immutable message.
 */
-pub mod serde;
 
 use std::collections::HashMap;
 use std::{fmt};
@@ -45,7 +44,7 @@ pub enum MemoBody{
     FullyMaterialized     { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     PartiallyMaterialized { v: HashMap<String, String>, r: RelationSet, e: EdgeSet, t: SubjectType },
     Peering(MemoId,Option<SubjectId>,MemoPeerList),
-    MemoRequest(Vec<MemoId>,SlabRef)
+    MemoRequest(Vec<MemoRef>,Vec<SlabRef>)
 }
 
 

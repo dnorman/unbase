@@ -1,16 +1,16 @@
 use std::fmt;
-use crate::network::{TransportAddress};
-use crate::slab::SlabId;
+use network::{TransportAddress};
+use slab;
 
 use serde::ser::{Serialize};
 pub use serde::ser::{Serializer,SerializeStruct,SerializeSeq,SerializeMap};
-pub use serde::de::{Deserializer,DeserializeSeed,Visitor,SeqAccess};
+pub use serde::de::{Deserializer,DeserializeSeed,Visitor,SeqVisitor};
 
 pub use serde::ser::Error as SerError;
 pub use serde::de::Error as DeError;
 
 pub struct SerializeHelper<'a> {
-    pub dest_slab_id: &'a SlabId,
+    pub dest_slab_id: &'a slab::SlabId,
     pub return_address: &'a TransportAddress
 }
 
@@ -78,9 +78,9 @@ impl<K,V,H> StatefulSerialize for HashMap<K,V,H>
             (lo, Some(hi)) if lo == hi => Some(lo),
             _ => None,
         };
-        let mut serializer = serializer.serialize_map(hint)?;
+        let mut serializer = try!(serializer.serialize_map(hint));
         for (key, value) in iter {
-            serializer.serialize_entry(&key, &SerializeWrapper(value,helper))?;
+            try!(serializer.serialize_entry(&key, &SerializeWrapper(value,helper)));
         }
         serializer.end()
 
@@ -93,11 +93,11 @@ impl<T> StatefulSerialize for Option<T>
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        match self {
-            &Some(ref v) =>{
+        match *self {
+            Some(ref v) =>{
                 serializer.serialize_some( &SerializeWrapper( v, helper ) )
             }
-            &None => {
+            None => {
                 serializer.serialize_none()
             }
         }
@@ -107,19 +107,19 @@ impl<T> StatefulSerialize for Option<T>
 
 pub struct VecSeed<S>(pub S);
 
-impl<'de,S> DeserializeSeed<'de> for VecSeed<S>
-    where S: DeserializeSeed<'de> + Clone
+impl<S> DeserializeSeed for VecSeed<S>
+    where S: DeserializeSeed + Clone
 {
     type Value = Vec<S::Value>;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer<'de>
+        where D: Deserializer
     {
         deserializer.deserialize_seq(self)
     }
 }
 
-impl<'de,S> Visitor<'de> for VecSeed<S>
-    where S: DeserializeSeed<'de> + Clone
+impl<S> Visitor for VecSeed<S>
+    where S: DeserializeSeed + Clone
 {
     type Value = Vec<S::Value>;
 
@@ -127,13 +127,13 @@ impl<'de,S> Visitor<'de> for VecSeed<S>
        formatter.write_str("sequence")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-       where A: SeqAccess<'de>
+    fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+       where V: SeqVisitor
     {
 
         let mut out : Vec<S::Value> = Vec::new();
 
-        while let Some(v) = seq.next_element_seed( self.0.clone() )? {
+        while let Some(v) = visitor.visit_seed( self.0.clone() )? {
             out.push(v);
         };
 
@@ -143,8 +143,8 @@ impl<'de,S> Visitor<'de> for VecSeed<S>
 /// optional one.
 pub struct OptionSeed<S>(pub S);
 
-impl<'de,S> Visitor<'de> for OptionSeed<S>
-    where S: DeserializeSeed<'de>
+impl<S> Visitor for OptionSeed<S>
+    where S: DeserializeSeed
 {
     type Value = Option<S::Value>;
 
@@ -159,19 +159,19 @@ impl<'de,S> Visitor<'de> for OptionSeed<S>
     }
 
     fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer<'de>
+        where D: Deserializer
     {
         self.0.deserialize(deserializer).map(Some)
     }
 }
 
-impl<'de,S> DeserializeSeed<'de> for OptionSeed<S>
-    where S: DeserializeSeed<'de>
+impl<S> DeserializeSeed for OptionSeed<S>
+    where S: DeserializeSeed
 {
     type Value = Option<S::Value>;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: Deserializer<'de>
+        where D: Deserializer
     {
         deserializer.deserialize_option(self)
     }

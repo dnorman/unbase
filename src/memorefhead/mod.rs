@@ -1,4 +1,3 @@
-pub mod serde;
 mod projection;
 
 use crate::slab::{Slab,SlabRef,Memo,MemoId,MemoBody,MemoRef,EdgeLink,RelationSlotId};

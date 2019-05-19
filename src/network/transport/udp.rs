@@ -6,15 +6,10 @@ use super::*;
 use std::sync::mpsc;
 use std::sync::{Arc,Mutex};
 use crate::slab::*;
+use crate::stream::*;
 // use std::collections::BTreeMap;
-use super::packet::*;
-use crate::util::serde::DeserializeSeed;
 
-use crate::util::serde::{SerializeHelper,SerializeWrapper};
-use super::packet::serde::PacketSeed;
 //use std::time;
-
-use serde_json;// {serialize as bin_serialize, deserialize as bin_deserialize};
 
 #[derive(Clone)]
 pub struct TransportUDP {
@@ -25,7 +20,7 @@ struct TransportUDPInternal {
     socket: Arc<UdpSocket>,
     tx_thread: Option<thread::JoinHandle<()>>,
     rx_thread: Option<thread::JoinHandle<()>>,
-    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,Packet)>>>>>,
+    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP,NetworkBuffer)>>>>>,
     network: Option<WeakNetwork>,
     address: TransportAddressUDP
 }
@@ -103,13 +98,13 @@ impl TransportUDP {
 
     fn setup_tx_thread (socket: Arc<UdpSocket>, inbound_address: TransportAddressUDP ) -> (thread::JoinHandle<()>,mpsc::Sender<(TransportAddressUDP, Packet)>){
 
-        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP,Packet)>();
+        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP,NetworkBuffer)>();
 
         let tx_thread : thread::JoinHandle<()> = thread::spawn(move || {
 
             let return_address = TransportAddress::UDP(inbound_address);
             //let mut buf = [0; 65536];
-            while let Ok((to_address, packet)) = rx_channel.recv() {
+            while let Ok((to_address, buffer)) = rx_channel.recv() {
 
                 let helper = SerializeHelper {
                     return_address: &return_address,
@@ -172,18 +167,17 @@ impl TransportUDP {
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = Packet{
-                to_slab_id: 0,
-                from_slab_id: from_slabref.0.slab_id,
-                memo: memo.clone(),
-                peerlist: memoref.get_peerlist_for_peer(from_slabref, None)
-            };
 
-            //println!("TransportUDP.send({:?})", packet );
+            // TODO update tx_channel to convey the memo itself, and use NetworkStream for each addressee
+            let mut buffer = NetworkBuffer::new( from_slabref );
+            let peerset= memoref.get_peerlist_for_peer(from_slabref, None);
+            buffer.add_memoref_peerset_and_memo(memoref, peerset, &memo);
+
+            println!("TransportUDP.send({:?})", buffer );
 
             if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
                 if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
-                    tx_channel.send( (address, packet) ).unwrap();
+                    tx_channel.send( (address, buffer) ).unwrap();
                 }
             }
         }
@@ -224,34 +218,15 @@ impl Transport for TransportUDP {
         let rx_socket = shared.socket.clone();
         //let dispatcher = TransportUDPDispatcher::new(net.clone());
 
-        let net_weak = net.weak();
         let rx_handle : thread::JoinHandle<()> = thread::spawn(move || {
             let mut buf = [0; 65536];
 
             while let Ok((amt, src)) = rx_socket.recv_from(&mut buf) {
 
-                if let Some(net) = net_weak.upgrade() {
+                let source_address = TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() });
 
-                    //TODO: create a protocol encode/decode module and abstract away the serde stuff
-                    //ouch, my brain - I Think I finally understand ser::de::DeserializeSeed
-                    // println!("DESERIALIZE          {}", String::from_utf8(buf.to_vec()).unwrap());
-                    let mut deserializer = serde_json::Deserializer::from_slice(&buf[0..amt]);
-
-                    let packet_seed : PacketSeed = PacketSeed{
-                        net: &net,
-                        source_address: TransportAddress::UDP(TransportAddressUDP{ address: src.to_string() })
-                    };
-
-                    match packet_seed.deserialize(&mut deserializer) {
-                        Ok(()) => {
-                            // PacketSeed actually does everything
-                        },
-                        Err(e) =>{
-                            println!("DESERIALIZE ERROR {}", e);
-                        }
-                    }
-                    //println!("DESERIALIZE COMPLETE {}", String::from_utf8(buf.to_vec()).unwrap());
-                }
+                let buffer = NetworkBuffer::inbound( source_address, &buf[0..amt] );
+                unimplemented!();
             };
         });
 
