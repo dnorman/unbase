@@ -167,7 +167,6 @@ impl IndexFixed {
         //        // That way, closure execution won't be (deterministically/lexicographically) ordered, but scan() ->
         // Vec<T> will be
         //
-        //        // TODO MERGE - uncomment ( crap, I think we probably do need async closures )
         //        self.scan(&context, async move |head| {
         ////            async {
         //                if let Some(v) = head.get_value(key).await? {
