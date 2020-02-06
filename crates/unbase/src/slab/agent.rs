@@ -83,13 +83,13 @@ impl SlabAgent {
     #[allow(unused)]
     pub fn count_of_memos_received(&self) -> u64 {
         let state = self.state.read().unwrap();
-        state.counters.memos_received as u64
+        state.get_counter(b"memos_received")
     }
 
     #[allow(unused)]
     pub fn count_of_memos_reduntantly_received(&self) -> u64 {
         let state = self.state.read().unwrap();
-        state.counters.memos_redundantly_received as u64
+        state.get_counter(b"memos_redundantly_received")
     }
 
     #[allow(unused)]
@@ -101,9 +101,9 @@ impl SlabAgent {
     #[tracing::instrument]
     pub fn new_memo(&self, entity_id: Option<EntityId>, parents: Head, body: MemoBody) -> MemoRef {
         let memo_id = {
-            let mut state = self.state.write().unwrap();
-            state.counters.last_memo_id += 1;
-            (self.id as u64).rotate_left(32) | state.counters.last_memo_id as u64
+            // TODO change memo id type to Ulid
+            let id = ulid::Ulid::new();
+            id.0 as u64
         };
 
         debug!(%memo_id);
@@ -121,11 +121,9 @@ impl SlabAgent {
     }
 
     pub fn generate_entity_id(&self, stype: EntityType) -> EntityId {
-        let mut state = self.state.write().unwrap();
-        state.counters.last_entity_id += 1;
-        let id = (self.id as u64).rotate_left(32) | state.counters.last_entity_id as u64;
+        let id = ulid::Ulid::new();
 
-        EntityId { id, stype }
+        EntityId { id: id.0 as u64, stype }
     }
 
     #[tracing::instrument]
@@ -526,9 +524,11 @@ impl SlabAgent {
 
         {
             let mut state = self.state.write().unwrap();
-            state.counters.memos_received += 1;
+
+            state.increment_memos_received(1);
+
             if had_memoref {
-                state.counters.memos_redundantly_received += 1;
+                state.increment_memos_redundantly_received(1);
             }
         }
 

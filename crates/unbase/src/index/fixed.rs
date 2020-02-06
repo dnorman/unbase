@@ -19,6 +19,9 @@ use std::{
 
 use tracing::debug;
 
+/// IndexFixed is a _very_ temporary index structure, which is fundamentally terrible
+/// and shouldn't actually be used for anything ever... except testing the other parts of
+/// the system. It should be replaced with something else ASAP!
 pub struct IndexFixed {
     root:  Head,
     depth: u8,
@@ -45,8 +48,8 @@ impl IndexFixed {
     pub async fn insert<'a>(&mut self, context: &Context, key: u64, target: Head) -> Result<(), WriteError> {
         debug!("IndexFixed.insert({}, {:?})", key, target);
 
-        // TODO: optimize index node creation so we're not changing relationship as an edit
-        // after the fact if we don't strictly have to. That said, this gives us a great excuse
+        // TODO: optimize index node creation so we're not changing edge as an edit
+        // after the fact if we don't strictly have to. That said, this gives me a great excuse
         // to work on the consistency model, so I'm doing that first.
 
         let mut tier = 0;
@@ -110,9 +113,9 @@ impl IndexFixed {
     /// Convenience method for the test suite
     #[doc(hidden)]
     #[cfg(test)]
-    pub(crate) async fn test_get_entity_handle(&self, context: &Context, key: u64)
+    pub(crate) async fn test_get_entity_handle(&self, context: &Context, key: u64 )
                                                -> Result<Option<crate::entity::Entity>, RetrieveError> {
-        match self.get(context, key).await? {
+        match self.get(context, key ).await? {
             Some(head) => {
                 let entity = context.get_entity_from_head(head).await?;
 

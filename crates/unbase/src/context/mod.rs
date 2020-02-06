@@ -149,7 +149,7 @@ impl Context {
     pub async fn get_entity_by_id(&self, entity_id: EntityId) -> Result<Option<Entity>, RetrieveError> {
         let root_index = self.root_index().await?;
 
-        match root_index.get(&self, entity_id.id).await? {
+        match root_index.get(&self, entity_id.id ).await? {
             Some(s) => {
                 let sh = Entity { id:      entity_id,
                                   head:    s,
@@ -325,6 +325,15 @@ impl Context {
     }
 
     pub(crate) async fn update_indices(&self, entity_id: EntityId, head: &Head) -> Result<(), WriteError> {
+        // TODO: Consider only using the timestamp portion of the Ulid for indexing:
+        // let timestamp: u32 = (ulid.0 >> 32) as u32;
+        // TODO: think about using beacon clock readings to somehow build the timestamp portion of the ulid rather than wallclock
+        //   That way the index hotspots would be locality-specific >_>
+        //   RESEARCH: How is this similar / dissimilar to Ron uuids?
+        //   RESEARCH: How do we compress the beacon clock reading into 32 bits while still:
+        //           * changing relatively slowly for a given slab
+        //           * and very likely to be very different from others in the system
+
         self.root_index().await?.insert(self, entity_id.id, head.clone()).await
         // TODO - update
     }
@@ -339,7 +348,7 @@ impl Context {
     pub async fn get_entity(&self, entity_id: EntityId) -> Result<Option<Entity>, RetrieveError> {
         let root_index = self.root_index().await?;
 
-        match root_index.get(self, entity_id.id).await? {
+        match root_index.get(self, entity_id.id ).await? {
             Some(head) => {
                 Ok(Some(Entity { id:
                                      head.entity_id()
@@ -389,7 +398,7 @@ impl Context {
                 //       was pulled against a sufficiently identical context stash state.
                 //       Perhaps stash edit increment? how can we get this to be really granular?
 
-                match self.root_index().await?.get(&self, entity_id.id).await? {
+                match self.root_index().await?.get(&self, entity_id.id ).await? {
                     Some(head) => head,
                     None => return Ok(false),
                 }
