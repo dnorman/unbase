@@ -69,6 +69,7 @@ pub mod network;
 pub mod slab;
 pub mod util;
 pub mod buffer;
+pub mod netbuffer;
 
 pub use crate::{
     entity::Entity,
