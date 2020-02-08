@@ -1,3 +1,25 @@
+MERGE TODOS:
+
+* Review of topic/may2019 - `git diff 41eaf69d03 1a4987038c80`
+  * peering_remediation_queue stuff
+  @@@@ pending completion of review
+
+* Review of topic/modular_stores - `git diff 41eaf69d03 1ce4e85777a2`
+  * src/buffer/mod.rs -> crates/unbase/src/buffer.rs
+  * src/buffer/receiver.rs -> crates/unbase/src/buffer.rs
+  *? src/slab/memo/peerstate.rs crates/unbase/src/slab/memo/peerstate.rs
+  *? tests/serialize.rs -> tests
+  ? Investigate InsufficientPresence / InsufficientPeering / NotFoundLocally errors
+  ? Investigate MemoRefHeadMut
+  ? Investigate slab::StorageRequester
+  ? investigate src/slab/dispatcher/mod.rs
+  ? Investigate SlabStore trait
+  ? Review src/slab/store/* to see if anything is usable for buffer
+  ? Review src/util/channels.rs and think briefly about the simulator
+  ? Review src/util/workeragent.rs as a possible parts bin
+
+
+
 Notes / Outstanding questions:
     Consistency Model and context compression:
         Note: An index is a tree of Entities. Other non-index-related Entities may form a graph. Removing entity head X from the context
@@ -19,12 +41,12 @@ Notes / Outstanding questions:
 
 
 
-Steps remaining prior to topic/topo-compression3 merge:
+Steps remaining prior to (now *post*) topic/topo-compression3 merge:
  [ ] Consider edge / relation nomenclature
  [ ] Think about relation concurrencies, real use cases. LWW seems like pretty weak sauce here
  [ ] Think about edge concurrencies. Balanced-tree seems like a good exercise
  [~] Edge/Relation bifurcation
- [ ] The thing compiles
+ [X] The thing compiles
  [X] Entity type differentiation and detection
  [ ] Entity subscriptions
  [ ] Context compaction
@@ -52,7 +74,7 @@ Steps Believed necessary for the passage of the first self-consistency test case
     [X] entity head index is actually pruned to leave only the head memos
     [X] entity head index is itself built from memos
     [X] bootstrap entity index which requires the entity index (turns out to be simple graph traversal. The index doesn't use index, duh)
-    [ ] local subscriptions should be no different from nonlocal subscriptions§
+    [ ] local subscriptions should be no different from nonlocal subscriptions
 [X] memo body
 [X] memo peering
 [X] Memo -> relation memos
