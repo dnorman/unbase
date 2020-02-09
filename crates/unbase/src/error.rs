@@ -1,3 +1,21 @@
+#[derive(Debug)]
+pub enum Error{
+    RetrieveError(RetrieveError),
+    WriteError(WriteError),
+    TransmitError(TransmitError),
+    ObserveError(ObserveError),
+    StorageOpDeclined(StorageOpDeclined),
+    LocalSlab(LocalSlabError),
+    Buffer(BufferError),
+    Serde(serde_json::Error),
+}
+
+
+#[derive(Debug)]
+pub enum BufferError{
+    DecodeFailed
+}
+
 #[derive(PartialEq, Debug)]
 pub enum RetrieveError {
     NotFound,
@@ -15,6 +33,13 @@ pub enum InvalidHead {
     MissingEntityId,
     Empty,
 }
+
+#[derive(PartialEq, Debug)]
+pub enum TransmitError{
+    SlabPresenceNotFound,
+    InvalidTransmitter
+}
+
 
 #[derive(PartialEq, Debug)]
 pub enum WriteError {
