@@ -106,6 +106,9 @@ impl Memo {
     pub fn new(inner: MemoInner) -> Self {
         Memo(Arc::new(inner))
     }
+pub fn serialize (&self, slab: &LocalSlabHandle) -> MemoBuffer {
+         unimplemented!()
+ }
 
     pub fn get_parent_head(&self) -> Head {
         self.parents.clone()

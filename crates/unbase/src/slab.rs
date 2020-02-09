@@ -136,6 +136,7 @@ impl Slab {
         // what? )
         0
     }
+
 }
 
 impl Drop for Slab {

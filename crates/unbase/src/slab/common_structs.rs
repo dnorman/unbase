@@ -69,6 +69,7 @@ pub struct SlabPresence {
     pub slab_id:  SlabId,
     pub address:  TransportAddress,
     pub lifetime: SlabAnticipatedLifetime,
+    pub _observed_at_clock: Head, // Beacon clock reading when we received this
 }
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {

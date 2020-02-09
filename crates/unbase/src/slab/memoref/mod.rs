@@ -157,6 +157,7 @@ impl MemoRef {
         }
     }
 
+    // TODO - move this to slab
     pub fn update_peer(&self, slabref: &SlabRef, status: MemoPeeringStatus) -> bool {
         let mut acted = false;
         let mut found = false;
@@ -186,6 +187,15 @@ impl MemoRef {
 
         acted
     }
+//    pub fn want_peer_count (&self) -> u32 {
+//        // TODO: test each memo for durability_score and emit accordingly
+//
+//        match self.subject_id() {
+//            None => 0,
+//            // TODO - make this number dynamic on the basis of estimated durability
+//            Some(_) => (2 as u32).saturating_sub(self.peerlist.read().unwrap().len() as u32)
+//        }
+//    }
 }
 
 impl fmt::Debug for MemoRef {
