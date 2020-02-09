@@ -3,7 +3,7 @@ use crate::{
     network::{
         transmitter::DynamicDispatchTransmitter,
         Network,
-        Packet,
+        SerdePacket,
         Transmitter,
         TransmitterArgs,
         Transport,
@@ -58,7 +58,7 @@ struct TransportUDPInternal {
     socket:     Arc<UdpSocket>,
     tx_thread:  Option<thread::JoinHandle<()>>,
     rx_thread:  Option<thread::JoinHandle<()>>,
-    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP, Packet)>>>>>,
+    tx_channel: Option<Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP, SerdePacket)>>>>>,
     network:    Option<WeakNetwork>,
     address:    TransportAddressUDP,
 }
@@ -104,8 +104,8 @@ impl TransportUDP {
     }
 
     fn setup_tx_thread(socket: Arc<UdpSocket>, inbound_address: TransportAddressUDP)
-                       -> (thread::JoinHandle<()>, mpsc::Sender<(TransportAddressUDP, Packet)>) {
-        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP, Packet)>();
+                       -> (thread::JoinHandle<()>, mpsc::Sender<(TransportAddressUDP, SerdePacket)>) {
+        let (tx_channel, rx_channel) = mpsc::channel::<(TransportAddressUDP, SerdePacket)>();
 
         let tx_thread: thread::JoinHandle<()> = thread::spawn(move || {
             let return_address = TransportAddress::UDP(inbound_address);
@@ -165,7 +165,7 @@ impl TransportUDP {
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = Packet { to_slab_id:   0,
+            let packet = SerdePacket { to_slab_id:   0,
                                   from_slab_id: from_slabref.0.slab_id,
                                   memo:         memo.clone(),
                                   peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
@@ -295,13 +295,13 @@ pub struct TransmitterUDP {
     pub slab_id: SlabId,
     address:     TransportAddressUDP,
     // HACK HACK HACK - lose the Arc<Mutex<>> here by making transmitter Send, but not Sync
-    tx_channel:  Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP, Packet)>>>>,
+    tx_channel:  Arc<Mutex<Option<mpsc::Sender<(TransportAddressUDP, SerdePacket)>>>>,
 }
 impl DynamicDispatchTransmitter for TransmitterUDP {
     #[tracing::instrument]
     fn send(&self, from: &SlabRef, memoref: MemoRef) {
         if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = Packet { to_slab_id: self.slab_id,
+            let packet = SerdePacket { to_slab_id: self.slab_id,
                                   from_slab_id: from.0.slab_id,
                                   memo,
                                   peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };

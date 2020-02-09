@@ -4,7 +4,7 @@ pub mod packet;
 pub mod transport;
 
 pub use self::{
-    packet::Packet,
+    packet::SerdePacket,
     transmitter::{
         Transmitter,
         TransmitterArgs,

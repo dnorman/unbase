@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-impl StatefulSerialize for Packet {
+impl StatefulSerialize for SerdePacket {
     fn serialize<S>(&self, serializer: S, helper: &SerializeHelper) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
