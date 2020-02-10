@@ -35,23 +35,26 @@ impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
 
 impl EntityId {
     pub fn test(test_id: u64) -> Self {
-        EntityId { id:    test_id,
+        EntityId { id:    ulid::Ulid(test_id as u128),
                    stype: EntityType::Record, }
     }
 
     /// Create a EntityId with a EntityType of IndexNode and a manually provided id
     /// Used by the test suite
     pub fn index_test(test_id: u64) -> Self {
-        EntityId { id:    test_id,
+        EntityId { id:    ulid::Ulid(test_id as u128),
                    stype: EntityType::IndexNode, }
     }
 
     /// Human readable version of the EntityID which denotes whether the entity is an (I)ndex or a (R)ecord type
     pub fn concise_string(&self) -> String {
         use self::EntityType::*;
+
+        // taking the lowest 32 bits is kinda weird, but doing it for now for readability
+
         match self.stype {
-            IndexNode => format!("I{}", self.id),
-            Record => format!("R{}", self.id),
+            IndexNode => format!("I{}", self.id.0 as u32),
+            Record => format!("R{}", self.id.0 as u32),
         }
     }
 }
@@ -156,7 +159,7 @@ pub enum MemoPeeringStatus {
     Unknown,
 }
 
-pub type SlotId = u8;
+pub type SlotId = u16;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RelationSet(pub HashMap<SlotId, Option<EntityId>>);
