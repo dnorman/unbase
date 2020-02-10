@@ -1,17 +1,22 @@
-//! Buffer Structs, used for intermediate/compact representations
-//!
-//! Uses offsets inside a given Buffer to more compactly represent data rather than via duplication.
-//! This is being processed in memory for now, but it's designed to be a streamed later
+use serde::{Serialize, Deserialize};
+use crate::slab::{SlabId, MemoRef};
+use crate::network::SlabRef;
+
+
 
 type SegmentId = u16;
 type MemoRefOffset = SegmentId;
 type SlabRefOffset = SegmentId;
 type SubjectOffset = SegmentId;
 
+/// Buffer Structs, used for intermediate/compact representations
+///
+/// Uses offsets inside a given Buffer to more compactly represent data rather than via duplication.
+/// This is being processed in memory for now, but it's designed to be a streamed later
 #[derive(Serialize,Deserialize,Clone)]
 pub enum NetbufSegment {
     Subject(SubjectId),       // DRI - 16 -> 8 bytes within a netbuf
-    SlabRef(slab::SlabId),    // DRI - 16 -> 8 bytes
+    SlabRef(SlabId),    // DRI - 16 -> 8 bytes
     MemoRef(MemoRefBuffer),   //
     Memo(MemoBuffer),
     SlabPresence(SlabPresenceBuffer),
@@ -51,7 +56,7 @@ pub enum MemoBodyBuffer {
 }
 
 pub struct SlabRefBuffer {
-    pub slab_id: slab::SlabId,
+    pub slab_id: SlabId,
 }
 
 #[derive(Serialize,Deserialize,Clone)]

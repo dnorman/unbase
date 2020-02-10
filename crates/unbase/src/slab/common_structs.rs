@@ -15,8 +15,8 @@ use crate::{
 use itertools::Itertools;
 
 pub const MAX_SLOTS: usize = 256;
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub enum EntityType {
     IndexNode,
     Record,
@@ -69,7 +69,7 @@ pub struct SlabPresence {
     pub slab_id:  SlabId,
     pub address:  TransportAddress,
     pub lifetime: SlabAnticipatedLifetime,
-    pub _observed_at_clock: Head, // Beacon clock reading when we received this
+    //    pub latest_clock: Head, // latest clock reading relating to this slab presence
 }
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {

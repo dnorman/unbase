@@ -166,9 +166,9 @@ impl TransportUDP {
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = SerdePacket { to_slab_id:   0,
-                                  from_slab_id: from_slabref.0.slab_id,
-                                  memo:         memo.clone(),
-                                  peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
+                                       from_slab_id: from_slabref.0.slab_id,
+                                       memo:         memo.clone(),
+                                       peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
 
             if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
                 if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
@@ -302,9 +302,9 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
     fn send(&self, from: &SlabRef, memoref: MemoRef) {
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = SerdePacket { to_slab_id: self.slab_id,
-                                  from_slab_id: from.0.slab_id,
-                                  memo,
-                                  peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };
+                                       from_slab_id: from.0.slab_id,
+                                       memo,
+                                       peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };
 
             // use util::serde::SerializeHelper;
             // let helper = SerializeHelper{ transmitter: self };

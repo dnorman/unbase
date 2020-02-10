@@ -60,6 +60,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+pub mod buffer;
 pub mod context;
 pub mod entity;
 pub mod error;
@@ -68,8 +69,7 @@ pub mod index;
 pub mod network;
 pub mod slab;
 pub mod util;
-pub mod buffer;
-pub mod netbuffer;
+// pub mod netbuffer;
 
 pub use crate::{
     entity::Entity,
