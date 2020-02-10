@@ -18,29 +18,33 @@ use crate::{
         MemoRef,
     },
 };
+use ed25519_dalek::Keypair;
 use tracing::info;
 
 /// SlabState stores all state for a slab
 /// It may ONLY be owned/touched by SlabAgent. No exceptions.
 /// Consider making SlabState a child of SlabAgent to further discourage this
 pub(super) struct SlabState {
-    config:                   sled::Tree,
-    memos_by_id:           sled::Tree,
-    counters:                 sled::Tree,
-    peer_refs:                sled::Tree,
+    config:     sled::Tree,
+    slabs:      sled::Tree,
+    memos:      sled::Tree,
+    memo_peers: sled::Tree,
+    counters:   sled::Tree,
+
     pub memo_wait_channels:   HashMap<MemoId, Vec<oneshot::Sender<Memo>>>,
     pub entity_subscriptions: HashMap<EntityId, Vec<mpsc::Sender<Head>>>,
     pub index_subscriptions:  Vec<mpsc::Sender<Head>>,
     pub running:              bool,
+    keypair:                  Keypair,
 }
 
-#[derive(Debug)]
-pub(crate) struct SlabCounters {
-    pub last_memo_id:               u32,
-    pub last_entity_id:             u32,
-    pub memos_received:             u64,
-    pub memos_redundantly_received: u64,
-}
+//#[derive(Debug)]
+// pub(crate) struct SlabCounters {
+//    pub last_memo_id:               u32,
+//    pub last_entity_id:             u32,
+//    pub memos_received:             u64,
+//    pub memos_redundantly_received: u64,
+//}
 
 // SlabState is forbidden from any blocking operations
 // Any code here is holding a mutex lock
@@ -55,11 +59,12 @@ impl SlabState {
 
         counters.set_merge_operator(merge_counter);
 
-        let memorefs_by_id = db.open_tree("memorefs_by_id").unwrap();
-        let peer_refs = db.open_tree("peer_refs").unwrap();
+        let slabs = db.open_tree("slabs").unwrap();
+        let memos = db.open_tree("memos").unwrap();
+        let memo_peers = db.open_tree("memo_peers").unwrap();
 
         let keypair = match config.get(b"keypair_ed25519").unwrap() {
-            Some(b) => ed25519_dalek::Keypair::from_bytes(&b).unwrap(),
+            Some(b) => ed25519_dalek::Keypair::from_bytes(&*b).unwrap(),
             None => {
                 // TODO - move this
                 use ed25519_dalek::{
@@ -77,7 +82,7 @@ impl SlabState {
                 let mut csprng: OsRng = OsRng::new().unwrap();
                 let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
 
-                config.compare_and_swap(b"keypair_ed25519", None, Some(keypair.to_bytes()));
+                config.compare_and_swap(b"keypair_ed25519", None, Some(keypair.to_bytes())).unwrap();
 
                 keypair
             },
@@ -87,13 +92,14 @@ impl SlabState {
 
         // TODO - convert this into a trait
         SlabState { config,
-            memos_by_id: memorefs_by_id,
+                    slabs,
+                    memos,
+                    memo_peers,
                     counters,
-                    peer_refs,
-                    keypair,
-                    running: true,
 
                     // TODO - move these
+                    running: true,
+                    keypair,
                     memo_wait_channels: HashMap::new(),
                     entity_subscriptions: HashMap::new(),
                     index_subscriptions: Vec::new() }
@@ -108,6 +114,10 @@ impl SlabState {
             Some(bytes) => u64::from_ne_bytes(bytes.try_into().unwrap()),
             None => 0u64,
         }
+    }
+
+    pub fn slab_count(&self) -> usize {
+        self.slabs.len()
     }
 }
 

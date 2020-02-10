@@ -94,7 +94,7 @@ impl SlabAgent {
     #[allow(unused)]
     pub fn peer_slab_count(&self) -> usize {
         let state = self.state.read().unwrap();
-        state.peer_refs.len() as usize
+        state.slab_count()
     }
 
     #[tracing::instrument]
