@@ -25,7 +25,7 @@ use tracing::info;
 /// Consider making SlabState a child of SlabAgent to further discourage this
 pub(super) struct SlabState {
     config:                   sled::Tree,
-    memorefs_by_id:           sled::Tree,
+    memos_by_id:           sled::Tree,
     counters:                 sled::Tree,
     peer_refs:                sled::Tree,
     pub memo_wait_channels:   HashMap<MemoId, Vec<oneshot::Sender<Memo>>>,
@@ -87,7 +87,7 @@ impl SlabState {
 
         // TODO - convert this into a trait
         SlabState { config,
-                    memorefs_by_id,
+            memos_by_id: memorefs_by_id,
                     counters,
                     peer_refs,
                     keypair,
