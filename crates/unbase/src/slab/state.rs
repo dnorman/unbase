@@ -24,10 +24,10 @@ use tracing::info;
 /// It may ONLY be owned/touched by SlabAgent. No exceptions.
 /// Consider making SlabState a child of SlabAgent to further discourage this
 pub(super) struct SlabState {
-    config:               sled::Tree,
-    memorefs_by_id:       sled::Tree,
-    counters:             sled::Tree,
-    peer_refs:            sled::Tree,
+    config:                   sled::Tree,
+    memorefs_by_id:           sled::Tree,
+    counters:                 sled::Tree,
+    peer_refs:                sled::Tree,
     pub memo_wait_channels:   HashMap<MemoId, Vec<oneshot::Sender<Memo>>>,
     pub entity_subscriptions: HashMap<EntityId, Vec<mpsc::Sender<Head>>>,
     pub index_subscriptions:  Vec<mpsc::Sender<Head>>,
@@ -102,20 +102,19 @@ impl SlabState {
     pub fn increment_counter(&self, name: &[u8], increment: u64) {
         self.counters.merge(name, &increment);
     }
-    pub fn get_counter (&self, name: &[u8]) -> u64 {
+
+    pub fn get_counter(&self, name: &[u8]) -> u64 {
         match self.counters.get(name).unwrap() {
-            Some(bytes) => {
-                u64::from_ne_bytes(bytes.try_into().unwrap())
-            }
-            None => 0u64
+            Some(bytes) => u64::from_ne_bytes(bytes.try_into().unwrap()),
+            None => 0u64,
         }
     }
 }
 
 fn merge_counter(_key: &[u8],               // the key being merged
-                       last_bytes: Option<&[u8]>, // the previous value, if one existed
-                       op_bytes: &[u8]            /* the new bytes being merged in */)
-                       -> Option<Vec<u8>> {
+                 last_bytes: Option<&[u8]>, // the previous value, if one existed
+                 op_bytes: &[u8]            /* the new bytes being merged in */)
+                 -> Option<Vec<u8>> {
     // set the new value, return None to delete
 
     let old_count = match last_bytes {

@@ -75,11 +75,10 @@ impl SlabAgent {
 
     // Counters,stats, reporting
     #[allow(unused)]
-    pub fn count_of_memorefs_resident(&self) -> u32 {
-        let state = self.state.read().unwrap();
-        state.memorefs_by_id.len() as u32
-    }
-
+    //    pub fn count_of_memorefs_resident(&self) -> u32 {
+    //        let state = self.state.read().unwrap();
+    //        state.memorefs_by_id.len() as u32
+    //    }
     #[allow(unused)]
     pub fn count_of_memos_received(&self) -> u64 {
         let state = self.state.read().unwrap();

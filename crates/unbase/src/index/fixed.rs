@@ -113,9 +113,9 @@ impl IndexFixed {
     /// Convenience method for the test suite
     #[doc(hidden)]
     #[cfg(test)]
-    pub(crate) async fn test_get_entity_handle(&self, context: &Context, key: u64 )
+    pub(crate) async fn test_get_entity_handle(&self, context: &Context, key: u64)
                                                -> Result<Option<crate::entity::Entity>, RetrieveError> {
-        match self.get(context, key ).await? {
+        match self.get(context, key).await? {
             Some(head) => {
                 let entity = context.get_entity_from_head(head).await?;
 
