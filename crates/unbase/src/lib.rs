@@ -29,7 +29,7 @@
 //! # use unbase::{Network, Slab, Entity};
 //! # async fn run () {
 //! let net = Network::create_new_system(); // use new, except for the very first time
-//! let slab = Slab::new(&net); // Slab exits when you drop this
+//! let slab = Slab::initialize(&net); // Slab exits when you drop this
 //! let context = slab.create_context(); // Context is your view of the world. A "client" app would have one of these
 //!
 //! // Lets say one part of the app creates a record

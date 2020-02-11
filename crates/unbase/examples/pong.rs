@@ -11,12 +11,11 @@ use timer::Delay;
 #[async_std::main]
 async fn main() {
     let net = Network::new();
-    net.hack_set_next_slab_id(200);
 
     let udp = TransportUDP::new("127.0.0.1:12002".to_string());
     net.add_transport(Box::new(udp.clone()));
 
-    let slab = Slab::new(&net);
+    let slab = Slab::initialize(&net);
     let context = slab.create_context();
 
     println!("B - REMEMBER TO START THE PING EXAMPLE FIRST!");

@@ -13,7 +13,7 @@ async fn basic_record_retrieval() {
     unbase_test_util::init_test_logger();
 
     let net = Network::create_new_system();
-    let slab_a = Slab::new(&net);
+    let slab_a = Slab::initialize(&net);
     let context_a = slab_a.create_context();
 
     let record_id;
@@ -37,7 +37,7 @@ async fn basic_record_retrieval_simulator() {
     let simulator = Simulator::new();
     net.add_transport(Box::new(simulator.clone()));
 
-    let slab_a = Slab::new(&net);
+    let slab_a = Slab::initialize(&net);
     let context_a = slab_a.create_context();
 
     let record_id;

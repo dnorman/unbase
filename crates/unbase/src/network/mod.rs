@@ -92,11 +92,6 @@ impl Network {
         net
     }
 
-    // TODO: remove this when slab ids are randomly generated
-    pub fn hack_set_next_slab_id(&self, id: SlabId) {
-        *self.next_slab_id.write().unwrap() = id;
-    }
-
     pub fn weak(&self) -> WeakNetwork {
         WeakNetwork(Arc::downgrade(&self.0))
     }
@@ -123,8 +118,8 @@ impl Network {
         id
     }
 
-    pub fn get_slabhandle(&self, slab_id: SlabId) -> Option<SlabHandle> {
-        if let Some(slabhandle) = self.slabs.read().unwrap().iter().find(|s| s.my_ref.slab_id == slab_id) {
+    pub fn get_slabhandle(&self, slab_id: &SlabId) -> Option<SlabHandle> {
+        if let Some(slabhandle) = self.slabs.read().unwrap().iter().find(|s| s.my_ref.slab_id == *slab_id) {
             if slabhandle.is_running() {
                 return Some((*slabhandle).clone());
             }
@@ -191,12 +186,12 @@ impl Network {
     }
 
     #[tracing::instrument]
-    pub fn deregister_local_slab(&self, slab_id: SlabId) {
+    pub fn deregister_local_slab(&self, slab_id: &SlabId) {
         //        // Remove the deregistered slab so get_representative_slab doesn't return it
         {
             let mut slabs = self.slabs.write().expect("slabs write lock");
             if let Some(removed) = slabs.iter()
-                                        .position(|s| s.my_ref.slab_id == slab_id)
+                                        .position(|s| s.my_ref.slab_id == *slab_id)
                                         .map(|e| slabs.remove(e))
             {
                 // debug!("Unbinding Slab {}", removed.id);
@@ -211,7 +206,7 @@ impl Network {
         let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed write lock");
 
         if let Some(ref mut r) = *root_index_seed {
-            if r.1.slab_id == slab_id {
+            if r.1.slab_id == *slab_id {
                 if let Some(new_slab) = self.get_representative_slab() {
                     let owned_slabref = new_slab.agent.localize_slabref(&r.1);
                     r.0 = new_slab.agent.localize_head(&r.0, &owned_slabref, false);

@@ -26,8 +26,8 @@ async fn eventual_basic() {
 
     simulator.start();
 
-    let slab_a = Slab::new(&net);
-    let slab_b = Slab::new(&net);
+    let slab_a = Slab::initialize(&net);
+    let slab_b = Slab::initialize(&net);
     let context_a = slab_a.create_context();
     let context_b = slab_b.create_context();
 
@@ -62,9 +62,9 @@ async fn eventual_detail() {
 
     simulator.start();
 
-    let slab_a = Slab::new(&net);
-    let slab_b = Slab::new(&net);
-    let slab_c = Slab::new(&net);
+    let slab_a = Slab::initialize(&net);
+    let slab_b = Slab::initialize(&net);
+    let slab_c = Slab::initialize(&net);
 
     simulator.quiesce().await;
 

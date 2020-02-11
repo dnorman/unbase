@@ -4,7 +4,7 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct SerdePacket {
-    pub to_slab_id:   SlabId,
+    pub to_slab_id:   Option<SlabId>,
     pub from_slab_id: SlabId,
     pub memo:         Memo,
     pub peerlist:     MemoPeerList,

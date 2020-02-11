@@ -13,7 +13,7 @@ async fn acyclic() {
     let simulator = Simulator::new();
     net.add_transport(Box::new(simulator.clone()));
 
-    let slab_a = Slab::new(&net);
+    let slab_a = Slab::initialize(&net);
     let context_a = slab_a.create_context();
 
     let record1 = Entity::new_blank(&context_a).await.unwrap();

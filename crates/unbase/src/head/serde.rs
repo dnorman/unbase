@@ -156,7 +156,7 @@ impl<'a> Visitor for HeadAnonymousSeed<'a> {
         }
 
         if head.is_some() {
-            Ok(Head::Anonymous { owning_slab_id: self.dest_slab.my_ref.slab_id,
+            Ok(Head::Anonymous { owning_slabref: self.dest_slab.my_ref.clone(),
                                  head:           head.unwrap(), })
         } else {
             Err(DeError::invalid_length(0, &self))
@@ -201,7 +201,7 @@ impl<'a> Visitor for HeadEntitySeed<'a> {
         }
 
         if head.is_some() && entity_id.is_some() {
-            Ok(Head::Entity { owning_slab_id: self.dest_slab.my_ref.slab_id,
+            Ok(Head::Entity { owning_slabref: self.dest_slab.my_ref.clone(),
                               head:           head.unwrap(),
                               entity_id:      entity_id.unwrap(), })
         } else {

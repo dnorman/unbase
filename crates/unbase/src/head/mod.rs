@@ -16,7 +16,6 @@ use crate::{
         MemoRef,
         RelationSet,
         SlabHandle,
-        SlabId,
         SlabRef,
         SlotId,
         MAX_SLOTS,
@@ -42,6 +41,14 @@ use futures::{
     StreamExt,
 };
 
+use crate::buffer::{
+    BufferHelper,
+    HeadBufElement,
+};
+use ::serde::{
+    Deserialize,
+    Serialize,
+};
 use itertools::Itertools;
 use tracing::debug;
 
@@ -63,12 +70,12 @@ use tracing::debug;
 pub enum Head {
     Null,
     Entity {
-        owning_slab_id: SlabId,
+        owning_slabref: SlabRef,
         entity_id:      EntityId,
         head:           Vec<MemoRef>,
     },
     Anonymous {
-        owning_slab_id: SlabId,
+        owning_slabref: SlabRef,
         head:           Vec<MemoRef>,
     },
 }
@@ -101,11 +108,11 @@ impl Head {
         let head = match self {
             Head::Null => {
                 if let Some(entity_id) = new.entity_id {
-                    *self = Head::Entity { owning_slab_id: new.owning_slab_id,
+                    *self = Head::Entity { owning_slabref: new.owning_slabref,
                                            head: vec![new.clone()],
                                            entity_id };
                 } else {
-                    *self = Head::Anonymous { owning_slab_id: new.owning_slab_id,
+                    *self = Head::Anonymous { owning_slabref: new.owning_slabref,
                                               head:           vec![new.clone()], };
                 }
 
@@ -297,11 +304,11 @@ impl Head {
         }
     }
 
-    pub fn owning_slab_id(&self) -> Option<SlabId> {
+    pub fn owning_slabref(&self) -> Option<SlabRef> {
         match *self {
             Head::Null => None,
-            Head::Anonymous { owning_slab_id, .. } => Some(owning_slab_id),
-            Head::Entity { owning_slab_id, .. } => Some(owning_slab_id),
+            Head::Anonymous { ref owning_slabref, .. } => Some(owning_slabref.clone()),
+            Head::Entity { ref owning_slabref, .. } => Some(owning_slabref.clone()),
         }
     }
 
@@ -652,6 +659,24 @@ impl Head {
 
         Ok(edge_links)
     }
+
+    pub fn to_buf<E, M, S, H>(&self, helper: &H) -> HeadBufElement<E, M>
+        where E: Serialize + Deserialize,
+              M: Serialize + Deserialize,
+              S: Serialize + Deserialize,
+              H: BufferHelper<EntityToken = E, MemoToken = M, SlabToken = S>
+    {
+        match *self {
+            Head::Null => HeadBufElement::Null,
+            Head::Anonymous { ref head, .. } => {
+                HeadBufElement::Anonymous { head: head.iter().map(|mr| helper.from_memo_id(&mr.id)).collect(), }
+            },
+            Head::Entity { ref head, ref entity_id, .. } => {
+                HeadBufElement::Entity { entity: helper.from_entity_id(entity_id),
+                                         head:   head.iter().map(|mr| helper.from_memo_id(&mr.id)).collect(), }
+            },
+        }
+    }
 }
 
 impl fmt::Debug for Head {
@@ -706,8 +731,8 @@ impl fmt::Debug for CausalMemoStream {
 impl CausalMemoStream {
     #[tracing::instrument]
     pub fn from_head(head: &Head, slab: SlabHandle) -> Self {
-        match head.owning_slab_id() {
-            Some(id) if id != slab.my_ref.slab_id => {
+        match head.owning_slabref() {
+            Some(slabref) if slabref != slab.my_ref => {
                 panic!("requesting slab does not match owning slab");
             },
             _ => {},

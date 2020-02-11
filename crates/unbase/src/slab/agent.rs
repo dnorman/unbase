@@ -1,5 +1,8 @@
 use std::{
-    collections::hash_map::Entry,
+    collections::{
+        hash_map::Entry,
+        HashMap,
+    },
     sync::{
         Arc,
         Mutex,
@@ -19,6 +22,7 @@ use crate::{
         TransportAddress,
     },
     slab::{
+        memoref::MemoRefPtr,
         state::SlabState,
         EdgeSet,
         EntityId,
@@ -31,8 +35,6 @@ use crate::{
         MemoPeerList,
         MemoPeeringStatus,
         MemoRef,
-        MemoRefInner,
-        MemoRefPtr,
         SlabAnticipatedLifetime,
         SlabId,
         SlabPresence,
@@ -40,37 +42,41 @@ use crate::{
     },
     Network,
 };
-use futures::channel::mpsc;
+use ed25519_dalek::Keypair;
+use futures::channel::{
+    mpsc,
+    oneshot,
+};
 
 pub struct SlabAgent {
-    pub id: SlabId,
-    state:  RwLock<SlabState>,
-    net:    Network,
+    state: SlabState,
+    net: Network,
     my_ref: SlabRef,
+    pub memo_wait_channels: Mutex<HashMap<MemoId, Vec<oneshot::Sender<Memo>>>>,
+    pub entity_subscriptions: RwLock<HashMap<EntityId, Vec<mpsc::Sender<Head>>>>,
+    pub index_subscriptions: RwLock<Vec<mpsc::Sender<Head>>>,
+    pub running: RwLock<bool>,
+    keypair: Keypair,
 }
 
-/// SlabAgent is the agent which holds the lock on SlabState.
-/// No other modules is allowed to hold a lock on the SlabState, because it may become deadlocked
-/// SlabAgent is not allowed to implement async functions because we might inadvertently hold the lock across yield
-/// points. All async functions must be offered by some other module.
+/// SlabAgent
 impl SlabAgent {
-    pub fn new(net: &Network, my_ref: SlabRef) -> Self {
-        let state = RwLock::new(SlabState::new());
+    pub fn new(net: &Network, my_ref: SlabRef, state: SlabState) -> Self {
+        let keypair = state.get_keypair().expect("uninitialized state");
 
-        SlabAgent { id: my_ref.slab_id,
-                    state,
+        SlabAgent { state,
                     net: net.clone(),
-                    my_ref }
+                    my_ref,
+                    running: RwLock::new(true),
+                    keypair,
+                    memo_wait_channels: Mutex::new(HashMap::new()),
+                    entity_subscriptions: RwLock::new(HashMap::new()),
+                    index_subscriptions: RwLock::new(Vec::new()) }
     }
 
     pub(crate) fn stop(&self) {
-        let mut state = self.state.write().unwrap();
-        state.running = false;
-    }
-
-    pub(crate) fn is_running(&self) -> bool {
-        let state = self.state.read().unwrap();
-        state.running
+        let mut running = self.running.write().unwrap();
+        *running = false;
     }
 
     // Counters,stats, reporting
@@ -81,39 +87,34 @@ impl SlabAgent {
     //    }
     #[allow(unused)]
     pub fn count_of_memos_received(&self) -> u64 {
-        let state = self.state.read().unwrap();
-        state.get_counter(b"memos_received")
+        self.state.get_counter(b"memos_received")
     }
 
     #[allow(unused)]
     pub fn count_of_memos_reduntantly_received(&self) -> u64 {
-        let state = self.state.read().unwrap();
-        state.get_counter(b"memos_redundantly_received")
+        self.state.get_counter(b"memos_redundantly_received")
     }
 
     #[allow(unused)]
     pub fn peer_slab_count(&self) -> usize {
-        let state = self.state.read().unwrap();
-        state.slab_count()
+        self.state.slab_count()
+    }
+
+    pub(crate) fn is_running(&self) -> bool {
+        let running = self.running.read().unwrap();
+        *running
     }
 
     #[tracing::instrument]
     pub fn new_memo(&self, entity_id: Option<EntityId>, parents: Head, body: MemoBody) -> MemoRef {
-        let memo_id = {
-            // TODO change memo id type to Ulid
-            let id = ulid::Ulid::new();
-            id.0 as u64
-        };
-
-        debug!(%memo_id);
-
-        let memo = Memo::new(MemoInner { id: memo_id,
-                                         owning_slab_id: self.id,
+        // Determine MemoId Lazily
+        let memo = Memo::new(MemoInner { owning_slabref: self.my_ref.clone(),
                                          entity_id,
                                          parents,
                                          body });
 
-        let (memoref, _had_memoref) = self.assert_memoref(memo.id, memo.entity_id, MemoPeerList(Vec::new()), Some(memo));
+        let (memoref, _had_memoref) = self.state.put_memo(memo);
+        // Skip writing the peer list. We don't have one!
         self.consider_emit_memo(&memoref);
 
         memoref
@@ -123,6 +124,10 @@ impl SlabAgent {
         let id = ulid::Ulid::new();
 
         EntityId { id: id.0 as u64, stype }
+    }
+
+    pub fn get_memo(&self, memoref: MemoRef) -> Option<Memo> {
+        self.state.get_memo(memoref)
     }
 
     #[tracing::instrument]
@@ -291,10 +296,12 @@ impl SlabAgent {
         }
     }
 
+    //    pub fn get_memo (&self, memoref: MemoRef ){
+    //}
     // should this be a function of the slabref rather than the owning slab?
     pub fn presence_for_origin(&self, origin_slabref: &SlabRef) -> SlabPresence {
         // Get the address that the remote slab would recogize
-        SlabPresence { slab_id:  self.id,
+        SlabPresence { slabref:  self.id,
                        address:  origin_slabref.get_return_address(),
                        lifetime: SlabAnticipatedLifetime::Unknown, }
     }
@@ -305,7 +312,7 @@ impl SlabAgent {
             TransportAddress::Local => return Err("Invalid - Cannot create local slabref from presence"),
             _ => {
                 // let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
-                Ok(self.assert_slabref(presence.slab_id, &vec![presence.clone()]))
+                Ok(self.assert_slabref(presence.slabref, &vec![presence.clone()]))
             },
         }
     }
@@ -445,13 +452,13 @@ impl SlabAgent {
         match head {
             Head::Null => Head::Null,
             Head::Anonymous { ref head, .. } => {
-                Head::Anonymous { owning_slab_id: self.id,
+                Head::Anonymous { owning_slabref: self.id,
                                   head:           head.iter()
                                                       .map(|mr| self.localize_memoref(mr, &local_from_slabref, include_memos))
                                                       .collect(), }
             },
             Head::Entity { entity_id, ref head, .. } => {
-                Head::Entity { owning_slab_id: self.id,
+                Head::Entity { owning_slabref: self.id,
                                entity_id:      entity_id.clone(),
                                head:           head.iter()
                                                    .map(|mr| self.localize_memoref(mr, &local_from_slabref, include_memos))
@@ -473,20 +480,21 @@ impl SlabAgent {
         // Because our from_slabref is already owned by the destination slab, there is no need to do
         // peerlist.clone_for_slab
         let peerlist = memoref.get_peerlist_for_peer(from_slabref, Some(self.id));
+        //        // TODO - reduce the redundant work here. We're basically asserting the memoref twice
+        //        let memoref = self.state.put_memo(memoref.id, memoref.entity_id, peerlist.clone(), match include_memo {
+        //                              true => {
+        //                                  match *memoref.ptr.read().unwrap() {
+        //                                      MemoRefPtr::Resident(ref m) => Some(self.localize_memo(m, from_slabref,
+        // &peerlist)),                                      MemoRefPtr::Remote => None,
+        //                                  }
+        //                              },
+        //                              false => None,
+        //                          })
+        //                          .0;
 
-        // TODO - reduce the redundant work here. We're basically asserting the memoref twice
-        let memoref = self.assert_memoref(memoref.id, memoref.entity_id, peerlist.clone(), match include_memo {
-                              true => {
-                                  match *memoref.ptr.read().unwrap() {
-                                      MemoRefPtr::Resident(ref m) => Some(self.localize_memo(m, from_slabref, &peerlist)),
-                                      MemoRefPtr::Remote => None,
-                                  }
-                              },
-                              false => None,
-                          })
-                          .0;
+        //        memoref
 
-        memoref
+        unimplemented!()
     }
 
     #[tracing::instrument]
@@ -519,16 +527,13 @@ impl SlabAgent {
                                          parents,
                                          body });
 
-        let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.entity_id, peerlist.clone(), Some(memo.clone()));
+        let (memoref, had_memoref) = self.state.put_memo(memo);
+        self.state.put_memopeers(memoref, peerlist); // TODO - merge these with the ones we might have already had
 
-        {
-            let mut state = self.state.write().unwrap();
+        self.state.increment_memos_received(1);
 
-            state.increment_memos_received(1);
-
-            if had_memoref {
-                state.increment_memos_redundantly_received(1);
-            }
+        if had_memoref {
+            self.state.increment_memos_redundantly_received(1);
         }
 
         self.consider_emit_memo(&memoref);
@@ -685,44 +690,6 @@ impl SlabAgent {
         }
 
         Ok(())
-    }
-
-    #[tracing::instrument]
-    pub fn assert_memoref(&self, memo_id: MemoId, entity_id: Option<EntityId>, peerlist: MemoPeerList, memo: Option<Memo>)
-                          -> (MemoRef, bool) {
-        let had_memoref;
-        let memoref = match self.state.write().unwrap().memorefs_by_id.entry(memo_id) {
-            Entry::Vacant(o) => {
-                let mr = MemoRef(Arc::new(MemoRefInner { id: memo_id,
-                                                         owning_slab_id: self.id,
-                                                         entity_id,
-                                                         peerlist: RwLock::new(peerlist),
-                                                         ptr: RwLock::new(match memo {
-                                                                              Some(m) => {
-                                                                                  assert!(self.id == m.owning_slab_id);
-                                                                                  MemoRefPtr::Resident(m)
-                                                                              },
-                                                                              None => MemoRefPtr::Remote,
-                                                                          }) }));
-
-                had_memoref = false;
-                o.insert(mr).clone() // TODO: figure out how to prolong the borrow here & avoid clone
-            },
-            Entry::Occupied(o) => {
-                let mr = o.get();
-                had_memoref = true;
-                if let Some(m) = memo {
-                    let mut ptr = mr.ptr.write().unwrap();
-                    if let MemoRefPtr::Remote = *ptr {
-                        *ptr = MemoRefPtr::Resident(m)
-                    }
-                }
-                mr.apply_peers(&peerlist);
-                mr.clone()
-            },
-        };
-
-        (memoref, had_memoref)
     }
 
     #[tracing::instrument]

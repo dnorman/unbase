@@ -37,6 +37,24 @@ pub struct NetworkBuffer {
 }
 
 
+impl BufferHelper for NetworkBuffer {
+    type EntityToken = SegmentId;
+    type MemoToken = SegmentId;
+    type SlabToken = SegmentId;
+    fn from_entity_id(&self, entity_id: &EntityId) -> Self::EntityToken {
+        unimplemented!()
+    }
+    fn from_memo_id(&self, memo_id: &MemoId) -> Self::MemoToken {
+        unimplemented!()
+    }
+    fn from_slab_id(&self, slab_id: &SlabId) -> Self::SlabToken {
+        unimplemented!()
+    }
+}
+
+
+
+
 ///// `MemoId`, offset of the Memo's subject id, list of slab presence offsets wherein this memo is purportedly present, list of slab presence offsets wherein this memo is peered but not present
 #[derive(Serialize,Deserialize,Clone)]
 pub struct MemoRefBuffer( MemoId, Option<Vec<MemoPeerStateBuffer>>, SubjectOffset );

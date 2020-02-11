@@ -1,59 +1,68 @@
-use std::{
-    collections::HashMap,
-    convert::TryInto,
-};
-
-use futures::channel::{
-    mpsc,
-    oneshot,
-};
+use std::convert::TryInto;
 
 use crate::{
+    buffer::{
+        BufferHelper,
+        HeadBufElement,
+        MemoBodyBufElement,
+        MemoBuf,
+    },
     head::Head,
     network::SlabRef,
     slab::{
         EntityId,
         Memo,
         MemoId,
+        MemoPeerList,
         MemoRef,
+        SlabId,
     },
+    Entity,
 };
 use ed25519_dalek::Keypair;
-use tracing::info;
+use std::{
+    clone::Clone,
+    sync::Arc,
+};
 
 /// SlabState stores all state for a slab
 /// It may ONLY be owned/touched by SlabAgent. No exceptions.
 /// Consider making SlabState a child of SlabAgent to further discourage this
-pub(super) struct SlabState {
+#[derive(Clone)]
+pub(super) struct SlabState(Arc<SlabStateInner>);
+
+pub(super) struct SlabStateInner {
     config:     sled::Tree,
     slabs:      sled::Tree,
     memos:      sled::Tree,
     memo_peers: sled::Tree,
     counters:   sled::Tree,
-
-    pub memo_wait_channels:   HashMap<MemoId, Vec<oneshot::Sender<Memo>>>,
-    pub entity_subscriptions: HashMap<EntityId, Vec<mpsc::Sender<Head>>>,
-    pub index_subscriptions:  Vec<mpsc::Sender<Head>>,
-    pub running:              bool,
-    keypair:                  Keypair,
+    slab_id:    SlabId,
 }
 
-//#[derive(Debug)]
-// pub(crate) struct SlabCounters {
-//    pub last_memo_id:               u32,
-//    pub last_entity_id:             u32,
-//    pub memos_received:             u64,
-//    pub memos_redundantly_received: u64,
-//}
-
-// SlabState is forbidden from any blocking operations
-// Any code here is holding a mutex lock
-
+// TODO - convert this into a trait
 impl SlabState {
-    pub fn new() -> Self {
-        let path = "./unbase.sled";
+    pub fn open(slab_id: &SlabId) -> Self {
+        let path = format!("./unbase-{}.sled", slab_id);
         let db = sled::open(path).unwrap();
 
+        Self::new(db, slab_id.clone())
+    }
+
+    pub(super) fn initialize_new_slab(slab_id: &SlabId, keypair: Keypair) -> Self {
+        let path = format!("./unbase-{}.sled", slab_id);
+        let db = sled::open(path).unwrap();
+        {
+            let config = db.open_tree("config").unwrap();
+
+            config.compare_and_swap(b"keypair_ed25519", None, Some(keypair.to_bytes()))
+                  .unwrap();
+        }
+
+        Self::new(db, slab_id.clone())
+    }
+
+    fn new(db: sled::Db, slab_id: SlabId) -> Self {
         let config = db.open_tree("config").unwrap();
         let counters = db.open_tree("counters").unwrap();
 
@@ -63,61 +72,120 @@ impl SlabState {
         let memos = db.open_tree("memos").unwrap();
         let memo_peers = db.open_tree("memo_peers").unwrap();
 
-        let keypair = match config.get(b"keypair_ed25519").unwrap() {
-            Some(b) => ed25519_dalek::Keypair::from_bytes(&*b).unwrap(),
-            None => {
-                // TODO - move this
-                use ed25519_dalek::{
-                    Keypair,
-//                    Signature,
-                };
-                use rand::{
-                    rngs::OsRng,
-                    Rng,
-                };
-                use sha2::Sha512;
+        let inner = SlabStateInner { config,
+                                     slabs,
+                                     memos,
+                                     memo_peers,
+                                     counters,
+                                     slab_id };
 
-                info!("Generating ed25519 keypair");
+        SlabState(Arc::new(inner))
+    }
 
-                let mut csprng: OsRng = OsRng::new().unwrap();
-                let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
-
-                config.compare_and_swap(b"keypair_ed25519", None, Some(keypair.to_bytes())).unwrap();
-
-                keypair
-            },
-        };
-
-        info!("Slab ID {}", keypair.public());
-
-        // TODO - convert this into a trait
-        SlabState { config,
-                    slabs,
-                    memos,
-                    memo_peers,
-                    counters,
-
-                    // TODO - move these
-                    running: true,
-                    keypair,
-                    memo_wait_channels: HashMap::new(),
-                    entity_subscriptions: HashMap::new(),
-                    index_subscriptions: Vec::new() }
+    pub(super) fn get_keypair(&self) -> Option<Keypair> {
+        match self.0.config.get(b"keypair_ed25519").unwrap() {
+            Some(b) => Some(ed25519_dalek::Keypair::from_bytes(b).unwrap()),
+            None => None,
+        }
     }
 
     pub fn increment_counter(&self, name: &[u8], increment: u64) {
-        self.counters.merge(name, &increment);
+        self.0.counters.merge(name, &increment);
     }
 
     pub fn get_counter(&self, name: &[u8]) -> u64 {
-        match self.counters.get(name).unwrap() {
+        match self.0.counters.get(name).unwrap() {
             Some(bytes) => u64::from_ne_bytes(bytes.try_into().unwrap()),
             None => 0u64,
         }
     }
 
     pub fn slab_count(&self) -> usize {
-        self.slabs.len()
+        self.0.slabs.len()
+    }
+
+    pub fn get_memo(&self, memoref: MemoRef) -> Option<Memo> {
+        // TODO convert this to use a surrogate key, with a separate lookup for MemoId
+        // A couple reasons for this:
+        // 1. Save storage space by using a 4 or 8 bytes instead of 256
+        // 2. De-sparsify the index space
+        // 3. Enable lazy memo hash calculation, enabling us to defer generation of the actual MemoId until (if/when)
+        //    we need to send it to another slab
+        self.0.memos.get(&memoref.id)
+    }
+
+    #[tracing::instrument]
+    pub fn put_memo(&self, memo: Memo) -> (MemoRef, bool) {
+        let buf = memo.to_buf(self);
+        //        let pb = MemoPeersBuf::<u32, u32> { memo_id: 2,
+        //            peers:   vec![MemoPeerElement::<u32> { slab_id: 0,
+        //                status:  MemoPeeringStatus::Resident, }], };
+        //
+        //        self.memos.compare_and_swap(memo_id, None );
+        //
+        //        let had_memoref;
+        //
+        //
+        //
+        //        let memoref = match self.state.write().unwrap().memorefs_by_id.entry(memo_id) {
+        //            Entry::Vacant(o) => {
+        //                let mr = MemoRef(Arc::new(MemoRefInner { id: memo_id,
+        //                                                         owning_slab_id: self.id,
+        //                                                         entity_id,
+        //                                                         peerlist: RwLock::new(peerlist),
+        //                                                         ptr: RwLock::new(match memo {
+        //                                                                              Some(m) => {
+        //                                                                                  assert!(self.id == m.owning_slab_id);
+        //                                                                                  MemoRefPtr::Resident(m)
+        //                                                                              },
+        //                                                                              None => MemoRefPtr::Remote,
+        //                                                                          }) }));
+        //
+        //                had_memoref = false;
+        //                o.insert(mr).clone() // TODO: figure out how to prolong the borrow here & avoid clone
+        //            },
+        //            Entry::Occupied(o) => {
+        //                let mr = o.get();
+        //                had_memoref = true;
+        //                if let Some(m) = memo {
+        //                    let mut ptr = mr.ptr.write().unwrap();
+        //                    if let MemoRefPtr::Remote = *ptr {
+        //                        *ptr = MemoRefPtr::Resident(m)
+        //                    }
+        //                }
+        //                mr.apply_peers(&peerlist);
+        //                mr.clone()
+        //            },
+        //        };
+        //
+        //        (memoref, had_memoref)
+        unimplemented!()
+    }
+
+    pub fn put_memopeers(&self, memoref: &MemoRef, peers: MemoPeerList) {
+        unimplemented!()
+    }
+
+    pub fn put_slab(&self, slab_id: &SlabId) -> SlabRef {
+        unimplemented!()
+    }
+}
+
+impl BufferHelper for SlabState {
+    type EntityToken = EntityId;
+    type MemoToken = MemoId;
+    type SlabToken = SlabId;
+
+    fn from_entity_id(&self, entity_id: &EntityId) -> Self::EntityToken {
+        entity_id.clone()
+    }
+
+    fn from_memo_id(&self, memo_id: &MemoId) -> Self::MemoToken {
+        memo_id.clone()
+    }
+
+    fn from_slab_id(&self, slab_id: &SlabId) -> Self::SlabToken {
+        slab_id.clone()
     }
 }
 

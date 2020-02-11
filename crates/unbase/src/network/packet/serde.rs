@@ -58,31 +58,29 @@ impl<'a> Visitor for PacketSeed<'a> {
                 return Err(DeError::invalid_length(0, &self));
             },
         };
-        let to_slab_id: SlabId = match visitor.visit()? {
-            Some(value) => value,
-            None => {
-                return Err(DeError::invalid_length(1, &self));
-            },
-        };
+        let to_slab_id: Option<SlabId> = visitor.visit()?;
 
         let dest_slab;
-        if to_slab_id == 0 {
-            // Should this be multiple slabs somehow?
-            // If so, we'd have to bifurcate the deserialization process
-            if let Some(slab) = self.net.get_representative_slab() {
-                dest_slab = slab
-            } else {
-                return Err(DeError::custom("Unable to pick_arbitrary_slab"));
-            }
-        } else {
-            if let Some(slab) = self.net.get_slabhandle(to_slab_id) {
-                dest_slab = slab;
-            } else {
-                return Err(DeError::custom("Destination slab not found"));
-            }
+        match to_slab_id {
+            None => {
+                // Should this be multiple slabs somehow?
+                // If so, we'd have to bifurcate the deserialization process
+                if let Some(slab) = self.net.get_representative_slab() {
+                    dest_slab = slab
+                } else {
+                    return Err(DeError::custom("Unable to pick_arbitrary_slab"));
+                }
+            },
+            Some(id) => {
+                if let Some(slab) = self.net.get_slabhandle(&id) {
+                    dest_slab = slab;
+                } else {
+                    return Err(DeError::custom("Destination slab not found"));
+                }
+            },
         }
 
-        let from_presence = SlabPresence { slab_id:  from_slab_id,
+        let from_presence = SlabPresence { slabref:  from_slab,
                                            address:  self.source_address.clone(),
                                            lifetime: SlabAnticipatedLifetime::Unknown, };
 

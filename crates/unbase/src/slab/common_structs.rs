@@ -5,6 +5,10 @@ use std::{
 };
 
 use crate::{
+    buffer::{
+        BufferHelper,
+        RelationSetBufElement,
+    },
     head::Head,
     network::{
         SlabRef,
@@ -13,6 +17,10 @@ use crate::{
     slab::SlabId,
 };
 use itertools::Itertools;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 pub const MAX_SLOTS: usize = 256;
 
@@ -69,7 +77,7 @@ impl fmt::Display for EntityId {
 /// Including Transport address and anticipated lifetime
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SlabPresence {
-    pub slab_id:  SlabId,
+    pub slabref:  SlabRef,
     pub address:  TransportAddress,
     pub lifetime: SlabAnticipatedLifetime,
     //    pub latest_clock: Head, // latest clock reading relating to this slab presence
@@ -77,13 +85,13 @@ pub struct SlabPresence {
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
         // When comparing equality, we can skip the anticipated lifetime
-        self.slab_id == other.slab_id && self.address == other.address
+        self.slabref == other.slabref && self.address == other.address
     }
 }
 impl fmt::Debug for SlabPresence {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SlabPresence")
-           .field("slab_id", &self.slab_id)
+           .field("slab_id", &self.slabref.slab_id)
            .field("address", &self.address.to_string())
            .field("lifetime", &self.lifetime)
            .finish()
@@ -184,6 +192,14 @@ impl RelationSet {
             .iter()
             .map(|(k, v)| format!("{}:{}", k, v.map(|x| x.to_string()).unwrap_or("None".to_string())))
             .join(",")
+    }
+
+    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> RelationSetBufElement<E>
+        where E: Serialize + Deserialize,
+              M: Serialize + Deserialize,
+              H: Serialize + Deserialize
+    {
+        RelationSetBufElement { slots: self.0.iter().map(|(s, e)| (s, helper.from_entity_id(e))).collect(), }
     }
 }
 

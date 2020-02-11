@@ -450,7 +450,7 @@ mod test {
     #[unbase_test_util::async_test]
     async fn context_basic() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Slab::initialize(&net);
         let context = slab.create_context();
 
         // 4 -> 3 -> 2 -> 1
@@ -466,7 +466,7 @@ mod test {
     #[unbase_test_util::async_test]
     async fn context_manual_compaction() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Slab::initialize(&net);
         let context = slab.create_context();
 
         // 4 -> 3 -> 2 -> 1
@@ -512,7 +512,7 @@ mod test {
     #[unbase_test_util::async_test]
     async fn context_auto_compaction() {
         let net = Network::create_new_system();
-        let slab = Slab::new(&net);
+        let slab = Slab::initialize(&net);
         let context = slab.create_context();
 
         // 4 -> 3 -> 2 -> 1

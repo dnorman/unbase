@@ -251,7 +251,7 @@ mod test {
         let net = Network::create_new_system();
         let simulator = Simulator::new();
         net.add_transport(Box::new(simulator.clone()));
-        let slab_a = Slab::new(&net);
+        let slab_a = Slab::initialize(&net);
         let context_a = slab_a.create_context();
 
         let mut index = IndexFixed::new(&context_a, 5);

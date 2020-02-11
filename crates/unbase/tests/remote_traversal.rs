@@ -24,8 +24,8 @@ async fn remote_traversal_simulated() {
     let started = simulator.start();
     debug!(%started);
 
-    let slab_a = unbase::Slab::new(&net);
-    let slab_b = unbase::Slab::new(&net);
+    let slab_a = unbase::Slab::initialize(&net);
+    let slab_b = unbase::Slab::initialize(&net);
 
     let context_a = slab_a.create_context();
     let _context_b = slab_b.create_context();
@@ -61,8 +61,8 @@ async fn remote_traversal_nondeterministic() {
     // Automatically uses LocalDirect, which should be much faster than the simulator, but is also nondeterministic.
     // This will be used in production for slabs that cohabitate the same process
 
-    let slab_a = unbase::Slab::new(&net);
-    let slab_b = unbase::Slab::new(&net);
+    let slab_a = unbase::Slab::initialize(&net);
+    let slab_b = unbase::Slab::initialize(&net);
 
     let context_a = slab_a.create_context();
     let _context_b = slab_b.create_context();
@@ -100,7 +100,7 @@ async fn udp_station_one() {
 
     let udp1 = unbase::network::transport::TransportUDP::new("127.0.0.1:12011".to_string());
     net1.add_transport(Box::new(udp1.clone()));
-    let slab_a = unbase::Slab::new(&net1);
+    let slab_a = unbase::Slab::initialize(&net1);
 
     // no reason to wait to create the context here
     let context_a = slab_a.create_context();
@@ -138,7 +138,6 @@ async fn udp_station_one() {
 
 async fn udp_station_two() {
     let net2 = unbase::Network::new();
-    net2.hack_set_next_slab_id(200);
 
     // HACK - Ensure slab_a is listening - TODO make this auto-retry
     Delay::new(Duration::from_millis(50)).await;
@@ -146,7 +145,7 @@ async fn udp_station_two() {
     let udp2 = unbase::network::transport::TransportUDP::new("127.0.0.1:12012".to_string());
     net2.add_transport(Box::new(udp2.clone()));
 
-    let slab_b = unbase::Slab::new(&net2);
+    let slab_b = unbase::Slab::initialize(&net2);
     udp2.seed_address_from_string("127.0.0.1:12011".to_string());
 
     Delay::new(Duration::from_millis(50)).await;

@@ -29,7 +29,7 @@ impl Deref for MemoRef {
 
 pub struct MemoRefInner {
     pub id:             MemoId,
-    pub owning_slab_id: SlabId, // TODO - rename and conditionalize with a macro
+    pub owning_slabref: SlabRef, // TODO - rename and conditionalize with a macro
     pub entity_id:      Option<EntityId>,
     pub peerlist:       RwLock<MemoPeerList>,
     pub ptr:            RwLock<MemoRefPtr>,
@@ -41,24 +41,15 @@ pub enum MemoRefPtr {
     Remote,
 }
 
-impl MemoRefPtr {
-    pub fn to_peering_status(&self) -> MemoPeeringStatus {
-        match self {
-            &MemoRefPtr::Resident(_) => MemoPeeringStatus::Resident,
-            &MemoRefPtr::Remote => MemoPeeringStatus::Participating,
-        }
-    }
-}
-
 impl MemoRef {
     pub fn to_head(&self) -> Head {
         match self.entity_id {
             None => {
-                Head::Anonymous { owning_slab_id: self.owning_slab_id,
+                Head::Anonymous { owning_slabref: self.owning_slabref,
                                   head:           vec![self.clone()], }
             },
             Some(entity_id) => {
-                Head::Entity { owning_slab_id: self.owning_slab_id,
+                Head::Entity { owning_slabref: self.owning_slabref,
                                entity_id,
                                head: vec![self.clone()] }
             },
@@ -81,7 +72,7 @@ impl MemoRef {
         acted
     }
 
-    pub fn get_peerlist_for_peer(&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<SlabId>) -> MemoPeerList {
+    pub fn get_peerlist_for_peer(&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<&SlabId>) -> MemoPeerList {
         let mut list: Vec<MemoPeer> = Vec::new();
 
         list.push(MemoPeer { slabref: my_ref.clone(),
@@ -110,6 +101,7 @@ impl MemoRef {
         }
     }
 
+    // TODO - change call sites to use SlabState.get_memo or similar
     pub fn get_memo_if_resident(&self) -> Option<Memo> {
         match *self.ptr.read().unwrap() {
             MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
@@ -130,10 +122,8 @@ impl MemoRef {
 
     #[tracing::instrument(level = "debug")]
     pub async fn get_memo(self, slab: SlabHandle) -> Result<Memo, RetrieveError> {
-        if self.owning_slab_id != slab.my_ref.slab_id {
-            assert!(self.owning_slab_id == slab.my_ref.slab_id,
-                    "requesting slab does not match owning slab");
-        }
+        assert!(self.owning_slabref == slab.my_ref,
+                "requesting slab does not match owning slab");
 
         // This seems pretty crude, but using channels for now in the interest of expediency
         {
@@ -147,7 +137,7 @@ impl MemoRef {
 
     #[tracing::instrument]
     pub async fn descends(&self, memoref: &MemoRef, slab: &SlabHandle) -> Result<bool, RetrieveError> {
-        assert!(self.owning_slab_id == slab.my_ref.slab_id);
+        assert!(self.owning_slabref == slab.my_ref);
         // TODO get rid of clones here
 
         if self.clone().get_memo(slab.clone()).await?.descends(&memoref, slab).await? {

@@ -14,6 +14,13 @@ use std::{
 };
 
 use crate::{
+    buffer::{
+        BufferHelper,
+        EditBufElement,
+        MemoBodyBufElement,
+        MemoBuf,
+        RelationSetBufElement,
+    },
     error::RetrieveError,
     head::Head,
     network::{
@@ -30,6 +37,10 @@ use crate::{
         SlabHandle,
         SlabId,
     },
+};
+use ::serde::{
+    Deserialize,
+    Serialize,
 };
 use itertools::Itertools;
 
@@ -50,9 +61,8 @@ impl Deref for Memo {
 }
 
 pub struct MemoInner {
-    pub id:             u64,
     pub entity_id:      Option<EntityId>,
-    pub owning_slab_id: SlabId,
+    pub owning_slabref: SlabRef,
     pub parents:        Head,
     pub body:           MemoBody,
 }
@@ -173,6 +183,16 @@ impl Memo {
             return Ok(false);
         }.boxed()
     }
+
+    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> MemoBuf<E, M, S>
+        where E: Serialize + Deserialize,
+              M: Serialize + Deserialize,
+              S: Serialize + Deserialize
+    {
+        MemoBuf::<E, M> { entity_id: helper.from_entity_id(self.entity_id),
+                          parents:   self.parents.to_buf(helper),
+                          body:      self.body.to_buf(helper), }
+    }
 }
 
 impl MemoBody {
@@ -182,9 +202,9 @@ impl MemoBody {
         match self {
             SlabPresence { ref p, ref r } => {
                 if r.is_some() {
-                    format!("SlabPresence({} at {})*", p.slab_id, p.address.to_string())
+                    format!("SlabPresence({} at {})*", p.slabref, p.address.to_string())
                 } else {
-                    format!("SlabPresence({} at {})", p.slab_id, p.address.to_string())
+                    format!("SlabPresence({} at {})", p.slabref, p.address.to_string())
                 }
             },
             Relation(ref rel_set) => format!("RelationSet({})", rel_set.to_string()),
@@ -195,6 +215,50 @@ impl MemoBody {
             Peering(ref _memo_id, ref _entity_id, ref _peerlist) => format!("Peering"),
             MemoRequest(ref memo_ids, ref slabref) => {
                 format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.slab_id)
+            },
+        }
+    }
+
+    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> MemoBodyBufElement<E, M, S>
+        where E: Serialize + Deserialize,
+              M: Serialize + Deserialize,
+              S: Serialize + Deserialize
+    {
+        match self {
+            MemoBody::SlabPresence { ref p, ref r } => {
+                //                MemoBody::SlabPresence { p: p.clone(),
+                //                    r: self.localize_head(r, from_slabref, true), }
+                unimplemented!()
+            },
+            MemoBody::Relation(ref relationset) => MemoBodyBufElement::Relation(relationset.to_buf(helper)),
+            MemoBody::Edge(ref edgeset) => MemoBodyBufElement::Edge(edgeset.to_buf()),
+            MemoBody::Edit(ref hm) => MemoBodyBufElement::Edit(EditBufElement { edit: (*hm).clone() }),
+            MemoBody::FullyMaterialized { ref v,
+                                          ref r,
+                                          ref t,
+                                          ref e, } => {
+                //                MemoBodyBufElement::FullyMaterialized { v: (*v).clone(),
+                //                    r: RelationSetBufElement{ slots: },
+                //                    e: self.localize_edgeset(e, from_slabref),
+                //                    t: t.clone(), }
+                unimplemented!()
+            },
+            MemoBody::PartiallyMaterialized { ref v,
+                                              ref r,
+                                              ref e,
+                                              ref t, } => {
+                //                MemoBody::PartiallyMaterialized { v: v.clone(),
+                //                    r: r.clone(),
+                //                    e: self.localize_edgeset(e, from_slabref),
+                //                    t: t.clone(), }
+                unimplemented!()
+            },
+
+            MemoBody::Peering(memo_id, entity_id, ref peerlist) => {
+                MemoBody::Peering(memo_id, entity_id, self.localize_peerlist(peerlist))
+            },
+            MemoBody::MemoRequest(ref memo_ids, ref slabref) => {
+                //                MemoBodyBufElement::MemoRequest(memo_ids.clone(), self.localize_slabref(slabref))
             },
         }
     }

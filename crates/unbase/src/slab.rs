@@ -11,8 +11,6 @@ pub use self::{
     memoref::{
         serde as memoref_serde,
         MemoRef,
-        MemoRefInner,
-        MemoRefPtr,
     },
     slabref::{
         SlabRef,
@@ -30,6 +28,7 @@ use crate::{
     slab::agent::SlabAgent,
 };
 
+use crate::slab::state::SlabState;
 use std::{
     ops::Deref,
     sync::{
@@ -49,12 +48,40 @@ mod memo;
 mod memoref;
 mod slabref;
 
-pub type SlabId = u32;
+// TODO - update internal comparisons to use pointer address rather than reading the actual contents
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SlabId([u8; 32]);
+
+impl SlabId {
+    pub fn base64(&self) -> String {
+        use base64::encode;
+
+        // Don't use this too much. It allocs!
+        encode(&self.0)
+    }
+
+    pub fn short(&self) -> String {
+        self.base64()[0..6].to_string()
+    }
+}
+
+impl std::fmt::Display for SlabId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.base64()[..])
+    }
+}
+
+impl std::fmt::Debug for SlabId {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("SlabId").field("", &self.base64()).finish()
+    }
+}
 
 #[derive(Clone)]
 pub struct Slab {
     pub id:           SlabId,
     pub(crate) agent: Arc<SlabAgent>,
+    pub(crate) state: SlabState,
     pub(crate) net:   Network,
     pub my_ref:       SlabRef,
     //    dispatch_channel: mpsc::Sender<MemoRef>,
@@ -72,20 +99,48 @@ impl Deref for Slab {
 
 impl Slab {
     #[tracing::instrument]
-    pub fn new(net: &Network) -> Slab {
-        let id = net.generate_slab_id();
+    pub fn initialize(net: &Network) -> Slab {
+        info!("Initializing new slab...");
 
-        let my_ref_inner = SlabRefInner { slab_id:        id,
-                                          owning_slab_id: id, // I own my own ref to me, obviously
+        use ed25519_dalek::Keypair;
+        use rand::rngs::OsRng;
+        use sha2::Sha512;
+
+        info!("Generating ed25519 keypair");
+
+        let mut csprng: OsRng = OsRng::new().unwrap();
+        let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
+
+        info!("Generating new keypair...");
+
+        use std::convert::TryInto;
+        let b: [u8; 32] = keypair.public.as_bytes().clone().try_into().unwrap();
+        let slab_id = SlabId(b);
+
+        info!("Slab ID {} created", slab_id);
+
+        let state = SlabState::initialize_new_slab(&slab_id, keypair);
+
+        Self::new(net, slab_id)
+    }
+
+    #[tracing::instrument]
+    pub fn new(net: &Network, slab_id: SlabId) -> Slab {
+        let state = SlabState::open(&slab_id);
+        Self::new_with_state(net, slab_id, state)
+    }
+
+    pub fn new_with_state(net: &Network, slab_id: SlabId, state: SlabState) -> Slab {
+        let my_ref_inner = SlabRefInner { slab_id:        slab_id.clone(),
                                           presence:       RwLock::new(vec![]), // this bit is just for show
-                                          tx:             Mutex::new(Transmitter::new_blackhole(id)),
+                                          tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
                                           return_address: RwLock::new(TransportAddress::Local), };
 
         let my_ref = SlabRef(Arc::new(my_ref_inner));
         // TODO: figure out how to reconcile this with the simulator
         // let (dispatch_tx_channel, dispatch_rx_channel) = mpsc::channel::<MemoRef>(10);
 
-        let agent = Arc::new(SlabAgent::new(net, my_ref.clone()));
+        let agent = Arc::new(SlabAgent::new(net, my_ref.clone(), state.clone()));
 
         // let dispatcher: RemoteHandle<()> = crate::util::task::spawn_with_handle(
         //     Self::run_dispatcher( agent.clone(), dispatch_rx_channel )
@@ -96,13 +151,14 @@ impl Slab {
                                   // dispatch_channel: dispatch_tx_channel.clone(),
                                   agent:  agent.clone(), };
 
-        let me = Slab { id,
+        let me = Slab { id: slab_id,
                         // dispatch_channel: dispatch_tx_channel,
                         // dispatcher: Arc::new(dispatcher),
                         net: net.clone(),
                         my_ref,
                         handle,
-                        agent };
+                        agent,
+                        state };
 
         net.register_local_slab(me.handle());
 
@@ -142,7 +198,7 @@ impl Drop for Slab {
     fn drop(&mut self) {
         info!("Slab {} was dropped - Shutting down", self.id);
         self.agent.stop();
-        self.net.deregister_local_slab(self.id);
+        self.net.deregister_local_slab(&self.id);
     }
 }
 

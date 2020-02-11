@@ -75,7 +75,7 @@ use crate::{
 /// # use unbase::{Slab,Network,slab::EntityId,head::Head,context::stash::Stash};
 /// # async_std::task::block_on(async {
 /// # let net = Network::create_new_system();
-/// # let slab = Slab::new(&net);
+/// # let slab = Slab::initialize(&net);
 /// # let slabhandle = slab.handle();
 ///
 /// let stash = Stash::new();

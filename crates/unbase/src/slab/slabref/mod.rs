@@ -21,8 +21,16 @@ use std::{
 /// The referenced slab may be resident within the same process or within a foreign process
 /// Posessing a SlabRef does not confer ownership, or even imply locality. It does however provide us with a way to
 /// refer to a slab abstractly, and a means of getting messages to it.
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub struct SlabRef(pub Arc<SlabRefInner>);
+
+/// Compare only the pointers for SlabRefs during equality tests
+impl std::cmp::PartialEq for SlabRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+}
+
 impl Deref for SlabRef {
     type Target = SlabRefInner;
 
@@ -30,9 +38,9 @@ impl Deref for SlabRef {
         &*self.0
     }
 }
+
 pub struct SlabRefInner {
     pub slab_id:        SlabId,
-    pub owning_slab_id: SlabId, // for assertions only?
     pub presence:       RwLock<Vec<SlabPresence>>,
     pub tx:             Mutex<Transmitter>,
     pub return_address: RwLock<TransportAddress>,
@@ -74,7 +82,7 @@ impl SlabRef {
 
             // TODO: This needs much more thought. My gut says that we shouldn't be taking in a transport address here,
             //       but should instead be managing our own presence.
-            let my_presence = SlabPresence { slab_id:  self.slab_id,
+            let my_presence = SlabPresence { slabref:  self.slab_id,
                                              address:  return_address.clone(),
                                              lifetime: SlabAnticipatedLifetime::Unknown, };
 
@@ -93,7 +101,7 @@ impl SlabRef {
 impl fmt::Debug for SlabRef {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SlabRef")
-           .field("owning_slab_id", &self.owning_slab_id)
+           .field("owning_slab", &self.owning_slabref.slab_id)
            .field("slab_id", &self.slab_id)
            .field("presence", &*self.presence.read().unwrap())
            .finish()

@@ -131,7 +131,7 @@ impl SlabHandle {
     #[tracing::instrument]
     pub fn slabref_from_local_slab(&self, peer_slab: &SlabHandle) -> SlabRef {
         // let args = TransmitterArgs::Local(&peer_slab);
-        let presence = SlabPresence { slab_id:  peer_slab.my_ref.slab_id,
+        let presence = SlabPresence { slabref:  peer_slab.my_ref.slab_id,
                                       address:  TransportAddress::Local,
                                       lifetime: SlabAnticipatedLifetime::Unknown, };
 

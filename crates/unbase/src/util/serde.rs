@@ -26,7 +26,7 @@ pub use ::serde::{
 };
 
 pub struct SerializeHelper<'a> {
-    pub dest_slab_id:   &'a SlabId,
+    pub dest_slab_id:   &'a Option<SlabId>,
     pub return_address: &'a TransportAddress,
 }
 

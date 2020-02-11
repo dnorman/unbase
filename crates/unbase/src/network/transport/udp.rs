@@ -80,7 +80,7 @@ impl TransportUDP {
     /// let net = unbase::Network::new();
     /// let udp = unbase::network::transport::TransportUDP::new("127.0.0.1:51002".to_string());
     /// net.add_transport(Box::new(udp.clone()));
-    /// let slab = unbase::Slab::new(&net);
+    /// let slab = unbase::Slab::initialize(&net);
     /// let context = slab.create_context();
     ///
     /// udp.seed_address_from_string("127.0.0.1:51001".to_string());
@@ -119,7 +119,7 @@ impl TransportUDP {
                 trace!("UDP SEND FROM {} ({}) TO {} ({}): {}",
                        &packet.from_slab_id,
                        socket.local_addr().unwrap(),
-                       packet.to_slab_id,
+                       packet.to_slab_id.map_or("ANY", |s| &s.short()),
                        &to_address.address,
                        String::from_utf8(b.clone()).unwrap());
                 // HACK: we're trusting that each memo is smaller than 64k
@@ -147,7 +147,7 @@ impl TransportUDP {
         };
 
         for slab in net.get_all_local_slabs() {
-            let presence = SlabPresence { slab_id:  slab.my_ref.slab_id,
+            let presence = SlabPresence { slabref:  slab.my_ref.clone(),
                                           address:  TransportAddress::UDP(my_address.clone()),
                                           lifetime: SlabAnticipatedLifetime::Unknown, };
 
@@ -156,6 +156,7 @@ impl TransportUDP {
                                       MemoBody::SlabPresence { p: presence,
                                                                r: net.get_root_index_seed(&slab), });
 
+            let memo = slab.agent.get_memo();
             self.send_to_addr(&slab.my_ref, hello, to_address.clone());
         }
     }
@@ -164,8 +165,9 @@ impl TransportUDP {
     pub fn send_to_addr(&self, from_slabref: &SlabRef, memoref: MemoRef, address: TransportAddressUDP) {
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
-        if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = SerdePacket { to_slab_id:   0,
+
+        if let Some(memo) = from_slabref.get_memo_if_resident(memoref) {
+            let packet = SerdePacket { to_slab_id:   None,
                                        from_slab_id: from_slabref.0.slab_id,
                                        memo:         memo.clone(),
                                        peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
@@ -301,10 +303,10 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
     #[tracing::instrument]
     fn send(&self, from: &SlabRef, memoref: MemoRef) {
         if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = SerdePacket { to_slab_id: self.slab_id,
+            let packet = SerdePacket { to_slab_id: Some(self.slab_id.clone()),
                                        from_slab_id: from.0.slab_id,
                                        memo,
-                                       peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };
+                                       peerlist: memoref.get_peerlist_for_peer(from, Some(&self.slab_id)) };
 
             // use util::serde::SerializeHelper;
             // let helper = SerializeHelper{ transmitter: self };

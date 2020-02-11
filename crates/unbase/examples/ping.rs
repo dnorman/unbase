@@ -14,7 +14,7 @@ async fn main() {
     let net = Network::create_new_system();
     let udp = TransportUDP::new("127.0.0.1:12001".to_string());
     net.add_transport(Box::new(udp));
-    let slab = Slab::new(&net);
+    let slab = Slab::initialize(&net);
     let context_a = slab.create_context();
 
     println!("A - Started up. You have 7 seconds to start the pong client (yeah this is lame. working on it!)");
