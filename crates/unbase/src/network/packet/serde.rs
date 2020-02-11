@@ -80,7 +80,9 @@ impl<'a> Visitor for PacketSeed<'a> {
             },
         }
 
-        let from_presence = SlabPresence { slabref:  from_slab,
+        let from_slabref = dest_slab.agent.get_slabref(from_slab_id);
+
+        let from_presence = SlabPresence { slabref:  from_slabref,
                                            address:  self.source_address.clone(),
                                            lifetime: SlabAnticipatedLifetime::Unknown, };
 

@@ -49,20 +49,31 @@ use futures::channel::{
 };
 
 pub struct SlabAgent {
-    state: SlabState,
+    pub state: SlabState,
     net: Network,
-    my_ref: SlabRef,
+    pub my_ref: SlabRef,
     pub memo_wait_channels: Mutex<HashMap<MemoId, Vec<oneshot::Sender<Memo>>>>,
     pub entity_subscriptions: RwLock<HashMap<EntityId, Vec<mpsc::Sender<Head>>>>,
     pub index_subscriptions: RwLock<Vec<mpsc::Sender<Head>>>,
+    slabrefs: Mutex<HashMap<SlabId, SlabRef>>,
     pub running: RwLock<bool>,
     keypair: Keypair,
 }
 
 /// SlabAgent
 impl SlabAgent {
-    pub fn new(net: &Network, my_ref: SlabRef, state: SlabState) -> Self {
+    pub fn new(net: &Network, slab_id: SlabId, state: SlabState) -> Self {
         let keypair = state.get_keypair().expect("uninitialized state");
+
+        let my_ref_inner = SlabRefInner { slab_id: slab_id.clone(),
+            presence:       RwLock::new(vec![]), // this bit is just for show
+            tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
+            return_address: RwLock::new(TransportAddress::Local), };
+
+        let my_ref = SlabRef(Arc::new(my_ref_inner));
+
+        let mut slabrefs = HashMap::new();
+        slabrefs.insert(slab_id,my_ref.clone());
 
         SlabAgent { state,
                     net: net.clone(),
@@ -71,12 +82,34 @@ impl SlabAgent {
                     keypair,
                     memo_wait_channels: Mutex::new(HashMap::new()),
                     entity_subscriptions: RwLock::new(HashMap::new()),
-                    index_subscriptions: RwLock::new(Vec::new()) }
+                    index_subscriptions: RwLock::new(Vec::new()),
+        slabrefs: Mutex::new(slabrefs)}
     }
 
     pub(crate) fn stop(&self) {
         let mut running = self.running.write().unwrap();
         *running = false;
+    }
+
+    pub (crate) fn get_slabref(&self, slab_id: SlabId) -> SlabRef{
+        match self.slabrefs.lock().entry(slab_id) {
+            Entry::Vacant(o) => {
+
+                let my_ref_inner = SlabRefInner { slab_id: slab_id,
+                    presence:       RwLock::new(vec![]), // this bit is just for show
+                    tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
+                    return_address: RwLock::new(TransportAddress::Local), };
+
+                let my_ref = SlabRef(Arc::new(my_ref_inner));
+
+                o.insert(my_ref.clone());
+
+                my_ref
+            },
+            Entry::Occupied(mut o) => {
+                o.get().clone()
+            },
+        }
     }
 
     // Counters,stats, reporting

@@ -131,16 +131,10 @@ impl Slab {
     }
 
     pub fn new_with_state(net: &Network, slab_id: SlabId, state: SlabState) -> Slab {
-        let my_ref_inner = SlabRefInner { slab_id:        slab_id.clone(),
-                                          presence:       RwLock::new(vec![]), // this bit is just for show
-                                          tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
-                                          return_address: RwLock::new(TransportAddress::Local), };
-
-        let my_ref = SlabRef(Arc::new(my_ref_inner));
         // TODO: figure out how to reconcile this with the simulator
         // let (dispatch_tx_channel, dispatch_rx_channel) = mpsc::channel::<MemoRef>(10);
 
-        let agent = Arc::new(SlabAgent::new(net, my_ref.clone(), state.clone()));
+        let agent = Arc::new(SlabAgent::new(net, state.clone()));
 
         // let dispatcher: RemoteHandle<()> = crate::util::task::spawn_with_handle(
         //     Self::run_dispatcher( agent.clone(), dispatch_rx_channel )
