@@ -175,7 +175,7 @@ impl SlabAgent {
     pub fn generate_entity_id(&self, stype: EntityType) -> EntityId {
         let id = ulid::Ulid::new();
 
-        EntityId { id: id.0 as u64, stype }
+        EntityId { id, stype }
     }
 
     pub fn get_memo(&self, memoref: MemoRef) -> Option<Memo> {
@@ -666,7 +666,6 @@ impl SlabAgent {
     #[tracing::instrument]
     pub fn residentize_memoref(&self, memoref: &MemoRef, memo: Memo) -> bool {
         assert!(memoref.owning_slabref == self.my_ref);
-        assert!(memoref.id == memo.id);
 
         let mut ptr = memoref.ptr.write().unwrap();
 
@@ -700,7 +699,7 @@ impl SlabAgent {
     #[allow(unused)]
     #[tracing::instrument]
     pub fn remotize_memoref(&self, memoref: &MemoRef) -> Result<(), StorageOpDeclined> {
-        assert!(memoref.owning_slab_id == self.id);
+        assert!(memoref.owning_slabref == self.my_ref);
 
         // TODO: check peering minimums here, and punt if we're below threshold
 
@@ -740,29 +739,31 @@ impl SlabAgent {
     /// Attempt to remotize the specified memos once. If There is insuffient peering, the storage operation will be
     /// declined immediately
     #[tracing::instrument]
-    pub fn try_remotize_memos(&self, memo_ids: &[MemoId]) -> Result<(), StorageOpDeclined> {
+    pub fn try_remotize_memos(&self, memo_ids: &[MemoRef]) -> Result<(), StorageOpDeclined> {
         // TODO accept memoref instead of memoid
-        let mut memorefs: Vec<MemoRef> = Vec::with_capacity(memo_ids.len());
 
-        {
-            let state = self.state.read().unwrap();
-            for memo_id in memo_ids.iter() {
-                if let Some(memoref) = state.memorefs_by_id.get(memo_id) {
-                    memorefs.push(memoref.clone())
-                }
-            }
-        }
-
-        for memoref in memorefs {
-            self.remotize_memoref(&memoref)?;
-        }
-
-        Ok(())
+        unimplemented!()
+        //        let mut memorefs: Vec<MemoRef> = Vec::with_capacity(memo_ids.len());
+        //
+        //        {
+        //            let state = self.state.read().unwrap();
+        //            for memo_id in memo_ids.iter() {
+        //                if let Some(memoref) = state.memorefs_by_id.get(memo_id) {
+        //                    memorefs.push(memoref.clone())
+        //                }
+        //            }
+        //        }
+        //
+        //        for memoref in memorefs {
+        //            self.remotize_memoref(&memoref)?;
+        //        }
+        //
+        //        Ok(())
     }
 }
 
 impl std::fmt::Debug for SlabAgent {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct("Slab").field("state", &self.state.read().unwrap()).finish()
+        fmt.debug_struct("Slab").field("", &self.my_ref).finish()
     }
 }

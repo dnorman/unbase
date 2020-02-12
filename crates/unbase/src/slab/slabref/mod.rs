@@ -80,8 +80,6 @@ impl SlabRef {
             Some(channel) => Ok(channel.return_addr.clone()),
             None => Err(Error::ChannelNotFound),
         }
-
-        self.return_address.read().unwrap().clone()
     }
 
     pub(in crate::slab) fn apply_presence_only(&self, presence: &SlabPresence, net: &Network) -> Result<bool, Error> {

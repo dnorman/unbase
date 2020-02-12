@@ -149,7 +149,7 @@ impl Context {
     pub async fn get_entity_by_id(&self, entity_id: EntityId) -> Result<Option<Entity>, RetrieveError> {
         let root_index = self.root_index().await?;
 
-        match root_index.get(&self, entity_id.id).await? {
+        match root_index.get(&self, entity_id.hack_as_u64()).await? {
             Some(s) => {
                 let sh = Entity { id:      entity_id,
                                   head:    s,
@@ -334,7 +334,10 @@ impl Context {
         //           * changing relatively slowly for a given slab
         //           * and very likely to be very different from others in the system
 
-        self.root_index().await?.insert(self, entity_id.id, head.clone()).await
+        self.root_index()
+            .await?
+            .insert(self, entity_id.hack_as_u64(), head.clone())
+            .await
         // TODO - update
     }
 
@@ -348,7 +351,7 @@ impl Context {
     pub async fn get_entity(&self, entity_id: EntityId) -> Result<Option<Entity>, RetrieveError> {
         let root_index = self.root_index().await?;
 
-        match root_index.get(self, entity_id.id).await? {
+        match root_index.get(self, entity_id.hack_as_u64()).await? {
             Some(head) => {
                 Ok(Some(Entity { id:
                                      head.entity_id()
@@ -398,7 +401,7 @@ impl Context {
                 //       was pulled against a sufficiently identical context stash state.
                 //       Perhaps stash edit increment? how can we get this to be really granular?
 
-                match self.root_index().await?.get(&self, entity_id.id).await? {
+                match self.root_index().await?.get(&self, entity_id.hack_as_u64()).await? {
                     Some(head) => head,
                     None => return Ok(false),
                 }

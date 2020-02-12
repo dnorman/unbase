@@ -32,7 +32,7 @@ pub enum EntityType {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub struct EntityId {
-    pub id:    u64,
+    pub id:    ulid::Ulid,
     pub stype: EntityType,
 }
 impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
@@ -52,6 +52,10 @@ impl EntityId {
     pub fn index_test(test_id: u64) -> Self {
         EntityId { id:    ulid::Ulid(test_id as u128),
                    stype: EntityType::IndexNode, }
+    }
+
+    pub fn hack_as_u64(&self) -> u64 {
+        self.id.0 as u64
     }
 
     /// Human readable version of the EntityID which denotes whether the entity is an (I)ndex or a (R)ecord type
@@ -92,7 +96,7 @@ impl PartialEq for SlabPresence {
 impl fmt::Debug for SlabPresence {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SlabPresence")
-           .field("slab_id", &self.slab_id.slab_id)
+           .field("slab_id", &self.slab_id)
            .field("address", &self.address.to_string())
            .field("liveness", &self.liveness)
            .finish()
@@ -208,7 +212,10 @@ impl RelationSet {
               M: Serialize + Deserialize,
               H: Serialize + Deserialize
     {
-        RelationSetBufElement { slots: self.0.iter().map(|(s, e)| (s, helper.from_entity_id(e))).collect(), }
+        RelationSetBufElement { slots: self.0
+                                           .iter()
+                                           .map(|(slot_id, opt_e)| (slot_id, opt_e.as_ref().map(|e| helper.from_entity_id(e))))
+                                           .collect(), }
     }
 }
 
