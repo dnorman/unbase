@@ -418,9 +418,10 @@ impl Head {
             let memo = memo?;
             if let Some((relations, materialized)) = memo.get_relations() {
                 debug!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}",
-                       memo.id,
+                       memo.id(),
                        memo.get_parent_head(),
                        relations);
+
                 if let Some(maybe_entity_id) = relations.get(&key) {
                     return match *maybe_entity_id {
                         Some(entity_id) => Ok(Some(entity_id)),
@@ -444,7 +445,7 @@ impl Head {
             let memo = memo?;
             if let Some((edges, materialized)) = memo.get_edges() {
                 debug!("# \t\\ Considering Memo {}, Head: {:?}, Relations: {:?}",
-                       memo.id,
+                       memo.id(),
                        memo.get_parent_head(),
                        edges);
 
@@ -537,7 +538,7 @@ impl Head {
 
         let mut memo_ids = Vec::new();
         while let Some(memo) = memostream.next().await {
-            memo_ids.push(memo?.id);
+            memo_ids.push(memo?.id());
         }
         Ok(memo_ids)
     }

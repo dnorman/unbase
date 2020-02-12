@@ -19,7 +19,6 @@ use crate::{
         EditBufElement,
         MemoBodyBufElement,
         MemoBuf,
-        RelationSetBufElement,
     },
     error::RetrieveError,
     head::Head,
@@ -28,6 +27,7 @@ use crate::{
         SlabRef,
     },
     slab::{
+        state::SlabStateBufHelper,
         EdgeSet,
         EntityId,
         EntityType,
@@ -35,7 +35,6 @@ use crate::{
         MemoRef,
         RelationSet,
         SlabHandle,
-        SlabId,
     },
 };
 use ::serde::{
@@ -44,8 +43,39 @@ use ::serde::{
 };
 use itertools::Itertools;
 
-// pub type MemoId = [u8; 32];
-pub type MemoId = u64;
+use tracing::warn;
+
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MemoId([u8; 32]);
+
+impl MemoId {
+    pub fn dummy() -> Self {
+        Self([0u8; 32])
+    }
+
+    pub fn base64(&self) -> String {
+        use base64::encode;
+
+        // Don't use this too much. It allocs!
+        encode(&self.0)
+    }
+
+    pub fn short(&self) -> String {
+        self.base64()[0..6].to_string()
+    }
+}
+
+impl std::fmt::Display for MemoId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.base64()[..6])
+    }
+}
+
+impl std::fmt::Debug for MemoId {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("MemoId").field("", &self.base64()).finish()
+    }
+}
 
 // All portions of this struct should be immutable
 
@@ -117,11 +147,6 @@ impl Memo {
         Memo(Arc::new(inner))
     }
 
-    pub fn serialize(&self, _slab: &SlabHandle) {
-        // -> MemoBuf {
-        unimplemented!()
-    }
-
     pub fn get_parent_head(&self) -> Head {
         self.parents.clone()
     }
@@ -140,6 +165,20 @@ impl Memo {
             MemoBody::FullyMaterialized { ref r, .. } => Some((r.clone(), true)),
             _ => None,
         }
+    }
+
+    pub fn id(&self) -> MemoId {
+        warn!("Stop using MemoId->id()! Only the storage engine should be calculating MemoId");
+
+        let buf = self.to_buf(&SlabStateBufHelper {});
+        let bytes: Vec<u8> = bincode::serialize(&buf).unwrap();
+
+        let mut hasher = sha2::Sha256::new();
+        hasher.input(&bytes);
+
+        let hash = hasher.result();
+
+        MemoId(hash.into())
     }
 
     pub fn get_edges(&self) -> Option<(EdgeSet, bool)> {
@@ -202,9 +241,9 @@ impl MemoBody {
         match self {
             SlabPresence { ref p, ref r } => {
                 if r.is_some() {
-                    format!("SlabPresence({} at {})*", p.slabref, p.address.to_string())
+                    format!("SlabPresence({} at {})*", p.slab_id, p.address.to_string())
                 } else {
-                    format!("SlabPresence({} at {})", p.slabref, p.address.to_string())
+                    format!("SlabPresence({} at {})", p.slab_id, p.address.to_string())
                 }
             },
             Relation(ref rel_set) => format!("RelationSet({})", rel_set.to_string()),

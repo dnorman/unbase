@@ -27,8 +27,8 @@ use crate::{
         MemoBody,
         MemoId,
         MemoRef,
-        SlabAnticipatedLifetime,
         SlabPresence,
+        TransportLiveness,
     },
     Network,
 };
@@ -95,7 +95,7 @@ impl SlabHandle {
             let timeout = Delay::new(duration);
             match select(channel, timeout).await {
                 Either::Left((Ok(memo), _)) => {
-                    trace!("SLAB {} GOT memo {}", self.my_ref.slab_id, memoref.id);
+                    trace!("SLAB {} GOT memo {}", self.my_ref, memoref);
                     return Ok(memo);
                 },
                 Either::Left((Err(_canceled), _)) => {
@@ -105,7 +105,7 @@ impl SlabHandle {
                 },
                 Either::Right((_, ch)) => {
                     // timed out. Preserve the memo wait channel
-                    trace!("SLAB {} TIMEOUT retrieving memo {}", self.my_ref.slab_id, memoref.id);
+                    trace!("SLAB {} TIMEOUT retrieving memo {}", self.my_ref, memoref.id);
                     channel = ch;
                 },
             }
@@ -131,11 +131,11 @@ impl SlabHandle {
     #[tracing::instrument]
     pub fn slabref_from_local_slab(&self, peer_slab: &SlabHandle) -> SlabRef {
         // let args = TransmitterArgs::Local(&peer_slab);
-        let presence = SlabPresence { slabref:  peer_slab.my_ref.slab_id,
+        let presence = SlabPresence { slab_id:  peer_slab.my_ref.0.slab_id,
                                       address:  TransportAddress::Local,
-                                      lifetime: SlabAnticipatedLifetime::Unknown, };
+                                      liveness: TransportLiveness::Unknown, };
 
-        self.agent.assert_slabref(peer_slab.my_ref.slab_id, &vec![presence])
+        self.agent.get_slabref(peer_slab.my_ref.0.slab_id, &vec![presence])
     }
 
     /// Attempt to remotize the specified memos, waiting for up to the provided delay for them to be successfully
@@ -185,7 +185,7 @@ impl SlabHandle {
 impl std::fmt::Debug for SlabHandle {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("SlabHandle")
-           .field("slab_id", &self.my_ref.slab_id)
+           .field("slab_id", &self.my_ref)
            .field("agent", &self.agent)
            .finish()
     }

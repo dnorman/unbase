@@ -8,11 +8,17 @@ pub enum Error {
     //    LocalSlab(LocalSlabError),
     Buffer(BufferError),
     Serde(serde_json::Error),
+    TransmitterNotFound,
+    SlabOffline,
+    SlabNotFound,
+    ChannelNotFound,
+    BadAddress,
+    AddressNotFound,
 }
 
 #[derive(Debug)]
 pub enum BufferError {
-    DecodeFailed,
+    BincodeDecodeFailed(bincode::Error),
 }
 
 #[derive(PartialEq, Debug)]
@@ -65,6 +71,11 @@ impl core::convert::From<RetrieveError> for WriteError {
 impl core::convert::From<WriteError> for RetrieveError {
     fn from(error: WriteError) -> Self {
         RetrieveError::WriteError(Box::new(error))
+    }
+}
+impl core::convert::From<bincode::Error> for Error {
+    fn from(error: bincode::Error) -> Self {
+        Error::Buffer(BufferError::BincodeDecodeFailed(error))
     }
 }
 

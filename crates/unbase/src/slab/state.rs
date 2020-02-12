@@ -3,12 +3,9 @@ use std::convert::TryInto;
 use crate::{
     buffer::{
         BufferHelper,
-        HeadBufElement,
-        MemoBodyBufElement,
-        MemoBuf,
+        SlabBuf,
     },
-    head::Head,
-    network::SlabRef,
+    error::Error,
     slab::{
         EntityId,
         Memo,
@@ -17,7 +14,6 @@ use crate::{
         MemoRef,
         SlabId,
     },
-    Entity,
 };
 use ed25519_dalek::Keypair;
 use std::{
@@ -166,12 +162,23 @@ impl SlabState {
         unimplemented!()
     }
 
-    pub fn put_slab(&self, slab_id: &SlabId) -> SlabRef {
-        unimplemented!()
+    pub fn put_slab(&self, slab_id: &SlabId, slabbuf: &SlabBuf<EntityId, MemoId>) -> Result<(), Error> {
+        let bytes: Vec<u8> = bincode::serialize(&slabbuf).unwrap();
+
+        self.0.slabs.insert(slab_id, bytes)?;
+
+        Ok(())
+    }
+
+    pub fn get_slab(&self, slab_id: &SlabId) -> Result<SlabBuf<EntityId, MemoId>, Error> {
+        let bytes = self.0.slabs.get(slab_id)?;
+        let slabbuf = bincode::deserialize(&bytes[..])?;
+        Ok(slabbuf)
     }
 }
 
-impl BufferHelper for SlabState {
+pub struct SlabStateBufHelper {}
+impl BufferHelper for SlabStateBufHelper {
     type EntityToken = EntityId;
     type MemoToken = MemoId;
     type SlabToken = SlabId;

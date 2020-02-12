@@ -21,11 +21,15 @@ use tracing::{
     Level,
 };
 
-use crate::util::simulator::{
-    Point3,
-    SimEvent,
-    Simulator,
+use crate::{
+    error::Error,
+    util::simulator::{
+        Point3,
+        SimEvent,
+        Simulator,
+    },
 };
+
 // TODO: determine how to account for execution time in a deterministic way
 // suggest each operation be assigned a delay factor, such that some or all resultant events are deterministically
 // delayed
@@ -67,7 +71,7 @@ impl SimEvent for MemoPayload {
 impl fmt::Debug for MemoPayload {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MemoPayload")
-           .field("dest", &self.dest.my_ref.slab_id)
+           .field("dest", &self.dest.my_ref)
            .field("memo", &self.memoref.id)
            .finish()
     }
@@ -99,11 +103,11 @@ impl Transport for Simulator<MemoPayload> {
 
     fn unbind_network(&self, _net: &Network) {}
 
-    fn get_return_address(&self, address: &TransportAddress) -> Option<TransportAddress> {
+    fn get_return_address(&self, address: &TransportAddress) -> Result<TransportAddress, Error> {
         if let TransportAddress::Local = *address {
-            Some(TransportAddress::Local)
+            Ok(TransportAddress::Local)
         } else {
-            None
+            Err(Error::BadAddress)
         }
     }
 }
@@ -129,7 +133,7 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
 impl fmt::Debug for SimulatorTransmitter {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SimulatorTransmitter")
-           .field("dest", &self.dest.my_ref.slab_id)
+           .field("dest", &self.dest.my_ref)
            .finish()
     }
 }

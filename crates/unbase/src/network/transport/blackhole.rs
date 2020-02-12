@@ -1,4 +1,5 @@
 use crate::{
+    error::Error,
     network::{
         Transmitter,
         TransmitterArgs,
@@ -32,8 +33,8 @@ impl Transport for Blackhole {
 
     fn unbind_network(&self, _net: &Network) {}
 
-    fn get_return_address(&self, _address: &TransportAddress) -> Option<TransportAddress> {
-        None
+    fn get_return_address(&self, _address: &TransportAddress) -> Result<TransportAddress, Error> {
+        Ok(TransportAddress::Blackhole)
     }
 }
 

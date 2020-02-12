@@ -16,13 +16,14 @@ pub use self::{
 };
 pub use crate::slab::{
     agent::SlabAgent,
-    SlabAnticipatedLifetime,
     SlabPresence,
     SlabRef,
+    TransportLiveness,
 };
 use crate::util::system_creator::SystemCreator;
 
 use crate::{
+    error::Error,
     head::Head,
     slab::{
         SlabHandle,
@@ -118,14 +119,18 @@ impl Network {
         id
     }
 
-    pub fn get_slabhandle(&self, slab_id: &SlabId) -> Option<SlabHandle> {
-        if let Some(slabhandle) = self.slabs.read().unwrap().iter().find(|s| s.my_ref.slab_id == *slab_id) {
-            if slabhandle.is_running() {
-                return Some((*slabhandle).clone());
-            }
-            // TODO - scrub non-resident slabs
+    pub fn get_slabhandle(&self, slab_id: &SlabId) -> Result<SlabHandle, Error> {
+        match self.slabs.read().unwrap().iter().find(|s| s.my_ref.0.slab_id == *slab_id) {
+            Some(slabhandle) => {
+                if slabhandle.is_running() {
+                    return Ok((*slabhandle).clone());
+                } else {
+                    Err(Error::SlabOffline)
+                }
+                // TODO - scrub non-resident slabs
+            },
+            None => Err(Error::SlabNotFound),
         }
-        return None;
     }
 
     fn get_representative_slab(&self) -> Option<SlabHandle> {
@@ -154,23 +159,31 @@ impl Network {
         res
     }
 
-    pub fn get_transmitter(&self, args: &TransmitterArgs) -> Option<Transmitter> {
+    pub fn get_transmitter_and_return_addr(&self, presence: &SlabPresence) -> Result<(Transmitter, TransportAddress), Error> {
+        let args = match presence.address {
+            TransportAddress::Simulator => TransmitterArgs::Simulator(&self.get_slabhandle(&presence.slab_id)?),
+            TransportAddress::Local => TransmitterArgs::Local(&self.get_slabhandle(&presence.slab_id)?),
+            _ => TransmitterArgs::Remote(&presence.slab_id, &presence.address),
+        };
+
         for transport in self.transports.read().unwrap().iter() {
-            if let Some(transmitter) = transport.make_transmitter(args) {
-                return Some(transmitter);
+            if let Some(transmitter) = transport.make_transmitter(&args) {
+                let ret = transport.get_return_address(&presence.address)?;
+
+                return Ok((transmitter, ret));
             }
         }
-        None
+        Err(Error::TransmitterNotFound)
     }
 
-    pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Option<TransportAddress> {
-        for transport in self.transports.read().unwrap().iter() {
-            if let Some(return_address) = transport.get_return_address(address) {
-                return Some(return_address);
-            }
-        }
-        None
-    }
+    //    pub fn get_return_address<'a>(&self, address: &TransportAddress) -> Result<TransportAddress, Error> {
+    //        for transport in self.transports.read().unwrap().iter() {
+    //            if let Some(return_address) = transport.get_return_address(address) {
+    //                return Ok(return_address);
+    //            }
+    //        }
+    //        Err(Error::AddressNotFound)
+    //    }
 
     #[tracing::instrument]
     pub fn register_local_slab(&self, new_slab: SlabHandle) {
@@ -186,16 +199,13 @@ impl Network {
     }
 
     #[tracing::instrument]
-    pub fn deregister_local_slab(&self, slab_id: &SlabId) {
+    pub fn deregister_local_slab(&self, slabref: &SlabRef) {
         //        // Remove the deregistered slab so get_representative_slab doesn't return it
         {
             let mut slabs = self.slabs.write().expect("slabs write lock");
-            if let Some(removed) = slabs.iter()
-                                        .position(|s| s.my_ref.slab_id == *slab_id)
-                                        .map(|e| slabs.remove(e))
-            {
+            if let Some(removed) = slabs.iter().position(|s| s.my_ref == *slabref).map(|e| slabs.remove(e)) {
                 // debug!("Unbinding Slab {}", removed.id);
-                let _ = removed.my_ref.slab_id;
+                //                let _ = removed.my_ref.slab_id;
                 // removed.unbind_network(self);
             }
         }
@@ -206,7 +216,7 @@ impl Network {
         let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed write lock");
 
         if let Some(ref mut r) = *root_index_seed {
-            if r.1.slab_id == *slab_id {
+            if r.1 == *slabref {
                 if let Some(new_slab) = self.get_representative_slab() {
                     let owned_slabref = new_slab.agent.localize_slabref(&r.1);
                     r.0 = new_slab.agent.localize_head(&r.0, &owned_slabref, false);

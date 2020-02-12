@@ -72,23 +72,23 @@ impl<'a> Visitor for PacketSeed<'a> {
                 }
             },
             Some(id) => {
-                if let Some(slab) = self.net.get_slabhandle(&id) {
-                    dest_slab = slab;
-                } else {
-                    return Err(DeError::custom("Destination slab not found"));
+                match self.net.get_slabhandle(&id) {
+                    Ok(slab) => dest_slab = slab,
+                    Err(e) => {
+                        return Err(DeError::custom(format!("Destination slab not found: {:?}", e)));
+                    },
                 }
             },
         }
 
-        let from_slabref = dest_slab.agent.get_slabref(from_slab_id);
+        let from_slabref = dest_slab.agent.get_slabref(&from_slab_id, None).unwrap();
 
-        let from_presence = SlabPresence { slabref:  from_slabref,
+        let from_presence = SlabPresence { slab_id:  from_slabref.slab_id,
                                            address:  self.source_address.clone(),
-                                           lifetime: SlabAnticipatedLifetime::Unknown, };
+                                           liveness: TransportLiveness::Available, };
 
-        let origin_slabref = dest_slab.agent
-                                      .slabref_from_presence(&from_presence)
-                                      .expect("slabref from presence");
+        let origin_slabref = (*dest_slab.agent).get_slabref(&from_presence.slab_id, Some(&[from_presence]))
+                                               .expect("slabref from presence");
 
         // no need to return the memo here, as it's added to the slab
         let peers = match visitor.visit_seed(VecSeed(MemoPeerSeed { dest_slab: &dest_slab }))? {

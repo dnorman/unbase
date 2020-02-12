@@ -35,6 +35,12 @@ pub struct MemoRefInner {
     pub ptr:            RwLock<MemoRefPtr>,
 }
 
+impl std::fmt::Display for MemoRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("MemoRef:{}", &self.0.id.base64()[..6]))
+    }
+}
+
 #[derive(Debug)]
 pub enum MemoRefPtr {
     Resident(Memo),

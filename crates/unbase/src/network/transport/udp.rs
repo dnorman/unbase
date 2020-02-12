@@ -13,10 +13,10 @@ use crate::{
     slab::{
         MemoBody,
         MemoRef,
-        SlabAnticipatedLifetime,
         SlabId,
         SlabPresence,
         SlabRef,
+        TransportLiveness,
     },
     util::serde::{
         DeserializeSeed,
@@ -47,6 +47,7 @@ use tracing::{
     trace,
 };
 
+use crate::error::Error;
 use serde_json;
 
 #[derive(Clone)]
@@ -63,7 +64,7 @@ struct TransportUDPInternal {
     address:    TransportAddressUDP,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct TransportAddressUDP {
     address: String,
 }
@@ -147,16 +148,15 @@ impl TransportUDP {
         };
 
         for slab in net.get_all_local_slabs() {
-            let presence = SlabPresence { slabref:  slab.my_ref.clone(),
+            let presence = SlabPresence { slab_id:  slab.my_ref.slab_id,
                                           address:  TransportAddress::UDP(my_address.clone()),
-                                          lifetime: SlabAnticipatedLifetime::Unknown, };
+                                          liveness: TransportLiveness::Unknown, };
 
             let hello = slab.new_memo(None,
                                       Head::Null,
                                       MemoBody::SlabPresence { p: presence,
                                                                r: net.get_root_index_seed(&slab), });
 
-            let memo = slab.agent.get_memo();
             self.send_to_addr(&slab.my_ref, hello, to_address.clone());
         }
     }
@@ -264,12 +264,12 @@ impl Transport for TransportUDP {
         // shared.network = None;
     }
 
-    fn get_return_address(&self, address: &TransportAddress) -> Option<TransportAddress> {
+    fn get_return_address(&self, address: &TransportAddress) -> Result<TransportAddress, Error> {
         if let TransportAddress::UDP(_) = *address {
             let shared = self.shared.lock().unwrap();
-            Some(TransportAddress::UDP(shared.address.clone()))
+            Ok(TransportAddress::UDP(shared.address.clone()))
         } else {
-            None
+            Err(Error::BadAddress)
         }
     }
 }

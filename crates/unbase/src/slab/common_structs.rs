@@ -77,34 +77,43 @@ impl fmt::Display for EntityId {
 /// Including Transport address and anticipated lifetime
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SlabPresence {
-    pub slabref:  SlabRef,
+    // TODO NEXT - get rid of SlabPresence entirely. it shouldn't exist except as a Buffer
+    pub slab_id:  SlabId,
     pub address:  TransportAddress,
-    pub lifetime: SlabAnticipatedLifetime,
+    pub liveness: TransportLiveness,
     //    pub latest_clock: Head, // latest clock reading relating to this slab presence
 }
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
         // When comparing equality, we can skip the anticipated lifetime
-        self.slabref == other.slabref && self.address == other.address
+        self.slab_id == other.slab_id && self.address == other.address
     }
 }
 impl fmt::Debug for SlabPresence {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SlabPresence")
-           .field("slab_id", &self.slabref.slab_id)
+           .field("slab_id", &self.slab_id.slab_id)
            .field("address", &self.address.to_string())
-           .field("lifetime", &self.lifetime)
+           .field("liveness", &self.liveness)
            .finish()
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum SlabAnticipatedLifetime {
-    Ephmeral,
-    Session,
-    Long,
-    VeryLong,
+pub enum TransportLiveness {
+    Available,
+    Unavailable,
     Unknown,
+    // Could be other stuff
+}
+
+impl TransportLiveness {
+    pub fn is_available(&self) -> bool {
+        match self {
+            TransportLiveness::Available => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

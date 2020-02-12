@@ -6,9 +6,9 @@ use crate::{
         EntityId,
         MemoId,
         MemoPeeringStatus,
-        SlabAnticipatedLifetime,
         SlabId,
         SlotId,
+        TransportLiveness,
     },
 };
 use serde::{
@@ -29,15 +29,12 @@ pub trait BufferHelper {
 // Items ending in *Element are intended to be serializable/storable ONLY as a constituent of a *Buf
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SlabBuf<E, M, S>
+pub struct SlabBuf<E, M>
     where E: Serialize + Deserialize,
-          M: Serialize + Deserialize,
-          S: Serialize + Deserialize
+          M: Serialize + Deserialize
 {
-    presence:     Vec<SlabPresenceBufElement<E, M, S>>,
-    latest_clock: HeadBufElement<E, M>, /* latest clock reading received from this Slab
-                                         * may have other non-presence stuff here, like stats, or context-specific
-                                         * interpretations of the SlabPresence perhaps */
+    //    slab_id:  SlabId, // This is always a real SlabId
+    presence: Vec<SlabPresenceBufElement<E, M>>,
 }
 
 /// Intentionally not including MemoId here, because it's based on this content
@@ -67,14 +64,13 @@ pub struct MemoPeersBuf<M, S>
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SlabPresenceBufElement<E, M, S>
+pub struct SlabPresenceBufElement<E, M>
     where E: Serialize + Deserialize,
           M: Serialize + Deserialize
 {
-    pub slab:     S,
     pub address:  TransportAddress,
-    pub lifetime: SlabAnticipatedLifetime,
-    latest_clock: HeadBufElement<M, E>, // (receipt of latest presence message? or any message?)
+    pub liveness: TransportLiveness,
+    latest_clock: HeadBufElement<E, M>, // (receipt of latest presence message? or any message?)
 }
 
 // TODO - should we be peering Heads instead of Memos??
@@ -126,7 +122,7 @@ pub enum MemoBodyBufElement<E, M, S>
     // TODO: split out root_index_seed conveyance to another memobody type
     // TODO: needed for NetBuffer
     SlabPresence {
-        p: SlabPresenceBufElement<E, M, S>,
+        p: SlabPresenceBufElement<E, M>,
         r: HeadBufElement<E, M>,
     },
     Peering(M, Vec<MemoPeerBufElement<S>>),
@@ -166,28 +162,27 @@ mod test {
         network::TransportAddress,
         slab::{
             MemoPeeringStatus,
-            SlabAnticipatedLifetime,
+            TransportLiveness,
         },
     };
 
+    use crate::slab::SlabId;
     use std::collections::HashMap;
 
     #[unbase_test_util::async_test]
     async fn basic() {
-        let sb = SlabBuf::<u32, u32> { presence:
-                                           vec![SlabPresenceBufElement::<u32, u32> { address:      TransportAddress::Blackhole,
-                                                                                     lifetime:
-                                                                                         SlabAnticipatedLifetime::Ephmeral,
-                                                                                     latest_clock: HeadBufElement::Null, }],
-                                       latest_clock: HeadBufElement::Null, };
+        let sb = SlabBuf::<u32, u32> { // slab_id:  SlabId::dummy(),
+                                       presence: vec![SlabPresenceBufElement { address:      TransportAddress::Blackhole,
+                                                                               liveness:     TransportLiveness::Available,
+                                                                               latest_clock: HeadBufElement::Null, }], };
 
-        let mb = MemoBuf::<u32, u32> { entity_id: 1,
-                                       parents:   HeadBufElement::<u32, u32>::Null,
-                                       body:      MemoBodyBufElement::<u32, u32>::Edit(EditBufElement { edit: HashMap::new() }), };
+        let mb = MemoBuf::<u32, u32> { entity_id: Some(1),
+                                       parents:   HeadBufElement::Null,
+                                       body:      MemoBodyBufElement::Edit(EditBufElement { edit: HashMap::new() }), };
 
         let pb = MemoPeersBuf::<u32, u32> { memo_id: 2,
-                                            peers:   vec![MemoPeerBufElement::<u32> { slab_id: 0,
-                                                                                      status:  MemoPeeringStatus::Resident, }], };
+                                            peers:   vec![MemoPeerBufElement { slab_id: 0,
+                                                                               status:  MemoPeeringStatus::Resident, }], };
 
         assert_eq!(&serde_json::to_string(&sb).unwrap(),
                    "{\"presence\":[{\"address\":\"Blackhole\",\"lifetime\":\"Ephmeral\",\"latest_clock\":\"Null\"}],\"\

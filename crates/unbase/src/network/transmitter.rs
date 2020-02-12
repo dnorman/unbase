@@ -17,14 +17,16 @@ enum TransmitterInternal {
 
 #[derive(Debug)]
 pub enum TransmitterArgs<'a> {
+    Simulator(&'a SlabHandle),
     Local(&'a SlabHandle),
     Remote(&'a SlabId, &'a TransportAddress),
 }
 impl<'a> TransmitterArgs<'a> {
     pub fn get_slab_id(&self) -> SlabId {
         match self {
-            &TransmitterArgs::Local(ref s) => s.my_ref.slab_id.clone(),
-            &TransmitterArgs::Remote(ref id, _) => *id.clone(),
+            &TransmitterArgs::Simulator(ref s) => s.my_ref.0.slab_id.clone(),
+            &TransmitterArgs::Local(ref s) => s.my_ref.0.slab_id.clone(),
+            &TransmitterArgs::Remote(ref id, _) => (*id).clone(),
         }
     }
 }

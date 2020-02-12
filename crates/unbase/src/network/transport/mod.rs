@@ -17,9 +17,12 @@ pub use super::transmitter::{
     Transmitter,
 };
 
-use crate::network::*;
+use crate::{
+    error::Error,
+    network::*,
+};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum TransportAddress {
     Blackhole,
     Simulator,
@@ -37,7 +40,7 @@ pub trait Transport {
     fn is_local(&self) -> bool;
     fn bind_network(&self, network: &Network);
     fn unbind_network(&self, network: &Network);
-    fn get_return_address(&self, address: &TransportAddress) -> Option<TransportAddress>;
+    fn get_return_address(&self, address: &TransportAddress) -> Result<TransportAddress, Error>;
 }
 
 impl TransportAddress {

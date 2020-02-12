@@ -20,22 +20,14 @@ pub use self::{
 
 use crate::{
     context::Context,
-    network::{
-        Network,
-        Transmitter,
-        TransportAddress,
-    },
+    network::Network,
     slab::agent::SlabAgent,
 };
 
 use crate::slab::state::SlabState;
 use std::{
     ops::Deref,
-    sync::{
-        Arc,
-        Mutex,
-        RwLock,
-    },
+    sync::Arc,
 };
 use tracing::info;
 
@@ -49,10 +41,14 @@ mod memoref;
 mod slabref;
 
 // TODO - update internal comparisons to use pointer address rather than reading the actual contents
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct SlabId([u8; 32]);
 
 impl SlabId {
+    pub fn dummy() -> Self {
+        Self([0u8; 32])
+    }
+
     pub fn base64(&self) -> String {
         use base64::encode;
 
@@ -67,7 +63,7 @@ impl SlabId {
 
 impl std::fmt::Display for SlabId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&self.base64()[..])
+        f.write_str(&self.base64()[..4])
     }
 }
 
@@ -134,13 +130,13 @@ impl Slab {
         // TODO: figure out how to reconcile this with the simulator
         // let (dispatch_tx_channel, dispatch_rx_channel) = mpsc::channel::<MemoRef>(10);
 
-        let agent = Arc::new(SlabAgent::new(net, state.clone()));
+        let agent = Arc::new(SlabAgent::new(net, slab_id, state.clone()));
 
         // let dispatcher: RemoteHandle<()> = crate::util::task::spawn_with_handle(
         //     Self::run_dispatcher( agent.clone(), dispatch_rx_channel )
         // );
 
-        let handle = SlabHandle { my_ref: my_ref.clone(),
+        let handle = SlabHandle { my_ref: agent.my_ref.clone(),
                                   net:    net.clone(),
                                   // dispatch_channel: dispatch_tx_channel.clone(),
                                   agent:  agent.clone(), };
@@ -149,7 +145,7 @@ impl Slab {
                         // dispatch_channel: dispatch_tx_channel,
                         // dispatcher: Arc::new(dispatcher),
                         net: net.clone(),
-                        my_ref,
+                        my_ref: agent.my_ref.clone(),
                         handle,
                         agent,
                         state };
@@ -192,7 +188,7 @@ impl Drop for Slab {
     fn drop(&mut self) {
         info!("Slab {} was dropped - Shutting down", self.id);
         self.agent.stop();
-        self.net.deregister_local_slab(&self.id);
+        self.net.deregister_local_slab(&self.my_ref);
     }
 }
 

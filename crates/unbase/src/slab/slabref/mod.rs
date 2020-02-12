@@ -5,14 +5,28 @@ use crate::network::{
     Transmitter,
     TransportAddress,
 };
+use core::ops::Deref;
 
+use crate::{
+    buffer::{
+        BufferHelper,
+        HeadBufElement,
+        SlabBuf,
+        SlabPresenceBufElement,
+    },
+    error::Error,
+    head::Head,
+    slab::state::SlabStateBufHelper,
+};
+use ::serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     fmt,
-    mem,
-    ops::Deref,
     sync::{
         Arc,
-        Mutex,
+        RwLock,
     },
 };
 
@@ -31,6 +45,15 @@ impl std::cmp::PartialEq for SlabRef {
     }
 }
 
+struct SlabChannel {
+    addr:         TransportAddress,
+    return_addr:  TransportAddress,
+    liveness:     TransportLiveness,
+    tx:           Transmitter,
+    latest_clock: Head,
+    // TODO put some stats / backpressure here
+}
+
 impl Deref for SlabRef {
     type Target = SlabRefInner;
 
@@ -40,10 +63,8 @@ impl Deref for SlabRef {
 }
 
 pub struct SlabRefInner {
-    pub slab_id:        SlabId,
-    pub presence:       RwLock<Vec<SlabPresence>>,
-    pub tx:             Mutex<Transmitter>,
-    pub return_address: RwLock<TransportAddress>,
+    pub slab_id:  SlabId,
+    pub channels: RwLock<Vec<SlabChannel>>,
 }
 
 impl SlabRef {
@@ -53,25 +74,55 @@ impl SlabRef {
         tx.send(from, memoref.clone());
     }
 
-    pub fn get_return_address(&self) -> TransportAddress {
+    pub fn get_return_address(&self) -> Result<TransportAddress, Error> {
+        match self.0.channels.get(0) {
+            Some(channel) => Ok(channel.return_addr.clone()),
+            None => Err(Error::ChannelNotFound),
+        }
+
         self.return_address.read().unwrap().clone()
     }
 
-    pub fn apply_presence(&self, presence: &SlabPresence) -> bool {
+    pub(in crate::slab) fn apply_presence_only(&self, presence: &SlabPresence, net: &Network) -> Result<bool, Error> {
         // TODO - what about old presence information? Presumably SlabPresence should also be causal, no?
+        let channels = self.0.channels.write().unwrap();
 
-        if self.slab_id == self.owning_slab_id {
-            return false; // the slab manages presence for its self-ref separately
+        // find a channel with exactly this address
+        match channels.binary_search_by(|c| c.addr.cmp(presence.address)) {
+            Ok(i) => {
+                if let TransportLiveness::Unavailable = presence.liveness {
+                    channels.remove(i);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            },
+            Err(i) => {
+                if presence.liveness.is_available() {
+                    let (tx, return_addr) = net.get_transmitter_and_return_addr(&presence)?;
+
+                    channels.insert(i,
+                                    SlabChannel { addr: presence.address.clone(),
+                                                  return_addr,
+                                                  liveness: presence.liveness.clone(),
+                                                  tx,
+                                                  latest_clock: Head::Null });
+
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            },
         }
-        let mut list = self.presence.write().unwrap();
-        for p in list.iter_mut() {
-            if p == presence {
-                mem::replace(p, presence.clone()); // Update anticipated liftime
-                return false; // no real change here
-            }
+    }
+
+    pub(crate) fn apply_presence_and_save(&self, presence: &SlabPresence, agent: &SlabAgent) -> Result<bool, Error> {
+        let applied = self.apply_presence_only(presence, &agent.net)?;
+        if applied {
+            let buf: SlabBuf<EntityId, MemoId> = self.to_buf(SlabStateBufHelper {});
+            agent.state.put_slab(&presence.slab_id, &buf);
         }
-        list.push(presence.clone());
-        return true; // We did a thing
+        Ok(applied)
     }
 
     pub fn get_presence_for_remote(&self, return_address: &TransportAddress) -> Vec<SlabPresence> {
@@ -82,9 +133,9 @@ impl SlabRef {
 
             // TODO: This needs much more thought. My gut says that we shouldn't be taking in a transport address here,
             //       but should instead be managing our own presence.
-            let my_presence = SlabPresence { slabref:  self.slab_id,
+            let my_presence = SlabPresence { slab_id:  self.slab_id,
                                              address:  return_address.clone(),
-                                             lifetime: SlabAnticipatedLifetime::Unknown, };
+                                             liveness: TransportLiveness::Unknown, };
 
             vec![my_presence]
         } else {
@@ -95,6 +146,28 @@ impl SlabRef {
     pub fn compare(&self, other: &SlabRef) -> bool {
         // When comparing equality, we can skip the transmitter
         self.slab_id == other.slab_id && *self.presence.read().unwrap() == *other.presence.read().unwrap()
+    }
+
+    pub fn to_buf<E, M, S, H>(&self, helper: &H) -> SlabBuf<E, M>
+        where E: Serialize + Deserialize,
+              M: Serialize + Deserialize,
+              S: Serialize + Deserialize,
+              H: BufferHelper<EntityToken = E, MemoToken = M, SlabToken = S>
+    {
+        SlabBuf { presence: self.presence
+                                .iter()
+                                .map(|p| {
+                                    SlabPresenceBufElement::<E, M> { address:      p.address,
+                                                                     liveness:     p.liveness,
+                                                                     latest_clock: HeadBufElement::<E, M>::Null, }
+                                })
+                                .collect(), }
+    }
+}
+
+impl std::fmt::Display for SlabRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("SlabRef:{}", &self.0.slab_id.base64()[..4]))
     }
 }
 

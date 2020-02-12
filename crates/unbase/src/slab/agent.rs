@@ -13,17 +13,18 @@ use std::{
 use tracing::debug;
 
 use crate::{
-    error::StorageOpDeclined,
-    head::Head,
-    network::{
-        SlabRef,
-        Transmitter,
-        TransmitterArgs,
-        TransportAddress,
+    error::{
+        Error,
+        StorageOpDeclined,
     },
+    head::Head,
+    network::SlabRef,
     slab::{
         memoref::MemoRefPtr,
-        state::SlabState,
+        state::{
+            SlabState,
+            SlabStateBufHelper,
+        },
         EdgeSet,
         EntityId,
         EntityType,
@@ -35,10 +36,10 @@ use crate::{
         MemoPeerList,
         MemoPeeringStatus,
         MemoRef,
-        SlabAnticipatedLifetime,
         SlabId,
         SlabPresence,
         SlabRefInner,
+        TransportLiveness,
     },
     Network,
 };
@@ -49,15 +50,15 @@ use futures::channel::{
 };
 
 pub struct SlabAgent {
-    pub state: SlabState,
-    net: Network,
-    pub my_ref: SlabRef,
-    pub memo_wait_channels: Mutex<HashMap<MemoId, Vec<oneshot::Sender<Memo>>>>,
+    pub state:                SlabState,
+    pub(crate) net:           Network,
+    pub my_ref:               SlabRef,
+    pub memo_wait_channels:   Mutex<HashMap<MemoId, Vec<oneshot::Sender<Memo>>>>,
     pub entity_subscriptions: RwLock<HashMap<EntityId, Vec<mpsc::Sender<Head>>>>,
-    pub index_subscriptions: RwLock<Vec<mpsc::Sender<Head>>>,
-    slabrefs: Mutex<HashMap<SlabId, SlabRef>>,
-    pub running: RwLock<bool>,
-    keypair: Keypair,
+    pub index_subscriptions:  RwLock<Vec<mpsc::Sender<Head>>>,
+    slabrefs:                 Mutex<HashMap<SlabId, SlabRef>>,
+    pub running:              RwLock<bool>,
+    keypair:                  Keypair,
 }
 
 /// SlabAgent
@@ -65,15 +66,13 @@ impl SlabAgent {
     pub fn new(net: &Network, slab_id: SlabId, state: SlabState) -> Self {
         let keypair = state.get_keypair().expect("uninitialized state");
 
-        let my_ref_inner = SlabRefInner { slab_id: slab_id.clone(),
-            presence:       RwLock::new(vec![]), // this bit is just for show
-            tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
-            return_address: RwLock::new(TransportAddress::Local), };
+        let my_ref_inner = SlabRefInner { slab_id:  slab_id.clone(),
+                                          channels: RwLock::new(vec![]), };
 
         let my_ref = SlabRef(Arc::new(my_ref_inner));
 
         let mut slabrefs = HashMap::new();
-        slabrefs.insert(slab_id,my_ref.clone());
+        slabrefs.insert(slab_id, my_ref.clone());
 
         SlabAgent { state,
                     net: net.clone(),
@@ -83,7 +82,7 @@ impl SlabAgent {
                     memo_wait_channels: Mutex::new(HashMap::new()),
                     entity_subscriptions: RwLock::new(HashMap::new()),
                     index_subscriptions: RwLock::new(Vec::new()),
-        slabrefs: Mutex::new(slabrefs)}
+                    slabrefs: Mutex::new(slabrefs) }
     }
 
     pub(crate) fn stop(&self) {
@@ -91,25 +90,45 @@ impl SlabAgent {
         *running = false;
     }
 
-    pub (crate) fn get_slabref(&self, slab_id: SlabId) -> SlabRef{
-        match self.slabrefs.lock().entry(slab_id) {
+    pub(crate) fn get_slabref(&self, slab_id: &SlabId, optional_presence: Option<&[SlabPresence]>) -> Result<SlabRef, Error> {
+        // TODO - make this an LRU of some kind
+        let mut created = false;
+
+        let slabref = match self.slabrefs.lock().entry(slab_id) {
             Entry::Vacant(o) => {
+                // Make a new one
+                let inner = SlabRefInner { slab_id:  slab_id.clone(),
+                                           channels: RwLock::new(vec![]), };
 
-                let my_ref_inner = SlabRefInner { slab_id: slab_id,
-                    presence:       RwLock::new(vec![]), // this bit is just for show
-                    tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
-                    return_address: RwLock::new(TransportAddress::Local), };
+                let slabref = SlabRef(Arc::new(inner));
 
-                let my_ref = SlabRef(Arc::new(my_ref_inner));
+                // Cache the slabref so all SlabRefs are clones of each other
+                o.insert(slabref.clone());
 
-                o.insert(my_ref.clone());
-
-                my_ref
+                created = true;
+                slabref
             },
-            Entry::Occupied(mut o) => {
-                o.get().clone()
-            },
+            Entry::Occupied(mut o) => o.get().clone(),
+        };
+
+        let mut changed = false;
+        if let Some(presence) = optional_presence {
+            for p in presence.iter() {
+                assert!(slab_id == p.slab_id, "presence slab_id does not match the provided slab_id");
+
+                if slabref.apply_presence_only(p, &self.net) {
+                    changed = true;
+                }
+            }
         }
+
+        if created || changed {
+            // save it!
+            self.state
+                .put_slab(&slabref.slab_id, &slabref.to_buf(&SlabStateBufHelper {}))?;
+        }
+
+        Ok(slabref)
     }
 
     // Counters,stats, reporting
@@ -262,7 +281,7 @@ impl SlabAgent {
                 }
 
                 if reply {
-                    if let Ok(mentioned_slabref) = self.slabref_from_presence(presence) {
+                    if let Ok(mentioned_slabref) = self.get_slabref_with_presence(&presence.slab_id, &presence) {
                         // TODO: should we be telling the origin slabref, or the presence slabref that we're here?
                         //       these will usually be the same, but not always
 
@@ -334,20 +353,9 @@ impl SlabAgent {
     // should this be a function of the slabref rather than the owning slab?
     pub fn presence_for_origin(&self, origin_slabref: &SlabRef) -> SlabPresence {
         // Get the address that the remote slab would recogize
-        SlabPresence { slabref:  self.id,
+        SlabPresence { slab_id:  self.id,
                        address:  origin_slabref.get_return_address(),
-                       lifetime: SlabAnticipatedLifetime::Unknown, }
-    }
-
-    pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef, &str> {
-        match presence.address {
-            TransportAddress::Simulator => return Err("Invalid - Cannot create simulator slabref from presence"),
-            TransportAddress::Local => return Err("Invalid - Cannot create local slabref from presence"),
-            _ => {
-                // let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
-                Ok(self.assert_slabref(presence.slabref, &vec![presence.clone()]))
-            },
-        }
+                       liveness: TransportLiveness::Unknown, }
     }
 
     #[tracing::instrument]
@@ -723,77 +731,6 @@ impl SlabAgent {
         }
 
         Ok(())
-    }
-
-    #[tracing::instrument]
-    pub fn assert_slabref(&self, slab_id: SlabId, presence: &[SlabPresence]) -> SlabRef {
-        if slab_id == self.id {
-            return self.my_ref.clone();
-            // don't even look it up if it's me.
-            // We must not allow any third party to edit the peering.
-            // Also, my ref won't appeara in the list of peer_refs, because it's not a peer
-        }
-
-        let maybe_slabref = {
-            // Instead of having to scope our read lock, and getting a write lock later
-            // should we be using a single write lock for the full function scope?
-            let state = self.state.read().unwrap();
-            if let Some(slabref) = state.peer_refs.iter().find(|r| r.0.slab_id == slab_id) {
-                Some(slabref.clone())
-            } else {
-                None
-            }
-        };
-
-        let slabref: SlabRef;
-        if let Some(s) = maybe_slabref {
-            slabref = s;
-        } else {
-            let inner = SlabRefInner { slab_id,
-                                       owning_slab_id: self.id, // for assertions only?
-                                       presence: RwLock::new(Vec::new()),
-                                       tx: Mutex::new(Transmitter::new_blackhole(slab_id)),
-                                       return_address: RwLock::new(TransportAddress::Blackhole) };
-
-            slabref = SlabRef(Arc::new(inner));
-            let mut state = self.state.write().unwrap();
-            state.peer_refs.push(slabref.clone());
-        }
-
-        if slab_id == slabref.owning_slab_id {
-            return slabref; // no funny business. You don't get to tell me how to reach me
-        }
-
-        for p in presence.iter() {
-            assert!(slab_id == p.slab_id, "presence slab_id does not match the provided slab_id");
-
-            let mut _maybe_slab = None;
-            let args = if p.address.is_local() {
-                // playing silly games with borrow lifetimes.
-                // TODO: make this less ugly
-                _maybe_slab = self.net.get_slabhandle(p.slab_id);
-
-                if let Some(ref slab) = _maybe_slab {
-                    TransmitterArgs::Local(slab)
-                } else {
-                    continue;
-                }
-            } else {
-                TransmitterArgs::Remote(&p.slab_id, &p.address)
-            };
-            // Returns true if this presence is new to the slabref
-            // False if we've seen this presence already
-
-            if slabref.apply_presence(p) {
-                let new_trans = self.net.get_transmitter(&args).expect("assert_slabref net.get_transmitter");
-                let return_address = self.net.get_return_address(&p.address).expect("return address not found");
-
-                *slabref.0.tx.lock().expect("tx.lock()") = new_trans;
-                *slabref.0.return_address.write().expect("return_address write lock") = return_address;
-            }
-        }
-
-        return slabref;
     }
 
     /// Attempt to remotize the specified memos once. If There is insuffient peering, the storage operation will be
