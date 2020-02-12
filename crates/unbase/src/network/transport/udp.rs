@@ -165,19 +165,19 @@ impl TransportUDP {
     pub fn send_to_addr(&self, from_slabref: &SlabRef, memoref: MemoRef, address: TransportAddressUDP) {
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
-
-        if let Some(memo) = from_slabref.get_memo_if_resident(memoref) {
-            let packet = SerdePacket { to_slab_id:   None,
-                                       from_slab_id: from_slabref.0.slab_id,
-                                       memo:         memo.clone(),
-                                       peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
-
-            if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
-                if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
-                    tx_channel.send((address, packet)).unwrap();
-                }
-            }
-        }
+        unimplemented!()
+        //        if let Some(memo) = from_slabref.get_memo_if_resident(memoref) {
+        //            let packet = SerdePacket { to_slab_id:   None,
+        //                                       from_slab_id: from_slabref.0.slab_id,
+        //                                       memo:         memo.clone(),
+        //                                       peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
+        //
+        //            if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
+        //                if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
+        //                    tx_channel.send((address, packet)).unwrap();
+        //                }
+        //            }
+        //        }
     }
 }
 

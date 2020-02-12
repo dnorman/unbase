@@ -45,12 +45,13 @@ impl std::cmp::PartialEq for SlabRef {
     }
 }
 
+#[derive(Debug)]
 struct SlabChannel {
-    addr:         TransportAddress,
-    return_addr:  TransportAddress,
-    liveness:     TransportLiveness,
-    tx:           Transmitter,
-    latest_clock: Head,
+    address:        TransportAddress,
+    return_address: TransportAddress,
+    liveness:       TransportLiveness,
+    tx:             Transmitter,
+    latest_clock:   Head,
     // TODO put some stats / backpressure here
 }
 
@@ -102,8 +103,8 @@ impl SlabRef {
                     let (tx, return_addr) = net.get_transmitter_and_return_addr(&presence)?;
 
                     channels.insert(i,
-                                    SlabChannel { addr: presence.address.clone(),
-                                                  return_addr,
+                                    SlabChannel { address: presence.address.clone(),
+                                                  return_address: return_addr,
                                                   liveness: presence.liveness.clone(),
                                                   tx,
                                                   latest_clock: Head::Null });
@@ -154,11 +155,13 @@ impl SlabRef {
               S: Serialize + Deserialize,
               H: BufferHelper<EntityToken = E, MemoToken = M, SlabToken = S>
     {
-        SlabBuf { presence: self.presence
+        SlabBuf { presence: self.channels
+                                .read()
+                                .unwrap()
                                 .iter()
-                                .map(|p| {
-                                    SlabPresenceBufElement::<E, M> { address:      p.address,
-                                                                     liveness:     p.liveness,
+                                .map(|c| {
+                                    SlabPresenceBufElement::<E, M> { address:      c.address,
+                                                                     liveness:     c.liveness,
                                                                      latest_clock: HeadBufElement::<E, M>::Null, }
                                 })
                                 .collect(), }
@@ -174,9 +177,8 @@ impl std::fmt::Display for SlabRef {
 impl fmt::Debug for SlabRef {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SlabRef")
-           .field("owning_slab", &self.owning_slabref.slab_id)
            .field("slab_id", &self.slab_id)
-           .field("presence", &*self.presence.read().unwrap())
+           .field("channels", &*self.channels.read().unwrap())
            .finish()
     }
 }

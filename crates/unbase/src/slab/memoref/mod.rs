@@ -109,10 +109,11 @@ impl MemoRef {
 
     // TODO - change call sites to use SlabState.get_memo or similar
     pub fn get_memo_if_resident(&self) -> Option<Memo> {
-        match *self.ptr.read().unwrap() {
-            MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
-            _ => None,
-        }
+        unimplemented!()
+        //        match *self.ptr.read().unwrap() {
+        //            MemoRefPtr::Resident(ref memo) => Some(memo.clone()),
+        //            _ => None,
+        //        }
     }
 
     pub fn is_peered_with_slabref(&self, slabref: &SlabRef) -> bool {

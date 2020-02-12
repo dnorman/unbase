@@ -158,7 +158,7 @@ impl SlabState {
         unimplemented!()
     }
 
-    pub fn put_memopeers(&self, memoref: &MemoRef, peers: MemoPeerList) {
+    pub fn put_memopeers(&self, memoref: &MemoRef, peers: &MemoPeerList) {
         unimplemented!()
     }
 

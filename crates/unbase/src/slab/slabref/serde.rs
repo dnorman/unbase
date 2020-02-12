@@ -54,7 +54,7 @@ impl<'a> Visitor for SlabRefSeed<'a> {
 
         let slabref = self.dest_slab
                           .agent
-                          .get_slabref(slab_id, Some(&presence[..]))
+                          .get_slabref(&slab_id, Some(&presence[..]))
                           .expect("slabref from slabrefseed presence");
         Ok(slabref)
     }

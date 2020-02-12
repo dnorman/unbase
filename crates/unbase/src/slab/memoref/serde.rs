@@ -138,10 +138,11 @@ impl<'a> Visitor for MemoRefSeed<'a> {
                                   MemoPeeringStatus::Participating
                               }, });
 
-        Ok(self.dest_slab
-               .agent
-               .assert_memoref(memo_id, entity_id, MemoPeerList::new(peers), None)
-               .0)
+        unimplemented!()
+        //        Ok(self.dest_slab
+        //               .agent
+        //               .assert_memoref(memo_id, entity_id, MemoPeerList::new(peers), None)
+        //               .0)
     }
 }
 
