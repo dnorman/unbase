@@ -14,6 +14,12 @@ pub enum Error {
     ChannelNotFound,
     BadAddress,
     AddressNotFound,
+    StorageError(StorageError),
+}
+
+#[derive(Debug)]
+pub enum StorageError {
+    SledError(sled::Error),
 }
 
 #[derive(Debug)]

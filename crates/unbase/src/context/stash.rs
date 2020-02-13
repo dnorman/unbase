@@ -218,7 +218,7 @@ impl Stash {
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
         match apply_head.entity_id() {
-            Some(EntityId { stype: EntityType::IndexNode,
+            Some(EntityId { etype: EntityType::IndexNode,
                             .. }) => {},
             _ => {
                 panic!("Only EntityType::IndexNode may be applied to a context. Attempted to apply {:?}",
@@ -331,7 +331,7 @@ impl Stash {
                                  MemoBody::FullyMaterialized { v: HashMap::new(),
                                                                r: RelationSet::empty(),
                                                                e: edgeset,
-                                                               t: entity_id.stype, })
+                                                               t: entity_id.etype, })
                        .to_head();
 
         self.apply_head(slab, &head).await.expect("apply head")

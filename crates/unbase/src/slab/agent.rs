@@ -13,6 +13,7 @@ use std::{
 use tracing::debug;
 
 use crate::{
+    buffer::SlabBuf,
     error::{
         Error,
         StorageOpDeclined,
@@ -44,10 +45,7 @@ use crate::{
     Network,
 };
 use ed25519_dalek::Keypair;
-use futures::channel::{
-    mpsc,
-    oneshot,
-};
+use futures::channel::mpsc;
 
 pub struct SlabAgent {
     pub state:                SlabState,
@@ -125,7 +123,7 @@ impl SlabAgent {
         if created || changed {
             // save it!
             self.state
-                .put_slab(&slabref.slab_id, &slabref.to_buf(&SlabStateBufHelper {}))?;
+                .put_slab(&slabref.slab_id, SlabBuf::from_slabref(&slabref, &SlabStateBufHelper {}))?;
         }
 
         Ok(slabref)
@@ -172,14 +170,15 @@ impl SlabAgent {
         memoref
     }
 
-    pub fn generate_entity_id(&self, stype: EntityType) -> EntityId {
-        let id = ulid::Ulid::new();
-
-        EntityId { id, stype }
+    pub fn generate_entity_id(&self, etype: EntityType) -> EntityId {
+        EntityId::new(etype)
     }
 
-    pub fn get_memo(&self, memoref: MemoRef) -> Option<Memo> {
-        self.state.get_memo(memoref)
+    pub fn get_memo(&self, memoref: MemoRef) -> Result<Option<Memo>, Error> {
+        match self.state.get_memo(memoref)? {
+            Some(memobuf) => Ok(Some(memobuf.to_memo(&SlabStateBufHelper {}, &self.my_ref)?)),
+            None => Ok(None),
+        }
     }
 
     #[tracing::instrument]
@@ -425,7 +424,7 @@ impl SlabAgent {
         {
             let mut index_subs = self.index_subscriptions.write().unwrap();
 
-            if let EntityType::IndexNode = entity_id.stype {
+            if let EntityType::IndexNode = entity_id.etype {
                 // TODO3 - update this to consider popularity of this node, and/or common points of reference with a
                 // given context selective hearing?
 

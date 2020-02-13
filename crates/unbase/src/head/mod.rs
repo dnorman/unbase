@@ -41,14 +41,6 @@ use futures::{
     StreamExt,
 };
 
-use crate::buffer::{
-    BufferHelper,
-    HeadBufElement,
-};
-use ::serde::{
-    Deserialize,
-    Serialize,
-};
 use itertools::Itertools;
 use tracing::debug;
 
@@ -659,24 +651,6 @@ impl Head {
         }
 
         Ok(edge_links)
-    }
-
-    pub fn to_buf<E, M, S, H>(&self, helper: &H) -> HeadBufElement<E, M>
-        where E: Serialize + Deserialize,
-              M: Serialize + Deserialize,
-              S: Serialize + Deserialize,
-              H: BufferHelper<EntityToken = E, MemoToken = M, SlabToken = S>
-    {
-        match *self {
-            Head::Null => HeadBufElement::Null,
-            Head::Anonymous { ref head, .. } => {
-                HeadBufElement::Anonymous { head: head.iter().map(|mr| helper.from_memo_id(&mr.id)).collect(), }
-            },
-            Head::Entity { ref head, ref entity_id, .. } => {
-                HeadBufElement::Entity { entity: helper.from_entity_id(entity_id),
-                                         head:   head.iter().map(|mr| helper.from_memo_id(&mr.id)).collect(), }
-            },
-        }
     }
 }
 

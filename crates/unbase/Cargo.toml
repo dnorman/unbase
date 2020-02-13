@@ -45,6 +45,7 @@ ed25519-dalek = { version = "0.9", features = ["serde"] }
 rand = "0.6.5"
 ulid = "0.3.1"
 base64 = "0.11.0"
+chrono = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-std = { version = "1.4.0", features = ["attributes"] }

@@ -18,10 +18,6 @@ use crate::{
     head::Head,
     slab::state::SlabStateBufHelper,
 };
-use ::serde::{
-    Deserialize,
-    Serialize,
-};
 use std::{
     fmt,
     sync::{
@@ -36,7 +32,7 @@ use std::{
 /// Posessing a SlabRef does not confer ownership, or even imply locality. It does however provide us with a way to
 /// refer to a slab abstractly, and a means of getting messages to it.
 #[derive(Clone, Eq)]
-pub struct SlabRef(pub Arc<SlabRefInner>);
+pub struct SlabRef(pub(crate) Arc<SlabRefInner>);
 
 /// Compare only the pointers for SlabRefs during equality tests
 impl std::cmp::PartialEq for SlabRef {
@@ -47,11 +43,11 @@ impl std::cmp::PartialEq for SlabRef {
 
 #[derive(Debug)]
 struct SlabChannel {
-    address:        TransportAddress,
-    return_address: TransportAddress,
-    liveness:       TransportLiveness,
-    tx:             Transmitter,
-    latest_clock:   Head,
+    pub(crate) address: TransportAddress,
+    pub(crate) return_address: TransportAddress,
+    pub(crate) liveness: TransportLiveness,
+    tx: Transmitter,
+    pub(crate) latest_clock: Head,
     // TODO put some stats / backpressure here
 }
 
@@ -76,7 +72,7 @@ impl SlabRef {
     }
 
     pub fn get_return_address(&self) -> Result<TransportAddress, Error> {
-        match self.0.channels.get(0) {
+        match self.0.channels.lock().unwrap().get(0) {
             Some(channel) => Ok(channel.return_addr.clone()),
             None => Err(Error::ChannelNotFound),
         }
@@ -87,7 +83,7 @@ impl SlabRef {
         let channels = self.0.channels.write().unwrap();
 
         // find a channel with exactly this address
-        match channels.binary_search_by(|c| c.addr.cmp(presence.address)) {
+        match channels.binary_search_by(|c| c.address.cmp(presence.address)) {
             Ok(i) => {
                 if let TransportLiveness::Unavailable = presence.liveness {
                     channels.remove(i);
@@ -118,7 +114,7 @@ impl SlabRef {
     pub(crate) fn apply_presence_and_save(&self, presence: &SlabPresence, agent: &SlabAgent) -> Result<bool, Error> {
         let applied = self.apply_presence_only(presence, &agent.net)?;
         if applied {
-            let buf: SlabBuf<EntityId, MemoId> = self.to_buf(SlabStateBufHelper {});
+            let buf: SlabBuf<EntityId, MemoId> = self.to_buf(&SlabStateBufHelper {});
             agent.state.put_slab(&presence.slab_id, &buf);
         }
         Ok(applied)
@@ -145,24 +141,6 @@ impl SlabRef {
     pub fn compare(&self, other: &SlabRef) -> bool {
         // When comparing equality, we can skip the transmitter
         self.slab_id == other.slab_id && *self.presence.read().unwrap() == *other.presence.read().unwrap()
-    }
-
-    pub fn to_buf<E, M, S, H>(&self, helper: &H) -> SlabBuf<E, M>
-        where E: Serialize + Deserialize,
-              M: Serialize + Deserialize,
-              S: Serialize + Deserialize,
-              H: BufferHelper<EntityToken = E, MemoToken = M, SlabToken = S>
-    {
-        SlabBuf { presence: self.channels
-                                .read()
-                                .unwrap()
-                                .iter()
-                                .map(|c| {
-                                    SlabPresenceBufElement::<E, M> { address:      c.address,
-                                                                     liveness:     c.liveness,
-                                                                     latest_clock: HeadBufElement::<E, M>::Null, }
-                                })
-                                .collect(), }
     }
 }
 

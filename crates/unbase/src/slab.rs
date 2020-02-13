@@ -150,7 +150,7 @@ impl Slab {
                         agent,
                         state };
 
-        net.register_local_slab(me.handle());
+        net.register_local_slab(me.handle()).unwrap();
 
         net.conditionally_generate_root_index_seed(&me.handle);
 

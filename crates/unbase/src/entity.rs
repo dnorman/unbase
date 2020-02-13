@@ -48,7 +48,7 @@ impl Entity {
                                  MemoBody::FullyMaterialized { v: vals,
                                                                r: RelationSet::empty(),
                                                                e: EdgeSet::empty(),
-                                                               t: id.stype.clone(), })
+                                                               t: id.etype.clone(), })
                        .to_head();
 
         context.update_indices(id, &head).await?;

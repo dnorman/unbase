@@ -22,6 +22,8 @@ use serde::{
     Serialize,
 };
 
+use chrono::prelude::Utc;
+
 pub const MAX_SLOTS: usize = 256;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
@@ -32,8 +34,8 @@ pub enum EntityType {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub struct EntityId {
-    pub id:    ulid::Ulid,
-    pub stype: EntityType,
+    pub id:    u64,
+    pub etype: EntityType,
 }
 impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
     fn eq(&self, other: &&'a str) -> bool {
@@ -41,21 +43,44 @@ impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
     }
 }
 
+macro_rules! bitmask {
+    ($len:expr) => {
+        ((1 << $len) - 1)
+    };
+}
+
 impl EntityId {
+    const RAND_BITS: u8 = 80;
+    const TIME_BITS: u8 = 48;
+
+    pub fn new(etype: EntityType) -> Self {
+        let timestamp = Utc::now().timestamp_millis();
+        let mut source = rand::thread_rng();
+
+        let timebits = (timestamp & bitmask!(Self::TIME_BITS)) as u64;
+
+        use rand::Rng;
+        let msb = timebits << 16 | u64::from(source.gen::<u16>());
+        let lsb = source.gen::<u64>();
+        EntityId { // TODO - POSTMERGE - change this back to u128 when we can upgrade Serde
+                   id: msb, // u128::from(msb) << 64 | u128::from(lsb),
+                   etype }
+    }
+
     pub fn test(test_id: u64) -> Self {
-        EntityId { id:    ulid::Ulid(test_id as u128),
-                   stype: EntityType::Record, }
+        EntityId { id:    test_id.into(),
+                   etype: EntityType::Record, }
     }
 
     /// Create a EntityId with a EntityType of IndexNode and a manually provided id
     /// Used by the test suite
     pub fn index_test(test_id: u64) -> Self {
-        EntityId { id:    ulid::Ulid(test_id as u128),
-                   stype: EntityType::IndexNode, }
+        EntityId { id:    test_id.into(),
+                   etype: EntityType::IndexNode, }
     }
 
     pub fn hack_as_u64(&self) -> u64 {
-        self.id.0 as u64
+        self.id as u64
     }
 
     /// Human readable version of the EntityID which denotes whether the entity is an (I)ndex or a (R)ecord type
@@ -64,16 +89,16 @@ impl EntityId {
 
         // taking the lowest 32 bits is kinda weird, but doing it for now for readability
 
-        match self.stype {
-            IndexNode => format!("I{}", self.id.0 as u32),
-            Record => format!("R{}", self.id.0 as u32),
+        match self.etype {
+            IndexNode => format!("I{}", self.id as u32),
+            Record => format!("R{}", self.id as u32),
         }
     }
 }
 
 impl fmt::Display for EntityId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}-{}", self.stype, self.id)
+        write!(f, "{:?}-{}", self.etype, self.id)
     }
 }
 
@@ -205,17 +230,6 @@ impl RelationSet {
             .iter()
             .map(|(k, v)| format!("{}:{}", k, v.map(|x| x.to_string()).unwrap_or("None".to_string())))
             .join(",")
-    }
-
-    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> RelationSetBufElement<E>
-        where E: Serialize + Deserialize,
-              M: Serialize + Deserialize,
-              H: Serialize + Deserialize
-    {
-        RelationSetBufElement { slots: self.0
-                                           .iter()
-                                           .map(|(slot_id, opt_e)| (slot_id, opt_e.as_ref().map(|e| helper.from_entity_id(e))))
-                                           .collect(), }
     }
 }
 

@@ -27,7 +27,29 @@ impl Deref for MemoRef {
     }
 }
 
+// Some inspiration from Ivec
+// const CUTOFF: usize = 22;
+// type Inner = [u8; CUTOFF];
+//#[derive(Clone)]
+// pub struct IVec(IVecInner);
+//#[derive(Clone)]
+// enum IVecInner {
+//    Inline(u8, Inner),
+//    Remote(Arc<[u8]>),
+//}
+// const fn is_inline_candidate(length: usize) -> bool {
+//    length <= CUTOFF
+//}
+
 pub struct MemoRefInner {
+    // TODO use a local increment to assigning storage ids, and use that for storage lookups
+    // That way we can avoid calculating the hash until we transmit
+    // at which point we will need to store that in a lookup to get back to the storage id
+    // QUESTION: Do we need to maintain this memoid lookup for as long as their respective memos
+    // are resident? or can we use breadcrumbs to re-lazily calculate the hash later?
+    // is it even desirable if we could?
+
+    //    pub storage_id: SID,
     pub id:             MemoId,
     pub owning_slabref: SlabRef, // TODO - rename and conditionalize with a macro
     pub entity_id:      Option<EntityId>,

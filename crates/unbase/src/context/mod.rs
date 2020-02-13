@@ -257,7 +257,7 @@ impl Context {
                                  MemoBody::FullyMaterialized { v: HashMap::new(),
                                                                r: RelationSet::empty(),
                                                                e: edgeset,
-                                                               t: entity_id.stype, })
+                                                               t: entity_id.etype, })
                        .to_head();
 
         self.apply_head(&head).await.expect("apply head")
@@ -374,7 +374,7 @@ impl Context {
         //        }
 
         let apply_head = match mut_head.entity_id() {
-            Some(entity_id @ EntityId { stype: EntityType::IndexNode,
+            Some(entity_id @ EntityId { etype: EntityType::IndexNode,
                             .. }) => self.stash.get_head(entity_id),
             _ => panic!("Can only be called for EntityType::IndexNode heads"),
         };
@@ -395,7 +395,7 @@ impl Context {
         //        }
 
         let apply_head = match mut_head.entity_id() {
-            Some(entity_id @ EntityId { stype: EntityType::Record,
+            Some(entity_id @ EntityId { etype: EntityType::Record,
                             .. }) => {
                 // TODO: figure out a way to noop here in the case that the EntityHead in question
                 //       was pulled against a sufficiently identical context stash state.

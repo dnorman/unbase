@@ -25,7 +25,6 @@ use crate::{
         EntityType,
         Memo,
         MemoBody,
-        MemoId,
         MemoRef,
         SlabPresence,
         TransportLiveness,
@@ -33,6 +32,7 @@ use crate::{
     Network,
 };
 
+use crate::error::Error;
 use std::time::{
     Duration,
     Instant,
@@ -129,13 +129,13 @@ impl SlabHandle {
     }
 
     #[tracing::instrument]
-    pub fn slabref_from_local_slab(&self, peer_slab: &SlabHandle) -> SlabRef {
+    pub fn slabref_from_local_slab(&self, peer_slab: &SlabHandle) -> Result<SlabRef, Error> {
         // let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence { slab_id:  peer_slab.my_ref.0.slab_id,
                                       address:  TransportAddress::Local,
                                       liveness: TransportLiveness::Unknown, };
 
-        self.agent.get_slabref(peer_slab.my_ref.0.slab_id, &vec![presence])
+        self.agent.get_slabref(&peer_slab.my_ref.0.slab_id, Some(&[presence]))
     }
 
     /// Attempt to remotize the specified memos, waiting for up to the provided delay for them to be successfully
@@ -166,7 +166,8 @@ impl SlabHandle {
     }
 
     pub fn count_of_memorefs_resident(&self) -> u32 {
-        self.agent.count_of_memorefs_resident()
+        unimplemented!()
+        //        self.agent.count_of_memorefs_resident()
     }
 
     pub fn count_of_memos_received(&self) -> u64 {

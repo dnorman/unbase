@@ -3,9 +3,13 @@ use std::convert::TryInto;
 use crate::{
     buffer::{
         BufferHelper,
+        MemoBuf,
         SlabBuf,
     },
-    error::Error,
+    error::{
+        Error,
+        StorageError,
+    },
     slab::{
         EntityId,
         Memo,
@@ -51,8 +55,7 @@ impl SlabState {
         {
             let config = db.open_tree("config").unwrap();
 
-            config.compare_and_swap(b"keypair_ed25519", None, Some(keypair.to_bytes()))
-                  .unwrap();
+            config.insert(b"keypair_ed25519", keypair.to_bytes().to_vec()).unwrap();
         }
 
         Self::new(db, slab_id.clone())
@@ -80,18 +83,18 @@ impl SlabState {
 
     pub(super) fn get_keypair(&self) -> Option<Keypair> {
         match self.0.config.get(b"keypair_ed25519").unwrap() {
-            Some(b) => Some(ed25519_dalek::Keypair::from_bytes(b).unwrap()),
+            Some(b) => Some(ed25519_dalek::Keypair::from_bytes(&b).unwrap()),
             None => None,
         }
     }
 
     pub fn increment_counter(&self, name: &[u8], increment: u64) {
-        self.0.counters.merge(name, &increment);
+        self.0.counters.merge(name, &increment.to_be_bytes());
     }
 
     pub fn get_counter(&self, name: &[u8]) -> u64 {
         match self.0.counters.get(name).unwrap() {
-            Some(bytes) => u64::from_ne_bytes(bytes.try_into().unwrap()),
+            Some(ivec) => u64::from_be_bytes((&*ivec as &[u8]).try_into().unwrap()),
             None => 0u64,
         }
     }
@@ -100,14 +103,22 @@ impl SlabState {
         self.0.slabs.len()
     }
 
-    pub fn get_memo(&self, memoref: MemoRef) -> Option<Memo> {
+    pub fn get_memo(&self, memoref: MemoRef) -> Result<Option<MemoBuf<EntityId, MemoId, SlabId>>, Error> {
         // TODO convert this to use a surrogate key, with a separate lookup for MemoId
         // A couple reasons for this:
         // 1. Save storage space by using a 4 or 8 bytes instead of 256
         // 2. De-sparsify the index space
         // 3. Enable lazy memo hash calculation, enabling us to defer generation of the actual MemoId until (if/when)
         //    we need to send it to another slab
-        self.0.memos.get(&memoref.id)
+
+        match self.0.memos.get(memoref.id)? {
+            Some(bytes) => {
+                let memobuf: MemoBuf<EntityId, MemoId, SlabId> = bincode::deserialize(&bytes[..])?;
+
+                Ok(Some(memobuf))
+            },
+            None => Ok(None),
+        }
     }
 
     #[tracing::instrument]
@@ -162,7 +173,7 @@ impl SlabState {
         unimplemented!()
     }
 
-    pub fn put_slab(&self, slab_id: &SlabId, slabbuf: &SlabBuf<EntityId, MemoId>) -> Result<(), Error> {
+    pub fn put_slab(&self, slab_id: &SlabId, slabbuf: SlabBuf<EntityId, MemoId>) -> Result<(), Error> {
         let bytes: Vec<u8> = bincode::serialize(&slabbuf).unwrap();
 
         self.0.slabs.insert(slab_id, bytes)?;
@@ -187,12 +198,25 @@ impl BufferHelper for SlabStateBufHelper {
         entity_id.clone()
     }
 
-    fn from_memo_id(&self, memo_id: &MemoId) -> Self::MemoToken {
-        memo_id.clone()
+    fn from_memoref(&self, memoref: &MemoRef) -> Self::MemoToken {
+        memoref.id
     }
 
     fn from_slab_id(&self, slab_id: &SlabId) -> Self::SlabToken {
         slab_id.clone()
+    }
+
+    fn to_entity_id(&self, entity_token: &Self::EntityToken) -> EntityId {
+        entity_token.clone()
+    }
+
+    fn to_memoref(&self, memo_token: &Self::MemoToken) -> MemoRef {
+        unimplemented!()
+        //        memo_token.clone()
+    }
+
+    fn to_slab_id(&self, slab_token: &Self::SlabToken) -> SlabId {
+        slab_token.clone()
     }
 }
 
@@ -222,5 +246,11 @@ impl std::fmt::Debug for SlabState {
            .field("counters", &self.counters)
            // .field( "memorefs_by_id", &(self.memorefs_by_id.keys().join(",")) )
            .finish()
+    }
+}
+
+impl core::convert::From<sled::Error> for Error {
+    fn from(error: sled::Error) -> Self {
+        Error::StorageError(StorageError::Sled(error))
     }
 }

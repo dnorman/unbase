@@ -14,12 +14,6 @@ use std::{
 };
 
 use crate::{
-    buffer::{
-        BufferHelper,
-        EditBufElement,
-        MemoBodyBufElement,
-        MemoBuf,
-    },
     error::RetrieveError,
     head::Head,
     network::{
@@ -37,10 +31,7 @@ use crate::{
         SlabHandle,
     },
 };
-use ::serde::{
-    Deserialize,
-    Serialize,
-};
+
 use itertools::Itertools;
 
 use tracing::warn;
@@ -48,6 +39,11 @@ use tracing::warn;
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MemoId([u8; 32]);
 
+impl std::convert::AsRef<[u8]> for MemoId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 impl MemoId {
     pub fn dummy() -> Self {
         Self([0u8; 32])
@@ -80,7 +76,7 @@ impl std::fmt::Debug for MemoId {
 // All portions of this struct should be immutable
 
 #[derive(Clone)]
-pub struct Memo(Arc<MemoInner>);
+pub struct Memo(pub Arc<MemoInner>);
 
 impl Deref for Memo {
     type Target = MemoInner;
@@ -222,16 +218,6 @@ impl Memo {
             return Ok(false);
         }.boxed()
     }
-
-    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> MemoBuf<E, M, S>
-        where E: Serialize + Deserialize,
-              M: Serialize + Deserialize,
-              S: Serialize + Deserialize
-    {
-        MemoBuf::<E, M> { entity_id: helper.from_entity_id(self.entity_id),
-                          parents:   self.parents.to_buf(helper),
-                          body:      self.body.to_buf(helper), }
-    }
 }
 
 impl MemoBody {
@@ -254,50 +240,6 @@ impl MemoBody {
             Peering(ref _memo_id, ref _entity_id, ref _peerlist) => format!("Peering"),
             MemoRequest(ref memo_ids, ref slabref) => {
                 format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.slab_id)
-            },
-        }
-    }
-
-    pub fn to_buf<E, M, S, H: BufferHelper + Sized>(&self, helper: &H) -> MemoBodyBufElement<E, M, S>
-        where E: Serialize + Deserialize,
-              M: Serialize + Deserialize,
-              S: Serialize + Deserialize
-    {
-        match self {
-            MemoBody::SlabPresence { ref p, ref r } => {
-                //                MemoBody::SlabPresence { p: p.clone(),
-                //                    r: self.localize_head(r, from_slabref, true), }
-                unimplemented!()
-            },
-            MemoBody::Relation(ref relationset) => MemoBodyBufElement::Relation(relationset.to_buf(helper)),
-            MemoBody::Edge(ref edgeset) => MemoBodyBufElement::Edge(edgeset.to_buf()),
-            MemoBody::Edit(ref hm) => MemoBodyBufElement::Edit(EditBufElement { edit: (*hm).clone() }),
-            MemoBody::FullyMaterialized { ref v,
-                                          ref r,
-                                          ref t,
-                                          ref e, } => {
-                //                MemoBodyBufElement::FullyMaterialized { v: (*v).clone(),
-                //                    r: RelationSetBufElement{ slots: },
-                //                    e: self.localize_edgeset(e, from_slabref),
-                //                    t: t.clone(), }
-                unimplemented!()
-            },
-            MemoBody::PartiallyMaterialized { ref v,
-                                              ref r,
-                                              ref e,
-                                              ref t, } => {
-                //                MemoBody::PartiallyMaterialized { v: v.clone(),
-                //                    r: r.clone(),
-                //                    e: self.localize_edgeset(e, from_slabref),
-                //                    t: t.clone(), }
-                unimplemented!()
-            },
-
-            MemoBody::Peering(memo_id, entity_id, ref peerlist) => {
-                MemoBody::Peering(memo_id, entity_id, self.localize_peerlist(peerlist))
-            },
-            MemoBody::MemoRequest(ref memo_ids, ref slabref) => {
-                //                MemoBodyBufElement::MemoRequest(memo_ids.clone(), self.localize_slabref(slabref))
             },
         }
     }
