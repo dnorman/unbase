@@ -123,7 +123,8 @@ impl SlabState {
 
     #[tracing::instrument]
     pub fn put_memo(&self, memo: Memo) -> (MemoRef, bool) {
-        let buf = memo.to_buf(self);
+        let buf = MemoBuf::from_memo(memo, &SlabStateBufHelper {});
+
         //        let pb = MemoPeersBuf::<u32, u32> { memo_id: 2,
         //            peers:   vec![MemoPeerElement::<u32> { slab_id: 0,
         //                status:  MemoPeeringStatus::Resident, }], };

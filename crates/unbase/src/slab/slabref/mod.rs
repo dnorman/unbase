@@ -8,12 +8,7 @@ use crate::network::{
 use core::ops::Deref;
 
 use crate::{
-    buffer::{
-        BufferHelper,
-        HeadBufElement,
-        SlabBuf,
-        SlabPresenceBufElement,
-    },
+    buffer::SlabBuf,
     error::Error,
     head::Head,
     slab::state::SlabStateBufHelper,
@@ -114,8 +109,8 @@ impl SlabRef {
     pub(crate) fn apply_presence_and_save(&self, presence: &SlabPresence, agent: &SlabAgent) -> Result<bool, Error> {
         let applied = self.apply_presence_only(presence, &agent.net)?;
         if applied {
-            let buf: SlabBuf<EntityId, MemoId> = self.to_buf(&SlabStateBufHelper {});
-            agent.state.put_slab(&presence.slab_id, &buf);
+            let buf = SlabBuf::<EntityId, MemoId>::from_slabref(self, &SlabStateBufHelper {});
+            agent.state.put_slab(&presence.slab_id, buf);
         }
         Ok(applied)
     }

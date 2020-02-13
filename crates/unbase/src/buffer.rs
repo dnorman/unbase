@@ -11,7 +11,6 @@ use crate::{
         EntityId,
         Memo,
         MemoBody,
-        MemoId,
         MemoInner,
         MemoPeeringStatus,
         MemoRef,
@@ -93,7 +92,8 @@ impl<E, M> SlabBuf<E, M>
 /// Intentionally not including MemoId here, because it's based on this content
 /// The storage engine may choose to calculate the hash as part of storage, or it may choose not to, depending on the circumstance
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct MemoBuf<E, M, S>
     where E: Serialize + Deserialize,
           M: Serialize + Deserialize,
@@ -152,7 +152,7 @@ pub struct SlabPresenceBufElement<E, M>
 // TODO - should we be peering Heads instead of Memos??
 // This could be more efficient. How would this effect clock behavior?
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum HeadBufElement<E, M>
     where E: Serialize + Deserialize,
           M: Serialize + Deserialize

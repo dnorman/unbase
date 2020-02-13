@@ -176,7 +176,7 @@ impl SlabAgent {
 
     pub fn get_memo(&self, memoref: MemoRef) -> Result<Option<Memo>, Error> {
         match self.state.get_memo(memoref)? {
-            Some(memobuf) => Ok(Some(memobuf.to_memo(&SlabStateBufHelper {}, &self.my_ref)?)),
+            Some(memobuf) => Ok(Some(memobuf.to_memo(&SlabStateBufHelper {}, &self.my_ref))),
             None => Ok(None),
         }
     }
