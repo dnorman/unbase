@@ -48,6 +48,7 @@ mod state;
 mod memo;
 mod memoref;
 mod slabref;
+mod store;
 
 pub type SlabId = u32;
 
