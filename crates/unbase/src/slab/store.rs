@@ -226,12 +226,14 @@ impl core::convert::From<sled::Error> for StorageError {
 #[cfg(test)]
 mod test {
     use crate::slab::store::SlabStore;
-    use crate::slab::SlabId;
+    use crate::slab::{SlabId, Memo, MemoBody};
 
     use rand::Rng;
     use rand::rngs::OsRng;
     use sha2::Sha512;
     use ed25519_dalek::Keypair;
+    use crate::head::Head;
+
 
     #[test]
     fn basic_persistence() {
@@ -271,9 +273,7 @@ mod test {
 
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdirpath = tmpdir.path();
-
         let slab_id: SlabId = 4567; // dummy
-
         let mut csprng: OsRng = OsRng::new().unwrap();
         let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
         let store = SlabStore::initialize_new_slab(&tmpdirpath, &slab_id, keypair).unwrap();
@@ -317,5 +317,24 @@ mod test {
         }).unwrap();
 
         assert_eq!(store.get_counter(b"concurrency_test").unwrap(), expected_total);
+    }
+
+    fn init_test_store () -> SlabStore {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let tmpdirpath = tmpdir.path();
+        let slab_id: SlabId = 4567; // dummy
+        let mut csprng: OsRng = OsRng::new().unwrap();
+        let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
+        let store = SlabStore::initialize_new_slab(&tmpdirpath, &slab_id, keypair).unwrap();
+
+        store
+    }
+
+    #[test]
+    fn store_memo (){
+        let store = init_test_store();
+
+//        let memo = Memo::new(Head::Null, MemoBody::Null });
+//        store.put_memo( )
     }
 }
