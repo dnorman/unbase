@@ -29,7 +29,7 @@
 //! # use unbase::{Network, Slab, Entity};
 //! # async fn run () {
 //! let net = Network::create_new_system(); // use new, except for the very first time
-//! let slab = Slab::new(&net); // Slab exits when you drop this
+//! let slab = Slab::new_ephemeral(&net); // Slab exits when you drop this
 //! let context = slab.create_context(); // Context is your view of the world. A "client" app would have one of these
 //!
 //! // Lets say one part of the app creates a record
@@ -60,15 +60,16 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+pub mod buffer;
 pub mod context;
 pub mod entity;
 pub mod error;
 pub mod head;
 pub mod index;
 pub mod network;
+pub mod new;
 pub mod slab;
 pub mod util;
-pub mod new;
 
 pub use crate::{
     entity::Entity,

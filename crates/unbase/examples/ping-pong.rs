@@ -32,7 +32,7 @@ async fn player_one() {
     let net1 = Network::create_new_system();
     let udp1 = TransportUDP::new("127.0.0.1:12001".to_string());
     net1.add_transport(Box::new(udp1));
-    let slab = Slab::new(&net1);
+    let slab = Slab::new_ephemeral(&net1);
     let context_a = slab.create_context();
 
     // HACK - need to wait until peering of the root index node is established
@@ -71,7 +71,7 @@ async fn player_two() {
     let udp2 = TransportUDP::new("127.0.0.1:12002".to_string());
     net2.add_transport(Box::new(udp2.clone()));
 
-    let slab = Slab::new(&net2);
+    let slab = Slab::new_ephemeral(&net2);
     let context_b = slab.create_context();
 
     udp2.seed_address_from_string("127.0.0.1:12001".to_string());

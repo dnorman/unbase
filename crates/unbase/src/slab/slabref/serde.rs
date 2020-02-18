@@ -9,7 +9,7 @@ impl StatefulSerialize for SlabRef {
         // TODO: Should actually be a sequence of slab presences
         // to allow for slabs with multiple transports
         let mut seq = serializer.serialize_seq(Some(2))?;
-        seq.serialize_element(&self.slab_id)?;
+        seq.serialize_element(&self.id())?;
         seq.serialize_element(&self.get_presence_for_remote(helper.return_address))?;
         // seq.serialize_element( &SerializeWrapper(&*(self.presence.read().unwrap()),helper) )?;
         seq.end()
@@ -52,7 +52,7 @@ impl<'a> Visitor for SlabRefSeed<'a> {
             },
         };
 
-        let slabref = self.dest_slab.agent.assert_slabref(slab_id, &presence); //.expect("slabref from slabrefseed presence");
+        let slabref = self.dest_slab.agent.assert_slabref(&slab_id, Some(&presence)).unwrap(); //.expect("slabref from slabrefseed presence");
         Ok(slabref)
     }
 }

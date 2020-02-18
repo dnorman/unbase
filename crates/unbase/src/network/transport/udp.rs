@@ -80,7 +80,7 @@ impl TransportUDP {
     /// let net = unbase::Network::new();
     /// let udp = unbase::network::transport::TransportUDP::new("127.0.0.1:51002".to_string());
     /// net.add_transport(Box::new(udp.clone()));
-    /// let slab = unbase::Slab::new(&net);
+    /// let slab = unbase::Slab::new_ephemeral(&net);
     /// let context = slab.create_context();
     ///
     /// udp.seed_address_from_string("127.0.0.1:51001".to_string());
@@ -147,7 +147,7 @@ impl TransportUDP {
         };
 
         for slab in net.get_all_local_slabs() {
-            let presence = SlabPresence { slab_id:  slab.my_ref.slab_id,
+            let presence = SlabPresence { slab_id:  slab.my_ref.id().clone(),
                                           address:  TransportAddress::UDP(my_address.clone()),
                                           lifetime: SlabAnticipatedLifetime::Unknown, };
 
@@ -166,7 +166,7 @@ impl TransportUDP {
         //        will require nonblocking retrieval mode
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = Packet { to_slab_id:   0,
-                                  from_slab_id: from_slabref.0.slab_id,
+                                  from_slab_id: from_slabref.id().clone(),
                                   memo:         memo.clone(),
                                   peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
 
@@ -302,7 +302,7 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
     fn send(&self, from: &SlabRef, memoref: MemoRef) {
         if let Some(memo) = memoref.get_memo_if_resident() {
             let packet = Packet { to_slab_id: self.slab_id,
-                                  from_slab_id: from.0.slab_id,
+                                  from_slab_id: from.id().clone(),
                                   memo,
                                   peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };
 

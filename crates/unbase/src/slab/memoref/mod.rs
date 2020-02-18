@@ -69,7 +69,7 @@ impl MemoRef {
         let peerlist = &mut *self.peerlist.write().unwrap();
         let mut acted = false;
         for apply_peer in apply_peerlist.0.clone() {
-            if apply_peer.slabref.slab_id == self.owning_slab_id {
+            if *apply_peer.slabref.id() == self.0.owning_slab_id {
                 warn!("WARNING - not allowed to apply self-peer");
                 // panic!("memoref.apply_peers is not allowed to apply for self-peers");
                 continue;
@@ -92,7 +92,7 @@ impl MemoRef {
 
         if let Some(dest_slab_id) = maybe_dest_slab_id {
             for peer in self.peerlist.read().unwrap().iter() {
-                if peer.slabref.0.slab_id != dest_slab_id {
+                if *peer.slabref.id() != dest_slab_id {
                     list.push((*peer).clone());
                 }
             }
@@ -118,22 +118,19 @@ impl MemoRef {
     }
 
     pub fn is_peered_with_slabref(&self, slabref: &SlabRef) -> bool {
-        let status =
-            self.peerlist
-                .read()
-                .unwrap()
-                .iter()
-                .any(|peer| peer.slabref.0.slab_id == slabref.0.slab_id && peer.status != MemoPeeringStatus::NonParticipating);
+        let status = self.peerlist
+                         .read()
+                         .unwrap()
+                         .iter()
+                         .any(|peer| peer.slabref.id() == slabref.id() && peer.status != MemoPeeringStatus::NonParticipating);
 
         status
     }
 
     #[tracing::instrument(level = "debug")]
     pub async fn get_memo(self, slab: SlabHandle) -> Result<Memo, RetrieveError> {
-        if self.owning_slab_id != slab.my_ref.slab_id {
-            assert!(self.owning_slab_id == slab.my_ref.slab_id,
-                    "requesting slab does not match owning slab");
-        }
+        assert!(self.owning_slab_id == *slab.my_ref.id(),
+                "requesting slab does not match owning slab");
 
         // This seems pretty crude, but using channels for now in the interest of expediency
         {
@@ -147,7 +144,7 @@ impl MemoRef {
 
     #[tracing::instrument]
     pub async fn descends(&self, memoref: &MemoRef, slab: &SlabHandle) -> Result<bool, RetrieveError> {
-        assert!(self.owning_slab_id == slab.my_ref.slab_id);
+        assert!(self.owning_slab_id == *slab.my_ref.id());
         // TODO get rid of clones here
 
         if self.clone().get_memo(slab.clone()).await?.descends(&memoref, slab).await? {
@@ -162,12 +159,12 @@ impl MemoRef {
         let mut found = false;
         let ref mut list = self.peerlist.write().unwrap().0;
         for peer in list.iter_mut() {
-            if peer.slabref.slab_id == self.owning_slab_id {
+            if *peer.slabref.id() == self.0.owning_slab_id {
                 warn!("WARNING - not allowed to apply self-peer");
                 // panic!("memoref.update_peers is not allowed to apply for self-peers");
                 continue;
             }
-            if peer.slabref.slab_id == slabref.slab_id {
+            if peer.slabref.id() == slabref.id() {
                 found = true;
                 if peer.status != status {
                     acted = true;

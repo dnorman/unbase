@@ -23,7 +23,7 @@ pub enum TransmitterArgs<'a> {
 impl<'a> TransmitterArgs<'a> {
     pub fn get_slab_id(&self) -> SlabId {
         match self {
-            &TransmitterArgs::Local(ref s) => s.my_ref.slab_id.clone(),
+            &TransmitterArgs::Local(ref s) => s.my_ref.id().clone(),
             &TransmitterArgs::Remote(ref id, _) => *id.clone(),
         }
     }

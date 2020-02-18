@@ -10,7 +10,11 @@ use std::{
 use tracing::debug;
 
 use crate::{
-    error::StorageOpDeclined,
+    error::{
+        Error,
+        PeeringError,
+        StorageOpDeclined,
+    },
     head::Head,
     network::{
         SlabRef,
@@ -20,6 +24,7 @@ use crate::{
     },
     slab::{
         state::SlabState,
+        store::SlabStore,
         EdgeSet,
         EntityId,
         EntityType,
@@ -39,14 +44,22 @@ use crate::{
         SlabRefInner,
     },
     Network,
+    Slab,
 };
+use ed25519_dalek::Keypair;
 use futures::channel::mpsc;
+use std::collections::HashMap;
+use crate::buffer::SlabBuf;
 
 pub struct SlabAgent {
-    pub id: SlabId,
-    state:  RwLock<SlabState>,
-    net:    Network,
-    my_ref: SlabRef,
+    pub id:     SlabId,
+    store:      SlabStore,
+    state:      RwLock<SlabState>,
+    net:        Network,
+    pub my_ref: SlabRef,
+    slabrefs:   Mutex<HashMap<SlabId, SlabRef>>,
+    /*    pub running:              RwLock<bool>,
+     *    keypair:                  Keypair, */
 }
 
 /// SlabAgent is the agent which holds the lock on SlabState.
@@ -54,13 +67,27 @@ pub struct SlabAgent {
 /// SlabAgent is not allowed to implement async functions because we might inadvertently hold the lock across yield
 /// points. All async functions must be offered by some other module.
 impl SlabAgent {
-    pub fn new(net: &Network, my_ref: SlabRef) -> Self {
+    pub(crate) fn new(net: &Network, slab_id: SlabId, store: SlabStore) -> Self {
         let state = RwLock::new(SlabState::new());
 
-        SlabAgent { id: my_ref.slab_id,
+        let inner = SlabRefInner { slab_id,
+                                   owning_slab_id: slab_id, // for assertions only?
+                                   presence: RwLock::new(Vec::new()),
+                                   tx: Mutex::new(Transmitter::new_blackhole(slab_id)),
+                                   return_address: RwLock::new(TransportAddress::Blackhole) };
+
+        let my_ref = SlabRef(Arc::new(inner));
+        // My slabref is the only one that doesn't get inserted in the store
+
+        let mut slabrefs = HashMap::new();
+        slabrefs.insert(slab_id, my_ref.clone());
+
+        SlabAgent { id: slab_id,
                     state,
                     net: net.clone(),
-                    my_ref }
+                    my_ref,
+                    store,
+                    slabrefs: Mutex::new(slabrefs) }
     }
 
     pub(crate) fn stop(&self) {
@@ -251,12 +278,12 @@ impl SlabAgent {
                 let (peered_memoref, _had_memo) = self.assert_memoref(memo_id, entity_id, peerlist.clone(), None);
 
                 // Don't peer with yourself
-                for peer in peerlist.iter().filter(|p| p.slabref.0.slab_id != self.id) {
+                for peer in peerlist.iter().filter(|p| *p.slabref.id() != self.id) {
                     peered_memoref.update_peer(&peer.slabref, peer.status.clone());
                 }
             },
             MemoBody::MemoRequest(ref desired_memo_ids, ref requesting_slabref) => {
-                if requesting_slabref.0.slab_id != self.id {
+                if *requesting_slabref.id() != self.id {
                     for desired_memo_id in desired_memo_ids {
                         let maybe_desired_memoref = {
                             let state = self.state.read().unwrap();
@@ -302,13 +329,13 @@ impl SlabAgent {
                        lifetime: SlabAnticipatedLifetime::Unknown, }
     }
 
-    pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef, &str> {
+    pub fn slabref_from_presence(&self, presence: &SlabPresence) -> Result<SlabRef, Error> {
         match presence.address {
-            TransportAddress::Simulator => return Err("Invalid - Cannot create simulator slabref from presence"),
-            TransportAddress::Local => return Err("Invalid - Cannot create local slabref from presence"),
+            TransportAddress::Simulator => return Err(Error::PeeringError(PeeringError::InvalidPresence)),
+            TransportAddress::Local => return Err(Error::PeeringError(PeeringError::InvalidPresence)),
             _ => {
                 // let args = TransmitterArgs::Remote( &presence.slab_id, &presence.address );
-                Ok(self.assert_slabref(presence.slab_id, &vec![presence.clone()]))
+                self.assert_slabref(&presence.slab_id, Some(&[presence.clone()]))
             },
         }
     }
@@ -334,12 +361,12 @@ impl SlabAgent {
             //    B. and if so, what should be should we be using them for?
             //    C. Should we be sing that to determine the peered memo instead of the payload?
 
-            let peering_memoref = self.new_memo(None,
-                                                memoref.to_head(),
-                                                MemoBody::Peering(memoref.id,
-                                                                  memoref.entity_id,
-                                                                  memoref.get_peerlist_for_peer(&self.my_ref,
-                                                                                                Some(origin_slabref.slab_id))));
+            let peering_memoref =
+                self.new_memo(None,
+                              memoref.to_head(),
+                              MemoBody::Peering(memoref.id,
+                                                memoref.entity_id,
+                                                memoref.get_peerlist_for_peer(&self.my_ref, Some(origin_slabref.id().clone()))));
             origin_slabref.send(&self.my_ref, &peering_memoref);
         }
     }
@@ -431,13 +458,13 @@ impl SlabAgent {
 
         // IF this slabref points to the destination slab, then use to_sab.my_ref
         // because we know it exists already, and we're not allowed to assert a self-ref
-        if self.id == slabref.slab_id {
+        if self.id == *slabref.id() {
             self.my_ref.clone()
         } else {
             // let address = &*self.return_address.read().unwrap();
             // let args = TransmitterArgs::Remote( &self.slab_id, address );
-            let presence = { slabref.presence.read().unwrap().clone() };
-            self.assert_slabref(slabref.slab_id, &presence)
+            let presence = { slabref.0.presence.read().unwrap().clone() };
+            self.assert_slabref(slabref.id(), Some(&presence)).unwrap()
         }
     }
 
@@ -465,7 +492,7 @@ impl SlabAgent {
 
     #[tracing::instrument]
     pub fn localize_memoref(&self, memoref: &MemoRef, from_slabref: &SlabRef, include_memo: bool) -> MemoRef {
-        assert!(from_slabref.owning_slab_id == self.id,
+        assert!(from_slabref.0.owning_slab_id == self.id,
                 "MemoRef clone_for_slab owning slab should be identical");
 
         // TODO compare SlabRef pointer address rather than id
@@ -494,7 +521,7 @@ impl SlabAgent {
 
     #[tracing::instrument]
     pub fn localize_memo(&self, memo: &Memo, from_slabref: &SlabRef, peerlist: &MemoPeerList) -> Memo {
-        assert!(from_slabref.owning_slab_id == self.id,
+        assert!(from_slabref.0.owning_slab_id == self.id,
                 "Memo clone_for_slab owning slab should be identical");
 
         // TODO - simplify this
@@ -552,7 +579,7 @@ impl SlabAgent {
 
     #[tracing::instrument]
     fn localize_memobody(&self, mb: &MemoBody, from_slabref: &SlabRef) -> MemoBody {
-        assert!(from_slabref.owning_slab_id == self.id,
+        assert!(from_slabref.0.owning_slab_id == self.id,
                 "MemoBody clone_for_slab owning slab should be identical");
 
         match mb {
@@ -727,74 +754,45 @@ impl SlabAgent {
     }
 
     #[tracing::instrument]
-    pub fn assert_slabref(&self, slab_id: SlabId, presence: &[SlabPresence]) -> SlabRef {
-        if slab_id == self.id {
-            return self.my_ref.clone();
+    pub fn assert_slabref(&self, slab_id: &SlabId, presence: Option<&[SlabPresence]>) -> Result<SlabRef, Error> {
+        if *slab_id == self.id {
+            return Ok(self.my_ref.clone());
             // don't even look it up if it's me.
             // We must not allow any third party to edit the peering.
             // Also, my ref won't appeara in the list of peer_refs, because it's not a peer
         }
 
-        let maybe_slabref = {
-            // Instead of having to scope our read lock, and getting a write lock later
-            // should we be using a single write lock for the full function scope?
-            let state = self.state.read().unwrap();
-            if let Some(slabref) = state.peer_refs.iter().find(|r| r.0.slab_id == slab_id) {
-                Some(slabref.clone())
-            } else {
-                None
+        // need to make a handle regardless
+        let slabref : SlabRef = match self.slabrefs.lock().unwrap().entry(*slab_id) {
+            Entry::Occupied(e) => {
+                e.get().clone()
+            },
+            Entry::Vacant(e) => {
+                let inner = SlabRefInner { slab_id:        slab_id.clone(),
+                    owning_slab_id: self.id, // for assertions only?
+                    presence:       RwLock::new(Vec::new()),
+                    tx:             Mutex::new(Transmitter::new_blackhole(slab_id.clone())),
+                    return_address: RwLock::new(TransportAddress::Blackhole), };
+
+                let slabref = SlabRef(Arc::new(inner));
+                e.insert(slabref.clone());
+
+                slabref
             }
         };
 
-        let slabref: SlabRef;
-        if let Some(s) = maybe_slabref {
-            slabref = s;
-        } else {
-            let inner = SlabRefInner { slab_id,
-                                       owning_slab_id: self.id, // for assertions only?
-                                       presence: RwLock::new(Vec::new()),
-                                       tx: Mutex::new(Transmitter::new_blackhole(slab_id)),
-                                       return_address: RwLock::new(TransportAddress::Blackhole) };
-
-            slabref = SlabRef(Arc::new(inner));
-            let mut state = self.state.write().unwrap();
-            state.peer_refs.push(slabref.clone());
-        }
-
-        if slab_id == slabref.owning_slab_id {
-            return slabref; // no funny business. You don't get to tell me how to reach me
-        }
-
-        for p in presence.iter() {
-            assert!(slab_id == p.slab_id, "presence slab_id does not match the provided slab_id");
-
-            let mut _maybe_slab = None;
-            let args = if p.address.is_local() {
-                // playing silly games with borrow lifetimes.
-                // TODO: make this less ugly
-                _maybe_slab = self.net.get_slabhandle(p.slab_id);
-
-                if let Some(ref slab) = _maybe_slab {
-                    TransmitterArgs::Local(slab)
-                } else {
-                    continue;
+        match self.store.get_slab(slab_id)? {
+            Some(slabbuf) => {
+                if slabref.apply_presence(&slabbuf.presence, &self.net) {
+                    self.store.put_slab(slab_id, SlabBuf::from_slabref(&slabref) )?;
                 }
-            } else {
-                TransmitterArgs::Remote(&p.slab_id, &p.address)
-            };
-            // Returns true if this presence is new to the slabref
-            // False if we've seen this presence already
-
-            if slabref.apply_presence(p) {
-                let new_trans = self.net.get_transmitter(&args).expect("assert_slabref net.get_transmitter");
-                let return_address = self.net.get_return_address(&p.address).expect("return address not found");
-
-                *slabref.0.tx.lock().expect("tx.lock()") = new_trans;
-                *slabref.0.return_address.write().expect("return_address write lock") = return_address;
             }
-        }
+            None => {
 
-        return slabref;
+            }
+        };
+
+        return Ok(slabref);
     }
 
     /// Attempt to remotize the specified memos once. If There is insuffient peering, the storage operation will be

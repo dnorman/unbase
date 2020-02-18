@@ -188,9 +188,7 @@ impl MemoBody {
             FullyMaterialized { .. } => format!("FullyMaterialized"),
             PartiallyMaterialized { .. } => format!("PartiallyMaterialized"),
             Peering(ref _memo_id, ref _entity_id, ref _peerlist) => format!("Peering"),
-            MemoRequest(ref memo_ids, ref slabref) => {
-                format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.slab_id)
-            },
+            MemoRequest(ref memo_ids, ref slabref) => format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.id()),
         }
     }
 }

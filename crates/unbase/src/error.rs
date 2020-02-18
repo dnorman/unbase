@@ -15,17 +15,19 @@ pub enum Error {
     BadAddress,
     AddressNotFound,
     StorageError(StorageError),
+    PeeringError(PeeringError),
 }
 
 #[derive(Debug)]
 pub enum StorageError {
     RecordMissing,
     SledError(sled::Error),
+    Buffer(BufferError),
 }
 
 #[derive(Debug)]
 pub enum BufferError {
-    BincodeDecodeFailed(bincode::Error),
+    JsonDecodeFailed(serde_json::Error),
 }
 
 #[derive(PartialEq, Debug)]
@@ -80,9 +82,9 @@ impl core::convert::From<WriteError> for RetrieveError {
         RetrieveError::WriteError(Box::new(error))
     }
 }
-impl core::convert::From<bincode::Error> for Error {
-    fn from(error: bincode::Error) -> Self {
-        Error::Buffer(BufferError::BincodeDecodeFailed(error))
+impl core::convert::From<serde_json::Error> for StorageError {
+    fn from(error: serde_json::Error) -> Self {
+        StorageError::Buffer(BufferError::JsonDecodeFailed(error))
     }
 }
 
@@ -99,5 +101,6 @@ pub enum StorageOpDeclined {
 
 #[derive(PartialEq, Debug)]
 pub enum PeeringError {
-    InsufficientPeering,
+    InvalidPeering,
+    InvalidPresence,
 }

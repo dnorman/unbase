@@ -707,7 +707,7 @@ impl CausalMemoStream {
     #[tracing::instrument]
     pub fn from_head(head: &Head, slab: SlabHandle) -> Self {
         match head.owning_slab_id() {
-            Some(id) if id != slab.my_ref.slab_id => {
+            Some(id) if id != *slab.my_ref.id() => {
                 panic!("requesting slab does not match owning slab");
             },
             _ => {},

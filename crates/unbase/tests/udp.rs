@@ -25,7 +25,7 @@ async fn test1_node_a() {
     let net = unbase::Network::create_new_system();
     let udp = unbase::network::transport::TransportUDP::new("127.0.0.1:51001".to_string());
     net.add_transport(Box::new(udp.clone()));
-    let _slab = unbase::Slab::new(&net);
+    let _slab = unbase::Slab::new_ephemeral(&net);
 
     Delay::new(Duration::from_millis(500)).await;
 
@@ -40,7 +40,7 @@ async fn test1_node_b() {
     net.hack_set_next_slab_id(200);
     let udp = unbase::network::transport::TransportUDP::new("127.0.0.1:51002".to_string());
     net.add_transport(Box::new(udp.clone()));
-    let _slab = unbase::Slab::new(&net);
+    let _slab = unbase::Slab::new_ephemeral(&net);
 
     udp.seed_address_from_string("127.0.0.1:51001".to_string());
     Delay::new(Duration::from_millis(500)).await;
@@ -64,7 +64,7 @@ async fn test2_node_a() {
     let udp = TransportUDP::new("127.0.0.1:52001".to_string());
     net.add_transport(Box::new(udp));
 
-    let slab_a = Slab::new(&net);
+    let slab_a = Slab::new_ephemeral(&net);
     let context_a = slab_a.create_context();
 
     // HACK - wait for slab_b to be on the peer list, and to be hooked in to our root_index_seed
@@ -86,7 +86,7 @@ async fn test2_node_b() {
     net2.hack_set_next_slab_id(200);
     let udp2 = TransportUDP::new("127.0.0.1:52002".to_string());
     net2.add_transport(Box::new(udp2.clone()));
-    let slab_b = Slab::new(&net2);
+    let slab_b = Slab::new_ephemeral(&net2);
 
     udp2.seed_address_from_string("127.0.0.1:52001".to_string());
     let context_b = slab_b.create_context();

@@ -18,9 +18,9 @@ async fn basic_eventual() {
 
     // Set up three Slabs, corresponding to three hosts, or three OS processes, or MAYBE even three different workers
     // within the same OS process
-    let slab_a = Slab::new(&net);
-    let slab_b = Slab::new(&net);
-    let slab_c = Slab::new(&net);
+    let slab_a = Slab::new_ephemeral(&net);
+    let slab_b = Slab::new_ephemeral(&net);
+    let slab_c = Slab::new_ephemeral(&net);
 
     // Basic sanity tests
     assert!(slab_a.id == 0, "Slab A ID shoud be 0");

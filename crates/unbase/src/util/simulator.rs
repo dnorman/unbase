@@ -249,7 +249,7 @@ impl<E: SimEvent + 'static + Send + fmt::Debug> Simulator<E> {
         let _guard = span.enter();
         // HACK - use a timeout to increase the liklihood that all tasks have advanced as far as they can
         // TODO - replace this with executor.all_pending().await ?
-        Delay::new(Duration::from_millis(100)).await;
+        Delay::new(Duration::from_millis(500)).await;
 
         // get a chunk of events
         while let Some(events) = tickstream.next().await {

@@ -40,6 +40,15 @@ use std::{
 };
 use tracing::info;
 
+use crate::slab::store::SlabStore;
+use ed25519_dalek::Keypair;
+use rand::{
+    rngs::OsRng,
+    Rng,
+};
+use sha2::Sha512;
+use tempfile::TempDir;
+
 pub(crate) mod agent;
 mod common_structs;
 mod handle;
@@ -61,6 +70,7 @@ pub struct Slab {
     //    dispatch_channel: mpsc::Sender<MemoRef>,
     //    dispatcher: Arc<RemoteHandle<()>>,
     handle:           SlabHandle,
+    tmpdir:           Option<Arc<TempDir>>,
 }
 
 impl Deref for Slab {
@@ -73,26 +83,23 @@ impl Deref for Slab {
 
 impl Slab {
     #[tracing::instrument]
-    pub fn new(net: &Network) -> Slab {
+    pub fn new_ephemeral(net: &Network) -> Slab {
         let id = net.generate_slab_id();
 
-        let my_ref_inner = SlabRefInner { slab_id:        id,
-                                          owning_slab_id: id, // I own my own ref to me, obviously
-                                          presence:       RwLock::new(vec![]), // this bit is just for show
-                                          tx:             Mutex::new(Transmitter::new_blackhole(id)),
-                                          return_address: RwLock::new(TransportAddress::Local), };
+        let tmpdir = tempfile::tempdir().unwrap();
+        let tmpdirpath = tmpdir.path();
 
-        let my_ref = SlabRef(Arc::new(my_ref_inner));
-        // TODO: figure out how to reconcile this with the simulator
-        // let (dispatch_tx_channel, dispatch_rx_channel) = mpsc::channel::<MemoRef>(10);
+        let mut csprng: OsRng = OsRng::new().unwrap();
+        let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
+        let store = SlabStore::initialize_new_slab(&tmpdirpath, &id, keypair).unwrap();
 
-        let agent = Arc::new(SlabAgent::new(net, my_ref.clone()));
+        let agent = Arc::new(SlabAgent::new(net, id.clone(), store));
 
         // let dispatcher: RemoteHandle<()> = crate::util::task::spawn_with_handle(
         //     Self::run_dispatcher( agent.clone(), dispatch_rx_channel )
         // );
 
-        let handle = SlabHandle { my_ref: my_ref.clone(),
+        let handle = SlabHandle { my_ref: agent.my_ref.clone(),
                                   net:    net.clone(),
                                   // dispatch_channel: dispatch_tx_channel.clone(),
                                   agent:  agent.clone(), };
@@ -101,9 +108,10 @@ impl Slab {
                         // dispatch_channel: dispatch_tx_channel,
                         // dispatcher: Arc::new(dispatcher),
                         net: net.clone(),
-                        my_ref,
+                        my_ref: agent.my_ref.clone(),
                         handle,
-                        agent };
+                        agent,
+                        tmpdir: Some(Arc::new(tmpdir)) };
 
         net.register_local_slab(me.handle());
 

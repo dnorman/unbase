@@ -108,7 +108,7 @@ impl MemoPeerList {
     }
 
     pub fn slab_ids(&self) -> Vec<SlabId> {
-        self.0.iter().map(|p| p.slabref.slab_id).collect()
+        self.0.iter().map(|p| p.slabref.id().clone()).collect()
     }
 
     pub fn apply_peer(&mut self, peer: MemoPeer) -> bool {
@@ -117,7 +117,7 @@ impl MemoPeerList {
 
         let peerlist = &mut self.0;
         {
-            if let Some(my_peer) = peerlist.iter_mut().find(|p| p.slabref.slab_id == peer.slabref.slab_id) {
+            if let Some(my_peer) = peerlist.iter_mut().find(|p| p.slabref.id() == peer.slabref.id()) {
                 if peer.status != my_peer.status {
                     // same slabref, so no need to apply the peer presence
                     my_peer.status = peer.status;

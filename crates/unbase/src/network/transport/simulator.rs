@@ -67,7 +67,7 @@ impl SimEvent for MemoPayload {
 impl fmt::Debug for MemoPayload {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MemoPayload")
-           .field("dest", &self.dest.my_ref.slab_id)
+           .field("dest", &self.dest.my_ref.id())
            .field("memo", &self.memoref.id)
            .finish()
     }
@@ -129,7 +129,7 @@ impl DynamicDispatchTransmitter for SimulatorTransmitter {
 impl fmt::Debug for SimulatorTransmitter {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SimulatorTransmitter")
-           .field("dest", &self.dest.my_ref.slab_id)
+           .field("dest", &self.dest.my_ref.id())
            .finish()
     }
 }

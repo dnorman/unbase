@@ -124,7 +124,7 @@ impl Network {
     }
 
     pub fn get_slabhandle(&self, slab_id: SlabId) -> Option<SlabHandle> {
-        if let Some(slabhandle) = self.slabs.read().unwrap().iter().find(|s| s.my_ref.slab_id == slab_id) {
+        if let Some(slabhandle) = self.slabs.read().unwrap().iter().find(|s| *s.my_ref.id() == slab_id) {
             if slabhandle.is_running() {
                 return Some((*slabhandle).clone());
             }
@@ -195,12 +195,9 @@ impl Network {
         //        // Remove the deregistered slab so get_representative_slab doesn't return it
         {
             let mut slabs = self.slabs.write().expect("slabs write lock");
-            if let Some(removed) = slabs.iter()
-                                        .position(|s| s.my_ref.slab_id == slab_id)
-                                        .map(|e| slabs.remove(e))
-            {
+            if let Some(removed) = slabs.iter().position(|s| *s.my_ref.id() == slab_id).map(|e| slabs.remove(e)) {
                 // debug!("Unbinding Slab {}", removed.id);
-                let _ = removed.my_ref.slab_id;
+                let _ = removed.my_ref.id();
                 // removed.unbind_network(self);
             }
         }
@@ -211,7 +208,7 @@ impl Network {
         let mut root_index_seed = self.root_index_seed.write().expect("root_index_seed write lock");
 
         if let Some(ref mut r) = *root_index_seed {
-            if r.1.slab_id == slab_id {
+            if *r.1.id() == slab_id {
                 if let Some(new_slab) = self.get_representative_slab() {
                     let owned_slabref = new_slab.agent.localize_slabref(&r.1);
                     r.0 = new_slab.agent.localize_head(&r.0, &owned_slabref, false);
