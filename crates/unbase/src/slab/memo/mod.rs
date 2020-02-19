@@ -60,9 +60,12 @@ pub struct MemoInner {
 #[derive(Clone, Debug)]
 pub enum MemoBody {
     SlabPresence {
+        // TODO - make this a Vec
         p: SlabPresence,
+        // TODO - make sure SlabPresence IS stored, and that we have a clock reading (Head) that can be used for comparison
+        // Should the root index node be conveyed separately? or as part of the same head as the clock?
         r: Head,
-    }, // TODO: split out root_index_seed conveyance to another memobody type
+    },
     Relation(RelationSet),
     Edge(EdgeSet),
     Edit(HashMap<String, String>),

@@ -1,29 +1,11 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
-use crate::{
-    head::Head,
-    network::{
-        SlabRef,
-        TransportAddress,
-    },
-    slab::{
-        EdgeSet,
-        EntityId,
-        Memo,
-        MemoBody,
-        MemoInner,
-        MemoPeeringStatus,
-        MemoRef,
-        RelationSet,
-        SlabId,
-        SlotId,
-    },
+use crate::network::{
+    SlabRef,
+    TransportAddress,
+    TransportLiveness,
 };
-use serde::{
-    de::Deserialize,
-    ser::Serialize,
-};
-use std::sync::Arc;
+
 // pub trait BufferHelper {
 //    type EntityToken;
 //    type MemoToken;
@@ -50,12 +32,13 @@ pub struct SlabBuf {
 
 impl SlabBuf {
     pub fn from_slabref(slabref: &SlabRef) -> SlabBuf {
-        SlabBuf { presence: slabref.0.presence
-                                   .read()
-                                   .unwrap()
-                                   .iter()
-                                   .map(|c| SlabPresenceBufElement { address: c.address.clone() })
-                                   .collect(), }
+        let channels = slabref.0.channels.read().unwrap();
+        SlabBuf { presence: channels.iter()
+                                    .map(|c| {
+                                        SlabPresenceBufElement { address:  c.address.clone(),
+                                                                 liveness: c.liveness.clone(), }
+                                    })
+                                    .collect(), }
     }
 
     //    pub fn to_slabref<H>(self, helper: &H) -> SlabRef
@@ -126,9 +109,9 @@ impl SlabBuf {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SlabPresenceBufElement {
-    pub address: TransportAddress,
-    /*    pub liveness: TransportLiveness,
-     *    latest_clock: HeadBufElement<E, M>, // (receipt of latest presence message? or any message?) */
+    pub address:  TransportAddress,
+    pub liveness: TransportLiveness,
+    // latest_clock: HeadBufElement<E, M>, // (receipt of latest presence message? or any message?)
 }
 
 // TODO - should we be peering Heads instead of Memos??
@@ -344,20 +327,16 @@ mod test {
             SlabBuf,
             SlabPresenceBufElement,
         },
-        network::TransportAddress,
-        slab::{
-            MemoPeeringStatus,
-//            TransportLiveness,
+        network::{
+            TransportAddress,
+            TransportLiveness,
         },
     };
-
-    use crate::slab::SlabId;
-    use std::collections::HashMap;
 
     #[unbase_test_util::async_test]
     async fn basic() {
         let sb = SlabBuf { presence: vec![SlabPresenceBufElement { address:  TransportAddress::Blackhole,
-                                                                   }], };
+                                                                   liveness: TransportLiveness::Unknown, }], };
 
         //        let mb = MemoBuf::<u32, u32> { entity:  Some(1),
         //                                       parents: HeadBufElement::Null,
@@ -369,7 +348,7 @@ mod test {
         // };
 
         assert_eq!(&serde_json::to_string(&sb).unwrap(),
-                   "{\"presence\":[{\"address\":\"Blackhole\"}]}");
+                   "{\"presence\":[{\"address\":\"Blackhole\",\"liveness\":\"Unknown\"}]}");
 
         //        assert_eq!(&serde_json::to_string(&mb).unwrap(),
         //                   "{\"entity_id\":1,\"parents\":\"Null\",\"body\":{\"Edit\":{\"edit\":{}}}}");

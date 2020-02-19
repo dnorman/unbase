@@ -15,8 +15,8 @@ use crate::{
 use itertools::Itertools;
 
 pub const MAX_SLOTS: usize = 256;
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub enum EntityType {
     IndexNode,
     Record,
@@ -25,7 +25,7 @@ pub enum EntityType {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub struct EntityId {
     pub id:    u64,
-    pub stype: EntityType,
+    pub etype: EntityType,
 }
 impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
     fn eq(&self, other: &&'a str) -> bool {
@@ -36,20 +36,20 @@ impl<'a> core::cmp::PartialEq<&'a str> for EntityId {
 impl EntityId {
     pub fn test(test_id: u64) -> Self {
         EntityId { id:    test_id,
-                   stype: EntityType::Record, }
+                   etype: EntityType::Record, }
     }
 
     /// Create a EntityId with a EntityType of IndexNode and a manually provided id
     /// Used by the test suite
     pub fn index_test(test_id: u64) -> Self {
-        EntityId { id:    test_id,
-                   stype: EntityType::IndexNode, }
+        EntityId { id:    test_id.into(),
+                   etype: EntityType::IndexNode, }
     }
 
     /// Human readable version of the EntityID which denotes whether the entity is an (I)ndex or a (R)ecord type
     pub fn concise_string(&self) -> String {
         use self::EntityType::*;
-        match self.stype {
+        match self.etype {
             IndexNode => format!("I{}", self.id),
             Record => format!("R{}", self.id),
         }
@@ -58,7 +58,7 @@ impl EntityId {
 
 impl fmt::Display for EntityId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}-{}", self.stype, self.id)
+        write!(f, "{:?}-{}", self.etype, self.id)
     }
 }
 
@@ -66,9 +66,11 @@ impl fmt::Display for EntityId {
 /// Including Transport address and anticipated lifetime
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SlabPresence {
+    // TODO NEXT - get rid of SlabPresence entirely. it shouldn't exist except as a Buffer
     pub slab_id:  SlabId,
     pub address:  TransportAddress,
-    pub lifetime: SlabAnticipatedLifetime,
+    pub liveness: TransportLiveness,
+    //    pub latest_clock: Head, // latest clock reading relating to this slab presence
 }
 impl PartialEq for SlabPresence {
     fn eq(&self, other: &SlabPresence) -> bool {
@@ -81,18 +83,26 @@ impl fmt::Debug for SlabPresence {
         fmt.debug_struct("SlabPresence")
            .field("slab_id", &self.slab_id)
            .field("address", &self.address.to_string())
-           .field("lifetime", &self.lifetime)
+           .field("liveness", &self.liveness)
            .finish()
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum SlabAnticipatedLifetime {
-    Ephmeral,
-    Session,
-    Long,
-    VeryLong,
+pub enum TransportLiveness {
+    Available,
+    Unavailable,
     Unknown,
+    // Could be other stuff
+}
+
+impl TransportLiveness {
+    pub fn is_available(&self) -> bool {
+        match self {
+            TransportLiveness::Available => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -117,7 +127,7 @@ impl MemoPeerList {
 
         let peerlist = &mut self.0;
         {
-            if let Some(my_peer) = peerlist.iter_mut().find(|p| p.slabref.id() == peer.slabref.id()) {
+            if let Some(my_peer) = peerlist.iter_mut().find(|p| p.slabref == peer.slabref) {
                 if peer.status != my_peer.status {
                     // same slabref, so no need to apply the peer presence
                     my_peer.status = peer.status;
@@ -155,7 +165,7 @@ pub enum MemoPeeringStatus {
     Unknown,
 }
 
-pub type SlotId = u8;
+pub type SlotId = u16;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RelationSet(pub HashMap<SlotId, Option<EntityId>>);

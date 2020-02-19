@@ -53,10 +53,6 @@ async fn init_local_multi() {
         let slab_b = unbase::Slab::new_ephemeral(&net);
         let slab_c = unbase::Slab::new_ephemeral(&net);
 
-        assert!(slab_a.id == 0, "Slab A ID shoud be 0");
-        assert!(slab_b.id == 1, "Slab B ID shoud be 1");
-        assert!(slab_c.id == 2, "Slab C ID shoud be 2");
-
         assert!(slab_a.peer_slab_count() == 2, "Slab A Should know two peers");
         assert!(slab_b.peer_slab_count() == 2, "Slab B Should know two peers");
         assert!(slab_c.peer_slab_count() == 2, "Slab C Should know two peers");

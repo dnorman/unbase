@@ -81,7 +81,7 @@ impl MemoRef {
         acted
     }
 
-    pub fn get_peerlist_for_peer(&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<SlabId>) -> MemoPeerList {
+    pub fn get_peerlist_for_peer(&self, my_ref: &SlabRef, maybe_dest_slab_id: Option<&SlabId>) -> MemoPeerList {
         let mut list: Vec<MemoPeer> = Vec::new();
 
         list.push(MemoPeer { slabref: my_ref.clone(),
@@ -92,7 +92,7 @@ impl MemoRef {
 
         if let Some(dest_slab_id) = maybe_dest_slab_id {
             for peer in self.peerlist.read().unwrap().iter() {
-                if *peer.slabref.id() != dest_slab_id {
+                if peer.slabref.id() != dest_slab_id {
                     list.push((*peer).clone());
                 }
             }

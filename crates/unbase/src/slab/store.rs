@@ -1,25 +1,15 @@
 use std::convert::TryInto;
 
 use crate::{
-    error::{
-        Error,
-        StorageError,
-    },
-    slab::{
-        EntityId,
-        Memo,
-        MemoId,
-        MemoPeerList,
-        MemoRef,
-        SlabId,
-    },
+    buffer::SlabBuf,
+    error::StorageError,
+    slab::SlabId,
 };
 use ed25519_dalek::Keypair;
 use std::{
     clone::Clone,
     sync::Arc,
 };
-use crate::buffer::SlabBuf;
 
 /// SlabState stores all state for a slab
 /// It may ONLY be owned/touched by SlabAgent. No exceptions.
@@ -27,6 +17,7 @@ use crate::buffer::SlabBuf;
 #[derive(Clone)]
 pub(crate) struct SlabStore(Arc<SlabStoreInner>);
 
+#[allow(dead_code)]
 pub(super) struct SlabStoreInner {
     config:     sled::Tree,
     slabs:      sled::Tree,
@@ -38,6 +29,7 @@ pub(super) struct SlabStoreInner {
 
 // TODO - convert this into a trait
 impl SlabStore {
+    #[allow(unused)]
     pub fn open(basedir: &std::path::Path, slab_id: &SlabId) -> Result<Self, StorageError> {
         let pathbuf = basedir.join(format!("./unbase-{}.sled", slab_id));
         let db = sled::open(pathbuf.as_path())?;
@@ -79,6 +71,7 @@ impl SlabStore {
         SlabStore(Arc::new(inner))
     }
 
+    #[allow(unused)]
     pub(super) fn get_keypair(&self) -> Result<Keypair, StorageError> {
         match self.0.config.get(b"keypair_ed25519").unwrap() {
             Some(b) => Ok(ed25519_dalek::Keypair::from_bytes(&b).unwrap()),
@@ -86,15 +79,18 @@ impl SlabStore {
         }
     }
 
+    #[allow(dead_code)]
     pub fn ident_base64(&self) -> Result<String, StorageError> {
         Ok(base64::encode(self.get_keypair()?.public.as_bytes()))
     }
 
+    #[allow(dead_code)]
     pub fn increment_counter(&self, name: &[u8], increment: u64) -> Result<(), StorageError> {
         self.0.counters.merge(name, &increment.to_ne_bytes())?;
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_counter(&self, name: &[u8]) -> Result<u64, StorageError> {
         match self.0.counters.get(name)? {
             Some(ivec) => Ok(u64::from_ne_bytes((&*ivec as &[u8]).try_into().unwrap())),
@@ -102,6 +98,7 @@ impl SlabStore {
         }
     }
 
+    #[allow(unused)]
     pub fn slab_count(&self) -> usize {
         self.0.slabs.len()
     }
@@ -140,7 +137,7 @@ impl SlabStore {
     //        unimplemented!()
     //    }
     //
-    pub fn put_slab(&self, slab_id: &SlabId, slabbuf: SlabBuf ) -> Result<(), StorageError> {
+    pub fn put_slab(&self, slab_id: &SlabId, slabbuf: SlabBuf) -> Result<(), StorageError> {
         let bytes: Vec<u8> = serde_json::to_vec(&slabbuf).unwrap();
         self.0.slabs.insert(slab_id.to_be_bytes(), bytes)?;
 
@@ -153,7 +150,7 @@ impl SlabStore {
                 let slabbuf = serde_json::from_slice(&ivec)?;
                 Ok(Some(slabbuf))
             },
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 }
@@ -229,17 +226,11 @@ impl core::convert::From<sled::Error> for StorageError {
 mod test {
     use crate::slab::{
         store::SlabStore,
-        Memo,
-        MemoBody,
         SlabId,
     };
 
-    use crate::head::Head;
     use ed25519_dalek::Keypair;
-    use rand::{
-        rngs::OsRng,
-        Rng,
-    };
+    use rand::rngs::OsRng;
     use sha2::Sha512;
 
     #[test]
@@ -247,7 +238,7 @@ mod test {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdirpath = tmpdir.path();
 
-        let slab_id: SlabId = 1234; // dummy
+        let slab_id = SlabId(1234); // dummy
         let slab_ident;
 
         {
@@ -278,7 +269,7 @@ mod test {
     fn test_counters() {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdirpath = tmpdir.path();
-        let slab_id: SlabId = 4567; // dummy
+        let slab_id = SlabId(4567); // dummy
         let mut csprng: OsRng = OsRng::new().unwrap();
         let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
         let store = SlabStore::initialize_new_slab(&tmpdirpath, &slab_id, keypair).unwrap();
@@ -324,10 +315,11 @@ mod test {
         assert_eq!(store.get_counter(b"concurrency_test").unwrap(), expected_total);
     }
 
+    #[allow(dead_code)]
     fn init_test_store() -> SlabStore {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdirpath = tmpdir.path();
-        let slab_id: SlabId = 4567; // dummy
+        let slab_id = SlabId(4567); // dummy
         let mut csprng: OsRng = OsRng::new().unwrap();
         let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
         let store = SlabStore::initialize_new_slab(&tmpdirpath, &slab_id, keypair).unwrap();
@@ -337,7 +329,7 @@ mod test {
 
     #[test]
     fn store_slabref() {
-//        let store = init_test_store();
+        //        let store = init_test_store();
 
         //        let memo = Memo::new(Head::Null, MemoBody::Null });
         //        store.put_memo( )

@@ -58,36 +58,37 @@ impl<'a> Visitor for PacketSeed<'a> {
                 return Err(DeError::invalid_length(0, &self));
             },
         };
-        let to_slab_id: SlabId = match visitor.visit()? {
-            Some(value) => value,
-            None => {
-                return Err(DeError::invalid_length(1, &self));
-            },
-        };
+        let to_slab_id: Option<SlabId> = visitor.visit()?;
 
         let dest_slab;
-        if to_slab_id == 0 {
-            // Should this be multiple slabs somehow?
-            // If so, we'd have to bifurcate the deserialization process
-            if let Some(slab) = self.net.get_representative_slab() {
-                dest_slab = slab
-            } else {
-                return Err(DeError::custom("Unable to pick_arbitrary_slab"));
-            }
-        } else {
-            if let Some(slab) = self.net.get_slabhandle(to_slab_id) {
-                dest_slab = slab;
-            } else {
-                return Err(DeError::custom("Destination slab not found"));
-            }
+        match to_slab_id {
+            None => {
+                // Should this be multiple slabs somehow?
+                // If so, we'd have to bifurcate the deserialization process
+                if let Some(slab) = self.net.get_representative_slab() {
+                    dest_slab = slab
+                } else {
+                    return Err(DeError::custom("Unable to pick_arbitrary_slab"));
+                }
+            },
+            Some(id) => {
+                match self.net.get_slabhandle(&id) {
+                    Ok(slab) => dest_slab = slab,
+                    Err(e) => {
+                        return Err(DeError::custom(format!("Destination slab not found: {:?}", e)));
+                    },
+                }
+            },
         }
 
-        let from_presence = SlabPresence { slab_id:  from_slab_id,
-                                           address:  self.source_address.clone(),
-                                           lifetime: SlabAnticipatedLifetime::Unknown, };
+        let from_slabref = dest_slab.agent.assert_slabref(&from_slab_id, None).unwrap();
+
+        let from_presence = [SlabPresence { slab_id:  from_slabref.id().clone(),
+                                            address:  self.source_address.clone(),
+                                            liveness: TransportLiveness::Available, }];
 
         let origin_slabref = dest_slab.agent
-                                      .slabref_from_presence(&from_presence)
+                                      .assert_slabref(from_slabref.id(), Some(&from_presence))
                                       .expect("slabref from presence");
 
         // no need to return the memo here, as it's added to the slab
@@ -99,10 +100,10 @@ impl<'a> Visitor for PacketSeed<'a> {
         };
 
         // no need to return the memo here, as it's added to the slab
-        if let None = visitor.visit_seed(MemoSeed { dest_slab: &dest_slab,
+        if let None = visitor.visit_seed(MemoSeed { dest_slab:      &dest_slab,
                                                     origin_slabref: &origin_slabref,
-                                                    from_presence,
-                                                    peerlist: MemoPeerList::new(peers) })?
+                                                    from_presence:  from_presence[0].clone(),
+                                                    peerlist:       MemoPeerList::new(peers), })?
         {
             return Err(DeError::invalid_length(3, &self));
         };

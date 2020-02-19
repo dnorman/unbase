@@ -48,7 +48,7 @@ impl Transport for LocalDirect {
                 debug!("Starting consumer");
                 while let Ok((from_slabref, memoref)) = rx_channel.recv() {
                     debug!("LocalDirect Slab({}) RECEIVED {:?} from {}",
-                           slab.my_ref.id(),
+                           slab.my_ref,
                            memoref,
                            from_slabref.id());
                     // clone_for_slab adds the memo to the slab, because memos cannot exist outside of an owning slab
@@ -72,11 +72,11 @@ impl Transport for LocalDirect {
 
     fn unbind_network(&self, _net: &Network) {}
 
-    fn get_return_address(&self, address: &TransportAddress) -> Option<TransportAddress> {
+    fn get_return_address(&self, address: &TransportAddress) -> Result<TransportAddress, Error> {
         if let TransportAddress::Local = *address {
-            Some(TransportAddress::Local)
+            Ok(TransportAddress::Local)
         } else {
-            None
+            Err(Error::BadAddress)
         }
     }
 }

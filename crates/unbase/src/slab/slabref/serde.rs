@@ -10,7 +10,11 @@ impl StatefulSerialize for SlabRef {
         // to allow for slabs with multiple transports
         let mut seq = serializer.serialize_seq(Some(2))?;
         seq.serialize_element(&self.id())?;
-        seq.serialize_element(&self.get_presence_for_remote(helper.return_address))?;
+
+        let presence = SlabPresence { slab_id:  self.id().clone(),
+                                      address:  helper.return_address.clone(),
+                                      liveness: TransportLiveness::Available, };
+        seq.serialize_element(&presence)?;
         // seq.serialize_element( &SerializeWrapper(&*(self.presence.read().unwrap()),helper) )?;
         seq.end()
     }

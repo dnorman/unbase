@@ -13,10 +13,10 @@ use crate::{
     slab::{
         MemoBody,
         MemoRef,
-        SlabAnticipatedLifetime,
         SlabId,
         SlabPresence,
         SlabRef,
+        TransportLiveness,
     },
     util::serde::{
         DeserializeSeed,
@@ -47,6 +47,7 @@ use tracing::{
     trace,
 };
 
+use crate::error::Error;
 use serde_json;
 
 #[derive(Clone)]
@@ -63,7 +64,7 @@ struct TransportUDPInternal {
     address:    TransportAddressUDP,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct TransportAddressUDP {
     address: String,
 }
@@ -80,7 +81,7 @@ impl TransportUDP {
     /// let net = unbase::Network::new();
     /// let udp = unbase::network::transport::TransportUDP::new("127.0.0.1:51002".to_string());
     /// net.add_transport(Box::new(udp.clone()));
-    /// let slab = unbase::Slab::new_ephemeral(&net);
+    /// let slab = unbase::Slab::initialize(&net);
     /// let context = slab.create_context();
     ///
     /// udp.seed_address_from_string("127.0.0.1:51001".to_string());
@@ -119,7 +120,7 @@ impl TransportUDP {
                 trace!("UDP SEND FROM {} ({}) TO {} ({}): {}",
                        &packet.from_slab_id,
                        socket.local_addr().unwrap(),
-                       packet.to_slab_id,
+                       &packet.to_slab_id.map_or("ANY".to_string(), |s| s.short()),
                        &to_address.address,
                        String::from_utf8(b.clone()).unwrap());
                 // HACK: we're trusting that each memo is smaller than 64k
@@ -149,7 +150,7 @@ impl TransportUDP {
         for slab in net.get_all_local_slabs() {
             let presence = SlabPresence { slab_id:  slab.my_ref.id().clone(),
                                           address:  TransportAddress::UDP(my_address.clone()),
-                                          lifetime: SlabAnticipatedLifetime::Unknown, };
+                                          liveness: TransportLiveness::Unknown, };
 
             let hello = slab.new_memo(None,
                                       Head::Null,
@@ -164,18 +165,19 @@ impl TransportUDP {
     pub fn send_to_addr(&self, from_slabref: &SlabRef, memoref: MemoRef, address: TransportAddressUDP) {
         // HACK - should actually retrieve the memo and sent it
         //        will require nonblocking retrieval mode
-        if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = Packet { to_slab_id:   0,
-                                  from_slab_id: from_slabref.id().clone(),
-                                  memo:         memo.clone(),
-                                  peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
-
-            if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
-                if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
-                    tx_channel.send((address, packet)).unwrap();
-                }
-            }
-        }
+        unimplemented!()
+        //        if let Some(memo) = from_slabref.get_memo_if_resident(memoref) {
+        //            let packet = SerdePacket { to_slab_id:   None,
+        //                                       from_slab_id: from_slabref.0.slab_id,
+        //                                       memo:         memo.clone(),
+        //                                       peerlist:     memoref.get_peerlist_for_peer(from_slabref, None), };
+        //
+        //            if let Some(ref tx_channel) = self.shared.lock().unwrap().tx_channel {
+        //                if let Some(ref tx_channel) = *(tx_channel.lock().unwrap()) {
+        //                    tx_channel.send((address, packet)).unwrap();
+        //                }
+        //            }
+        //        }
     }
 }
 
@@ -262,12 +264,12 @@ impl Transport for TransportUDP {
         // shared.network = None;
     }
 
-    fn get_return_address(&self, address: &TransportAddress) -> Option<TransportAddress> {
+    fn get_return_address(&self, address: &TransportAddress) -> Result<TransportAddress, Error> {
         if let TransportAddress::UDP(_) = *address {
             let shared = self.shared.lock().unwrap();
-            Some(TransportAddress::UDP(shared.address.clone()))
+            Ok(TransportAddress::UDP(shared.address.clone()))
         } else {
-            None
+            Err(Error::BadAddress)
         }
     }
 }
@@ -301,10 +303,10 @@ impl DynamicDispatchTransmitter for TransmitterUDP {
     #[tracing::instrument]
     fn send(&self, from: &SlabRef, memoref: MemoRef) {
         if let Some(memo) = memoref.get_memo_if_resident() {
-            let packet = Packet { to_slab_id: self.slab_id,
-                                  from_slab_id: from.id().clone(),
+            let packet = Packet { to_slab_id: Some(self.slab_id),
+                                  from_slab_id: from.0.slab_id,
                                   memo,
-                                  peerlist: memoref.get_peerlist_for_peer(from, Some(self.slab_id)) };
+                                  peerlist: memoref.get_peerlist_for_peer(from, Some(&self.slab_id)) };
 
             // use util::serde::SerializeHelper;
             // let helper = SerializeHelper{ transmitter: self };

@@ -14,27 +14,22 @@ pub use self::{
         MemoRefInner,
         MemoRefPtr,
     },
-    slabref::{
-        SlabRef,
-        SlabRefInner,
-    },
+    slabref::SlabRef,
 };
 
 use crate::{
     context::Context,
-    network::{
-        Network,
-        Transmitter,
-        TransportAddress,
+    network::Network,
+    slab::{
+        agent::SlabAgent,
+        slabref::SlabRefInner,
     },
-    slab::agent::SlabAgent,
 };
 
 use std::{
     ops::Deref,
     sync::{
         Arc,
-        Mutex,
         RwLock,
     },
 };
@@ -42,10 +37,7 @@ use tracing::info;
 
 use crate::slab::store::SlabStore;
 use ed25519_dalek::Keypair;
-use rand::{
-    rngs::OsRng,
-    Rng,
-};
+use rand::rngs::OsRng;
 use sha2::Sha512;
 use tempfile::TempDir;
 
@@ -59,7 +51,45 @@ mod memoref;
 mod slabref;
 mod store;
 
-pub type SlabId = u32;
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Copy)]
+pub struct SlabId(pub u32);
+
+impl std::fmt::Display for SlabId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::fmt::Debug for SlabId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("SlabId").field("", &self.short()).finish()
+    }
+}
+
+impl std::hash::Hash for SlabId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl std::convert::Into<u64> for SlabId {
+    fn into(self) -> u64 {
+        self.0 as u64
+    }
+}
+
+impl Deref for SlabId {
+    type Target = u32;
+
+    fn deref(&self) -> &u32 {
+        &self.0
+    }
+}
+
+impl SlabId {
+    pub fn short(&self) -> String {
+        format!("{}", self.0)
+    }
+}
 
 #[derive(Clone)]
 pub struct Slab {
@@ -113,7 +143,7 @@ impl Slab {
                         agent,
                         tmpdir: Some(Arc::new(tmpdir)) };
 
-        net.register_local_slab(me.handle());
+        net.register_local_slab(me.handle()).unwrap();
 
         net.conditionally_generate_root_index_seed(&me.handle);
 
@@ -151,7 +181,7 @@ impl Drop for Slab {
     fn drop(&mut self) {
         info!("Slab {} was dropped - Shutting down", self.id);
         self.agent.stop();
-        self.net.deregister_local_slab(self.id);
+        self.net.deregister_local_slab(&self.my_ref);
     }
 }
 

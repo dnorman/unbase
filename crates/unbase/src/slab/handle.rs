@@ -27,12 +27,12 @@ use crate::{
         MemoBody,
         MemoId,
         MemoRef,
-        SlabAnticipatedLifetime,
         SlabPresence,
     },
     Network,
 };
 
+use super::TransportLiveness;
 use std::time::{
     Duration,
     Instant,
@@ -133,7 +133,7 @@ impl SlabHandle {
         // let args = TransmitterArgs::Local(&peer_slab);
         let presence = SlabPresence { slab_id:  peer_slab.my_ref.id().clone(),
                                       address:  TransportAddress::Local,
-                                      lifetime: SlabAnticipatedLifetime::Unknown, };
+                                      liveness: TransportLiveness::Available, };
 
         self.agent
             .assert_slabref(peer_slab.my_ref.id(), Some(&vec![presence]))
