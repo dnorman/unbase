@@ -122,6 +122,29 @@ impl Memo {
         }
     }
 
+    pub async fn project_value(&mut self, slab: &SlabHandle, key: &str) -> Result<Option<String>, RetrieveError> {
+        match self.body {
+            MemoBody::Edit(ref e) => {
+                if let Some(v) = e.get(key) {
+                    return Ok(Some(v.to_string()));
+                }
+            },
+            MemoBody::FullyMaterialized { ref v, .. } => {
+                match v.get(key) {
+                    Some(v) => {
+                        return Ok(Some(v.to_string()));
+                    },
+                    None => {
+                        return Ok(None);
+                    },
+                }
+            },
+            _ => {},
+        }
+
+        self.parents.get_value(slab, key).await
+    }
+
     pub fn get_relations(&self) -> Option<(RelationSet, bool)> {
         match self.body {
             MemoBody::Relation(ref r) => Some((r.clone(), false)),
@@ -170,6 +193,22 @@ impl Memo {
             }
             return Ok(false);
         }.boxed()
+    }
+
+    pub async fn concise_string(&self, slab: &SlabHandle) -> Result<String, RetrieveError> {
+        use self::EntityType::*;
+        match self.entity_id {
+            Some(e) => {
+                match e.etype {
+                    IndexNode => {
+                        let tier = self.project_value(slab, "tier").await?.expect("tier is missing!");
+                        Ok(format!("I{}/{}", tier, self.id))
+                    },
+                    Record => Ok(format!("R{}", self.id)),
+                }
+            },
+            None => Ok("None".to_string()),
+        }
     }
 }
 

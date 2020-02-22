@@ -53,6 +53,7 @@ impl SlabRef {
     pub fn send(&self, from: &SlabRef, memoref: &MemoRef) {
         let channels = self.0.channels.read().unwrap();
         for channel in channels.iter() {
+            println!("TRAFFIC\t({}) {} -> {}", from, memoref, self);
             channel.tx.send(from, memoref.clone());
         }
     }

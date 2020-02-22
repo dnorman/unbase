@@ -206,8 +206,10 @@ impl Network {
         }
 
         for prev_slab in self.get_all_local_slabs() {
-            prev_slab.slabref_from_local_slab(&new_slab);
-            new_slab.slabref_from_local_slab(&prev_slab);
+            if prev_slab.my_ref != new_slab.my_ref {
+                prev_slab.slabref_from_local_slab(&new_slab);
+                new_slab.slabref_from_local_slab(&prev_slab);
+            }
         }
         Ok(())
     }

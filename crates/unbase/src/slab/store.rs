@@ -48,7 +48,6 @@ impl SlabStore {
     pub(super) fn initialize_new_slab(basedir: &std::path::Path, slab_id: &SlabId, keypair: Keypair)
                                       -> Result<Self, StorageError> {
         let pathbuf = basedir.join(format!("./unbase-{}.sled", slab_id));
-        println!("INIT: {:#?}", pathbuf);
         let db = sled::open(pathbuf.as_path())?;
 
         {
@@ -154,10 +153,10 @@ impl SlabStore {
     pub fn put_slab(&self, slab_id: &SlabId, slabbuf: SlabBuf) -> Result<(), StorageError> {
         let bytes: Vec<u8> = serde_json::to_vec(&slabbuf).unwrap();
 
-        println!("({}) PUT SLAB {}: {}",
-                 self.0.slab_id,
-                 slab_id,
-                 String::from_utf8(bytes.clone()).unwrap());
+        // println!("({}) PUT SLAB {}: {}",
+        //          self.0.slab_id,
+        //          slab_id,
+        //          String::from_utf8(bytes.clone()).unwrap());
 
         self.0.slabs.insert(slab_id.to_be_bytes(), bytes)?;
 
@@ -165,15 +164,15 @@ impl SlabStore {
     }
 
     pub fn get_slab(&self, slab_id: &SlabId) -> Result<Option<SlabBuf>, StorageError> {
-        println!("({}) GET SLAB {}", self.0.slab_id, slab_id);
+        // println!("({}) GET SLAB {}", self.0.slab_id, slab_id);
         match self.0.slabs.get(slab_id.to_be_bytes())? {
             Some(ivec) => {
-                println!("\t Found: {}", String::from_utf8(ivec.to_vec()).unwrap());
+                // println!("\t Found: {}", String::from_utf8(ivec.to_vec()).unwrap());
                 let slabbuf = serde_json::from_slice(&ivec)?;
                 Ok(Some(slabbuf))
             },
             None => {
-                println!("\tNot found");
+                // println!("\tNot found");
                 Ok(None)
             },
         }

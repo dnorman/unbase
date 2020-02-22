@@ -185,6 +185,15 @@ impl MemoRef {
     }
 }
 
+impl fmt::Display for MemoRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.entity_id {
+            Some(e) => write!(f, "{}-{}", e, self.id),
+            None => write!(f, "Anon-{}", self.id),
+        }
+    }
+}
+
 impl fmt::Debug for MemoRef {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MemoRef")

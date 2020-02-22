@@ -60,9 +60,9 @@ impl SimEvent for MemoPayload {
         // TODO: think about how backpressure interacts with selective hearing behaviors, and how intelligently relay
         // that backpressure to other nodes who are sending stuff
 
-        debug!("localizing slabref {:?}", &self.from_slabref);
+        debug!("({}) localizing slabref {:?}", &self.dest.my_ref, &self.from_slabref);
         let slabref = self.dest.agent.localize_slabref(&self.from_slabref);
-        debug!("localizing memoref {:?}", &self.memoref);
+        debug!("({}) localizing memoref {:?}", &self.dest.my_ref, &self.memoref);
         self.dest.agent.localize_memoref(&self.memoref, &slabref, true);
         debug!("done");
     }

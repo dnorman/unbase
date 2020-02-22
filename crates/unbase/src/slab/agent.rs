@@ -541,7 +541,7 @@ impl SlabAgent {
         // assert!(from_slabref.0.owning_slab_id == self.id,
         //         "Memo clone_for_slab owning slab should be identical");
 
-        // TODO - simplify this
+        // TODO MERGE - consolidate this
         self.reconstitute_memo(memo.id,
                                memo.entity_id,
                                self.localize_head(&memo.parents, from_slabref, false),
@@ -555,7 +555,7 @@ impl SlabAgent {
     pub fn reconstitute_memo(&self, memo_id: MemoId, entity_id: Option<EntityId>, parents: Head, body: MemoBody,
                              origin_slabref: &SlabRef, peerlist: &MemoPeerList)
                              -> (Memo, MemoRef, bool) {
-        debug!("SlabAgent({})::reconstitute_memo({:?})", self.id, body);
+        // debug!("SlabAgent({})::reconstitute_memo({:?})", self.id, body);
 
         // TODO: find a way to merge this with assert_memoref to avoid doing duplicative work with regard to peerlist
         // application
@@ -565,6 +565,14 @@ impl SlabAgent {
                                          entity_id,
                                          parents,
                                          body });
+
+        // TODO MERGE - make this traffic diag really slick. should indicate index node tier (payload) first
+        // Eg: STORE   (Slab0) <- IN-R/5001
+        println!("TRAFFIC\t({}) <- {:?}-{}",
+                 self.my_ref,
+                 // HACK - The agent should probably not be able to run async code
+                 async_std::task::block_on(memo.concise_string(&self.handle)),
+                 memo_id);
 
         let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.entity_id, peerlist.clone(), Some(memo.clone()));
 
@@ -590,7 +598,7 @@ impl SlabAgent {
 
         self.notify_local_subscribers(memoref.clone());
 
-        // TODO POSTMERGE: reconcile localize_memoref, reconstitute_memo, and recv_memoref
+        // TODO MERGE: reconcile localize_memoref, reconstitute_memo, and recv_memoref
         (memo, memoref, had_memoref)
     }
 
@@ -735,6 +743,16 @@ impl SlabAgent {
     #[tracing::instrument]
     pub fn assert_memoref(&self, memo_id: MemoId, entity_id: Option<EntityId>, peerlist: MemoPeerList, memo: Option<Memo>)
                           -> (MemoRef, bool) {
+        // TODO MERGE - consolidate this into the storage layer
+
+        println!("STORE  \t({}) <- {:?}-{}",
+                 self.my_ref,
+                 match entity_id {
+                     Some(e) => format!("{}", e),
+                     None => "None".to_string(),
+                 },
+                 memo_id);
+
         let had_memoref;
         let memoref = match self.state.write().unwrap().memorefs_by_id.entry(memo_id) {
             Entry::Vacant(o) => {

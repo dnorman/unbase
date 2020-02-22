@@ -18,14 +18,20 @@ use unbase::{
 
 use tracing::debug;
 
+// #[test]
+// fn foo() {
+//     async_std::task::block_on(async {
+//         eventual_basic().await;
+//     });
+// }
+
 #[unbase_test_util::async_test]
-#[test]
 async fn eventual_basic() {
+    unbase_test_util::init_test_logger();
+
     let net = Network::create_new_system();
     let simulator = Simulator::new();
     net.add_transport(Box::new(simulator.clone()));
-
-    simulator.start();
 
     let slab_a = Slab::new_ephemeral(&net);
     let slab_b = Slab::new_ephemeral(&net);
@@ -41,6 +47,7 @@ async fn eventual_basic() {
     assert!(context_b.get_entity_by_id(record_id).await.unwrap().is_none(),
             "new entity should not yet have conveyed to slab B");
 
+    simulator.start();
     simulator.quiesce().await;
 
     let rec_b1 = context_b.get_entity_by_id(record_id).await.unwrap();

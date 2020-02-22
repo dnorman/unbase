@@ -146,6 +146,7 @@ impl Context {
     }
 
     /// Retrive a Entity from the root index by ID
+    #[tracing::instrument]
     pub async fn get_entity_by_id(&self, entity_id: EntityId) -> Result<Option<Entity>, RetrieveError> {
         let root_index = self.root_index().await?;
 
