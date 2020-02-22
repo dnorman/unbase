@@ -173,7 +173,7 @@ impl<E: SimEvent + 'static + Send + fmt::Debug> Simulator<E> {
     pub async fn quiesce(&self) {
         // HACK - replace with executor.yield().await
 
-        Delay::new(Duration::from_millis(50)).await;
+        Delay::new(Duration::from_millis(150)).await;
         {
             let mut shared = self.shared.lock().unwrap();
             if shared.is_fully_delivered() {
