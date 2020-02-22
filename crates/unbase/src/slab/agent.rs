@@ -464,7 +464,7 @@ impl SlabAgent {
         } else {
             // let address = &*self.return_address.read().unwrap();
             // let args = TransmitterArgs::Remote( &self.slab_id, address );
-            let presence: Vec<SlabPresence> = {
+            let mut presence: Vec<SlabPresence> = {
                 let channels = slabref.0.channels.read().unwrap();
 
                 channels.iter()
@@ -475,6 +475,11 @@ impl SlabAgent {
                         })
                         .collect()
             };
+
+            // TODO NEXT - This is wrong - How do we know when we should do this?
+            presence.push(SlabPresence { slab_id:  slabref.id().clone(),
+                                         address:  TransportAddress::Local,
+                                         liveness: TransportLiveness::Available, });
 
             self.assert_slabref(slabref.id(), Some(&presence)).unwrap()
         }
