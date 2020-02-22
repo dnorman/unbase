@@ -20,6 +20,7 @@ pub enum Error {
 
 #[derive(Debug)]
 pub enum StorageError {
+    UninitializedStore,
     RecordMissing,
     SledError(sled::Error),
     Buffer(BufferError),

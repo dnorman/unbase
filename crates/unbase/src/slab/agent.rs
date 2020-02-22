@@ -86,6 +86,11 @@ impl SlabAgent {
                     slabrefs: Mutex::new(slabrefs) }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn slab_id(&self) -> &SlabId {
+        &self.id
+    }
+
     pub(crate) fn stop(&self) {
         let mut state = self.state.write().unwrap();
         state.running = false;
@@ -769,58 +774,48 @@ impl SlabAgent {
         }
 
         // need to make a handle regardless
-        let slabref: SlabRef = match self.slabrefs.lock().unwrap().entry(*slab_id) {
-            Entry::Occupied(e) => e.get().clone(),
+        let (slabref, registered) = match self.slabrefs.lock().unwrap().entry(*slab_id) {
+            Entry::Occupied(e) => (e.get().clone(), false),
             Entry::Vacant(e) => {
                 let inner = SlabRefInner { slab_id:  slab_id.clone(),
                                            channels: RwLock::new(Vec::new()), };
 
                 let slabref = SlabRef(Arc::new(inner));
                 e.insert(slabref.clone());
-
-                slabref
+                (slabref, true)
             },
         };
 
         // HACK - need to reconcile SlabPresence, SlabPresenceBufElement, the CapnProto version, etc
         let maybe_given_presence: Option<Vec<_>> = presence.map(|presence| {
-                                                       presence.iter()
+                                                               presence.iter()
                                                                .map(|p| {
                                                                    SlabPresenceBufElement { address:  p.address.clone(),
                                                                                             liveness: p.liveness.clone(), }
                                                                })
                                                                .collect()
-                                                   });
+                                                           });
 
-        match self.store.get_slab(slab_id)? {
-            Some(slabbuf) => {
-                // The store has this slab already. Lets apply what it has to the memory resident version,
-                // which we may have just initialized.
-                // HACK: Unfortunately we have to do this first, because we're not yet doing happens-before in apply_presence
-                let mut applied = slabref.apply_presence(&slabbuf.presence, &self.net);
-
-                if let Some(bufs) = maybe_given_presence {
-                    // We've been given updated presence for this slab. Lets update the memory resident version with it
-                    if slabref.apply_presence(&bufs, &self.net) {
-                        applied = true;
-                    }
-                }
-
-                // store the new version if we applied anything
-                if applied {
-                    self.store.put_slab(slab_id, SlabBuf::from_slabref(&slabref))?;
-                }
-            },
-            None => {
-                if let Some(bufs) = maybe_given_presence {
-                    // We've been given updated presence for this slab. Lets update the memory resident version with it
-                    slabref.apply_presence(&bufs, &self.net);
-                }
-
-                // now lets store it for later use
-                self.store.put_slab(slab_id, SlabBuf::from_slabref(&slabref))?;
-            },
+        let applied = match maybe_given_presence {
+            Some(bufs) => slabref.apply_presence(&bufs, &self.net),
+            None => false,
         };
+
+        if registered || applied {
+            match self.store.get_slab(slab_id)? {
+                Some(slabbuf) => {
+                    // The store has this slab already. Lets apply what it has to the memory resident version
+
+                    // TODO / WARNING - this will do the wrong thing until we are doing happens-before determination on presence
+                    if slabref.apply_presence(&slabbuf.presence, &self.net) {
+                        self.store.put_slab(slab_id, SlabBuf::from_slabref(&slabref))?;
+                    }
+                },
+                None => {
+                    self.store.put_slab(slab_id, SlabBuf::from_slabref(&slabref))?;
+                },
+            };
+        }
 
         return Ok(slabref);
     }
@@ -852,5 +847,85 @@ impl SlabAgent {
 impl std::fmt::Debug for SlabAgent {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("Slab").field("state", &self.state.read().unwrap()).finish()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::SlabAgent;
+    use crate::{
+        network::{
+            transport::Blackhole,
+            SlabPresence,
+            TransportAddress,
+            TransportLiveness,
+        },
+        slab::{
+            store::SlabStore,
+            SlabId,
+        },
+        Network,
+    };
+    use ed25519_dalek::Keypair;
+    use lazy_static::*;
+    use rand::rngs::OsRng;
+    use sha2::Sha512;
+    use tempfile::TempDir;
+
+    lazy_static! {
+        static ref TMPDIR: TempDir = tempfile::tempdir().unwrap();
+    }
+
+    fn init_agent(maybe_slab_id: Option<&SlabId>) -> SlabAgent {
+        let net = Network::create_new_system();
+        net.add_transport(Box::new(Blackhole::new()));
+
+        let tmpdirpath = TMPDIR.path();
+
+        let store = match maybe_slab_id {
+            Some(slab_id) => SlabStore::open(&tmpdirpath, slab_id).unwrap(),
+            None => {
+                let slab_id = SlabId::dummy();
+                let mut csprng: OsRng = OsRng::new().unwrap();
+                let keypair: Keypair = Keypair::generate::<Sha512, _>(&mut csprng);
+                SlabStore::initialize_new_slab(&tmpdirpath, &slab_id, keypair).unwrap()
+            },
+        };
+
+        SlabAgent::new(&net, store.slab_id().clone(), store)
+    }
+    #[test]
+    fn slabref_basic() {
+        let agent = init_agent(None);
+        let other_slab_id = SlabId::dummy();
+        let other_sr = agent.assert_slabref(&other_slab_id, None).expect("other slabref returned");
+        assert_eq!(other_sr.channel_count(), 0);
+    }
+    #[test]
+    fn slabref_stored_presence() {
+        let my_slab_id: SlabId;
+
+        let other_slab_id = SlabId::dummy();
+
+        // initialize it
+        {
+            let agent = init_agent(None);
+            let other_sr = agent.assert_slabref(&other_slab_id,
+                                                Some(&vec![SlabPresence { slab_id:  other_slab_id.clone(),
+                                                                          address:  TransportAddress::Blackhole,
+                                                                          liveness: TransportLiveness::Available, }]))
+                                .expect("other slabref returned");
+            assert_eq!(other_sr.channel_count(), 1);
+            my_slab_id = agent.slab_id().clone()
+        }
+
+        // reload it from disk
+        {
+            let agent = init_agent(Some(&my_slab_id));
+            let other_sr = agent.assert_slabref(&other_slab_id, None).expect("other slabref returned");
+
+            // should still have presence
+            assert_eq!(other_sr.channel_count(), 1);
+        }
     }
 }

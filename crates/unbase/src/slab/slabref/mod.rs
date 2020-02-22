@@ -63,6 +63,10 @@ impl SlabRef {
         channels[0].return_address.clone()
     }
 
+    pub fn channel_count(&self) -> usize {
+        self.0.channels.read().unwrap().len()
+    }
+
     pub fn apply_presence(&self, presence_bufs: &Vec<SlabPresenceBufElement>, net: &Network) -> bool {
         // TODO - what about old presence information? Presumably SlabPresence should also be causal, no?
 

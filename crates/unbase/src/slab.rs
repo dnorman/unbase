@@ -86,6 +86,10 @@ impl Deref for SlabId {
 }
 
 impl SlabId {
+    pub fn dummy() -> Self {
+        SlabId(rand::random())
+    }
+
     pub fn short(&self) -> String {
         format!("{}", self.0)
     }

@@ -19,6 +19,7 @@ use unbase::{
 use tracing::debug;
 
 #[unbase_test_util::async_test]
+#[test]
 async fn eventual_basic() {
     let net = Network::create_new_system();
     let simulator = Simulator::new();
