@@ -49,11 +49,17 @@ impl SlabRef {
         &self.0.slab_id
     }
 
+    pub fn id_short(&self) -> String {
+        // TODO first six letters of the slab id
+        format!("{}", self.id())
+    }
+
     #[tracing::instrument]
     pub fn send(&self, from: &SlabRef, memoref: &MemoRef) {
         let channels = self.0.channels.read().unwrap();
         for channel in channels.iter() {
-            println!("TRAFFIC\t({}) {} -> {}", from, memoref, self);
+            println!("TRAFFIC\t\u{001b}[1m[{}]\u{001b}[0m    {} -> \u{001b}[1m[{}]\u{001b}[0m",
+                     from, memoref, self);
             channel.tx.send(from, memoref.clone());
         }
     }
@@ -106,7 +112,7 @@ impl SlabRef {
 }
 impl std::fmt::Display for SlabRef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("SlabRef:{}", &self.id()))
+        f.write_fmt(format_args!("${}", &self.id_short()))
     }
 }
 impl fmt::Debug for SlabRef {

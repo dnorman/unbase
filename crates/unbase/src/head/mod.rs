@@ -10,6 +10,7 @@ use crate::{
         EdgeSet,
         EntityId,
         EntityType,
+        IndexInfo,
         Memo,
         MemoBody,
         MemoId,
@@ -82,15 +83,15 @@ pub struct HeadWithProvenance {
 /// Head takes &SlabHandle on all calls, because it is an agent of storage and referentiality, NOT an enforcer of
 /// consistency
 impl Head {
-    pub fn new_index(slab: &SlabHandle, values: HashMap<String, String>) -> Head {
-        let id = slab.generate_entity_id(EntityType::IndexNode);
+    pub fn new_index(slab: &SlabHandle, info: IndexInfo) -> Head {
+        let id = slab.generate_entity_id(EntityType::IndexNode(info));
 
         slab.new_memo(Some(id),
                       Head::Null,
-                      MemoBody::FullyMaterialized { v: values,
+                      MemoBody::FullyMaterialized { v: HashMap::new(),
                                                     r: RelationSet::empty(),
                                                     e: EdgeSet::empty(),
-                                                    t: EntityType::IndexNode, })
+                                                    t: EntityType::IndexNode(info), })
             .to_head()
     }
 
@@ -270,7 +271,7 @@ impl Head {
         }
     }
 
-    pub fn memo_summary(&self) -> String {
+    pub fn concise_contents(&self) -> String {
         match *self {
             Head::Null => "Null".to_string(),
             Head::Entity { ref head, .. } | Head::Anonymous { ref head, .. } => {
@@ -661,14 +662,14 @@ impl fmt::Debug for Head {
             Head::Anonymous { .. } => {
                 fmt.debug_struct("Head::Anonymous")
                    // .field("memo_refs",  head )
-                   .field("memos", &self.memo_summary())
+                   .field("memos", &self.concise_contents())
                    .finish()
             },
             Head::Entity { ref entity_id, .. } => {
                 fmt.debug_struct("Head::Entity")
                    .field("entity_id", &entity_id)
                    //                    .field("memo_refs",  head )
-                   .field("memo", &self.memo_summary())
+                   .field("memo", &self.concise_contents())
                    .finish()
             },
         }

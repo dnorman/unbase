@@ -114,35 +114,29 @@ impl Memo {
         self.parents.clone()
     }
 
+    pub fn id(&self) -> &MemoId {
+        // TODO - stop storing the actual ID and compute the hash here on demand
+        &self.id
+    }
+
+    pub fn id_short(&self) -> String {
+        // TODO - this should be the first 6 characters of the MemoId hash
+        format!("{}", self.id())
+    }
+
+    pub fn concise_string(&self) -> String {
+        match self.entity_id {
+            Some(e) => format!("{}.{}", e.concise_string(), self.id_short()),
+            None => format!("N.{}", self.id_short()),
+        }
+    }
+
     pub fn get_values(&self) -> Option<(HashMap<String, String>, bool)> {
         match self.body {
             MemoBody::Edit(ref v) => Some((v.clone(), false)),
             MemoBody::FullyMaterialized { ref v, .. } => Some((v.clone(), true)),
             _ => None,
         }
-    }
-
-    pub async fn project_value(&mut self, slab: &SlabHandle, key: &str) -> Result<Option<String>, RetrieveError> {
-        match self.body {
-            MemoBody::Edit(ref e) => {
-                if let Some(v) = e.get(key) {
-                    return Ok(Some(v.to_string()));
-                }
-            },
-            MemoBody::FullyMaterialized { ref v, .. } => {
-                match v.get(key) {
-                    Some(v) => {
-                        return Ok(Some(v.to_string()));
-                    },
-                    None => {
-                        return Ok(None);
-                    },
-                }
-            },
-            _ => {},
-        }
-
-        self.parents.get_value(slab, key).await
     }
 
     pub fn get_relations(&self) -> Option<(RelationSet, bool)> {
@@ -194,43 +188,29 @@ impl Memo {
             return Ok(false);
         }.boxed()
     }
-
-    pub async fn concise_string(&self, slab: &SlabHandle) -> Result<String, RetrieveError> {
-        use self::EntityType::*;
-        match self.entity_id {
-            Some(e) => {
-                match e.etype {
-                    IndexNode => {
-                        let tier = self.project_value(slab, "tier").await?.expect("tier is missing!");
-                        Ok(format!("I{}/{}", tier, self.id))
-                    },
-                    Record => Ok(format!("R{}", self.id)),
-                }
-            },
-            None => Ok("None".to_string()),
-        }
-    }
 }
 
 impl MemoBody {
     pub fn summary(&self) -> String {
-        use MemoBody::*;
-
         match self {
-            SlabPresence { ref p, ref r } => {
+            MemoBody::SlabPresence { ref p, ref r } => {
                 if r.is_some() {
                     format!("SlabPresence({} at {})*", p.slab_id, p.address.to_string())
                 } else {
                     format!("SlabPresence({} at {})", p.slab_id, p.address.to_string())
                 }
             },
-            Relation(ref rel_set) => format!("RelationSet({})", rel_set.to_string()),
-            Edge(ref _edge_set) => format!("EdgeSet"),
-            Edit(ref _e) => format!("Edit"),
-            FullyMaterialized { .. } => format!("FullyMaterialized"),
-            PartiallyMaterialized { .. } => format!("PartiallyMaterialized"),
-            Peering(ref _memo_id, ref _entity_id, ref _peerlist) => format!("Peering"),
-            MemoRequest(ref memo_ids, ref slabref) => format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.id()),
+            MemoBody::Relation(ref rel_set) => format!("RS:{}", rel_set),
+            MemoBody::Edge(ref edge_set) => format!("EG:{}", edge_set.concise_contents()),
+            MemoBody::Edit(ref _e) => format!("ED"),
+            MemoBody::FullyMaterialized { v, r, e, .. } => {
+                format!("FM:{},{},{}", v.iter().map(|(k, v)| format!("{}:{}", k, v)).join(","), r, e)
+            },
+            MemoBody::PartiallyMaterialized { .. } => format!("PM"),
+            MemoBody::Peering(ref _memo_id, ref _entity_id, ref _peerlist) => format!("Peering"),
+            MemoBody::MemoRequest(ref memo_ids, ref slabref) => {
+                format!("MemoRequest({} to {})", memo_ids.iter().join(","), slabref.id())
+            },
         }
     }
 }

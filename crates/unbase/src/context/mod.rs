@@ -363,7 +363,7 @@ impl Context {
         //        }
 
         let apply_head = match mut_head.entity_id() {
-            Some(entity_id @ EntityId { etype: EntityType::IndexNode,
+            Some(entity_id @ EntityId { etype: EntityType::IndexNode(_),
                             .. }) => self.stash.get_head(entity_id),
             _ => panic!("Can only be called for EntityType::IndexNode heads"),
         };

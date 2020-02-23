@@ -218,7 +218,7 @@ impl Stash {
         // happens-before determination may require remote memo retrieval, which is a blocking operation.
 
         match apply_head.entity_id() {
-            Some(EntityId { etype: EntityType::IndexNode,
+            Some(EntityId { etype: EntityType::IndexNode(_),
                             .. }) => {},
             _ => {
                 panic!("Only EntityType::IndexNode may be applied to a context. Attempted to apply {:?}",

@@ -7,15 +7,13 @@ use crate::{
     head::Head,
     slab::{
         EntityId,
+        IndexInfo,
         SlotId,
         MAX_SLOTS,
     },
 };
 
-use std::{
-    collections::HashMap,
-    fmt,
-};
+use std::fmt;
 
 use tracing::debug;
 
@@ -27,10 +25,7 @@ pub struct IndexFixed {
 impl IndexFixed {
     /// Index takes everything with context, because Index is an enforcer of consistency
     pub fn new(context: &Context, depth: u8) -> IndexFixed {
-        let mut debug_info = HashMap::new();
-        debug_info.insert("tier".to_string(), "root".to_string());
-
-        Self { root: Head::new_index(&context.slab, debug_info),
+        Self { root: Head::new_index(&context.slab, IndexInfo { tier: 0 }),
                depth }
     }
 
@@ -85,10 +80,8 @@ impl IndexFixed {
                         tier += 1;
                     },
                     None => {
-                        let mut debug_info = HashMap::new();
-                        debug_info.insert("tier".to_string(), tier.to_string());
-
-                        let next_node = Head::new_index(&context.slab, debug_info);
+                        tier += 1;
+                        let next_node = Head::new_index(&context.slab, IndexInfo { tier });
 
                         // apply the new_node head to the context
                         // TODO POSTMERGE - determine if we can skip this apply_head because we're about to do it for
@@ -100,7 +93,6 @@ impl IndexFixed {
                         context.apply_head(&node).await?;
 
                         node = next_node;
-                        tier += 1;
                     },
                 }
             }

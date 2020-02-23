@@ -398,7 +398,7 @@ impl SlabAgent {
         {
             let mut state = self.state.write().unwrap();
 
-            if let EntityType::IndexNode = entity_id.etype {
+            if let EntityType::IndexNode(_info) = entity_id.etype {
                 // TODO3 - update this to consider popularity of this node, and/or common points of reference with a
                 // given context selective hearing?
 
@@ -568,11 +568,10 @@ impl SlabAgent {
 
         // TODO MERGE - make this traffic diag really slick. should indicate index node tier (payload) first
         // Eg: STORE   (Slab0) <- IN-R/5001
-        println!("TRAFFIC\t({}) <- {:?}-{}",
+        println!("TRAFFIC\t\u{001b}[1m[{}]\u{001b}[0m <- {} \u{001b}[1m[{}]\u{001b}[0m",
                  self.my_ref,
-                 // HACK - The agent should probably not be able to run async code
-                 async_std::task::block_on(memo.concise_string(&self.handle)),
-                 memo_id);
+                 memo.concise_string(),
+                 origin_slabref);
 
         let (memoref, had_memoref) = self.assert_memoref(memo.id, memo.entity_id, peerlist.clone(), Some(memo.clone()));
 
@@ -745,13 +744,25 @@ impl SlabAgent {
                           -> (MemoRef, bool) {
         // TODO MERGE - consolidate this into the storage layer
 
-        println!("STORE  \t({}) <- {:?}-{}",
-                 self.my_ref,
-                 match entity_id {
-                     Some(e) => format!("{}", e),
-                     None => "None".to_string(),
-                 },
-                 memo_id);
+        let contents = match memo {
+            Some(ref memo) => format!("({}) ~ {{{}}}", memo.body.summary(), memo.parents.concise_contents()),
+            None => String::new(),
+        };
+
+        match entity_id {
+            Some(e) => {
+                println!("STORE  \t\u{001b}[1m[{}]\u{001b}[0m <- {}.{}{} ((({})))",
+                         self.my_ref,
+                         e.concise_string(),
+                         memo_id,
+                         contents,
+                         e.id_short());
+            },
+            None => {
+                println!("STORE  \t\u{001b}[1m[{}]\u{001b}[0m <- N.{}{}",
+                         self.my_ref, memo_id, contents)
+            },
+        };
 
         let had_memoref;
         let memoref = match self.state.write().unwrap().memorefs_by_id.entry(memo_id) {

@@ -44,7 +44,7 @@ impl Entity {
         debug!("Entity({}).new()", id);
 
         let head = slab.new_memo(Some(id),
-                                 Head::Null,
+                                 Head::Null, // TODO - add beacon clock reading
                                  MemoBody::FullyMaterialized { v: vals,
                                                                r: RelationSet::empty(),
                                                                e: EdgeSet::empty(),

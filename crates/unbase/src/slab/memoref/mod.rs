@@ -188,8 +188,8 @@ impl MemoRef {
 impl fmt::Display for MemoRef {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.entity_id {
-            Some(e) => write!(f, "{}-{}", e, self.id),
-            None => write!(f, "Anon-{}", self.id),
+            Some(e) => write!(f, "{}.{}", e, self.id),
+            None => write!(f, "N.{}", self.id),
         }
     }
 }

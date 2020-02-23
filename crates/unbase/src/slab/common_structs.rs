@@ -15,10 +15,14 @@ use crate::{
 use itertools::Itertools;
 
 pub const MAX_SLOTS: usize = 256;
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
+pub struct IndexInfo {
+    pub(crate) tier: u8,
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
 pub enum EntityType {
-    IndexNode,
+    IndexNode(IndexInfo),
     Record,
 }
 
@@ -43,22 +47,26 @@ impl EntityId {
     /// Used by the test suite
     pub fn index_test(test_id: u64) -> Self {
         EntityId { id:    test_id.into(),
-                   etype: EntityType::IndexNode, }
+                   etype: EntityType::IndexNode(IndexInfo { tier: 255 }), }
+    }
+
+    pub fn id_short(&self) -> String {
+        // TODO - this should be the first 6 characters of the MemoId hash
+        format!("{}", self.id)
     }
 
     /// Human readable version of the EntityID which denotes whether the entity is an (I)ndex or a (R)ecord type
     pub fn concise_string(&self) -> String {
-        use self::EntityType::*;
         match self.etype {
-            IndexNode => format!("I{}", self.id),
-            Record => format!("R{}", self.id),
+            EntityType::IndexNode(info) => format!("I{}", info.tier),
+            EntityType::Record => format!("R{}", self.id_short()),
         }
     }
 }
 
 impl fmt::Display for EntityId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}-{}", self.etype, self.id)
+        write!(f, "{}", self.concise_string())
     }
 }
 
@@ -185,10 +193,10 @@ impl RelationSet {
         self.0.insert(slot_id, Some(entity_id));
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn concise_string(&self) -> String {
         self.0
             .iter()
-            .map(|(k, v)| format!("{}:{}", k, v.map(|x| x.to_string()).unwrap_or("None".to_string())))
+            .map(|(k, v)| format!("{}:{}", k, v.map(|x| x.to_string()).unwrap_or("NL".to_string())))
             .join(",")
     }
 }
@@ -229,6 +237,24 @@ impl EdgeSet {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn concise_contents(&self) -> String {
+        self.0
+            .iter()
+            .map(|(slot_id, head)| format!("{}:{}", slot_id, head.concise_contents()))
+            .join(",")
+    }
+}
+
+impl fmt::Display for EdgeSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.concise_contents())
+    }
+}
+impl fmt::Display for RelationSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.concise_string())
     }
 }
 
