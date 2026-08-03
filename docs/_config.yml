@@ -15,7 +15,7 @@ google_analytics_id: 'UA-85000878-1'
 navigation: 2
 
 # URL to source code, used in _includes/footer.html
-codeurl: 'https://github.com/unbase/unbase'
+codeurl: 'https://github.com/dnorman/unbase'
 
 # Default categories (in order) to appear in the navigation
 sections: [
